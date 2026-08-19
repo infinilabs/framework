@@ -126,3 +126,33 @@ func AppendFailureTag(ctx *Context, tag string) {
 		*tags = append(*tags, tag)
 	}
 }
+
+// CloneContextKey is the Context key under which the clone processor
+// deposits cloned records; the batch-splitting host materializes them as
+// additional batch members after the sub-chain finishes the original.
+const CloneContextKey = "record_clones"
+
+// AppendClone registers a clone of the current record for the host to
+// materialize (see clone processor). No-op outside a record scope.
+func AppendClone(ctx *Context, rec *event.Event) {
+	if ctx == nil || rec == nil {
+		return
+	}
+	if list, ok := ctx.Get(CloneContextKey).(*[]*event.Event); ok {
+		*list = append(*list, rec)
+	}
+}
+
+// TakeClones returns and clears the pending clones registered in this
+// context (host-side; call after the per-record sub-chain).
+func TakeClones(ctx *Context) []*event.Event {
+	if ctx == nil {
+		return nil
+	}
+	if list, ok := ctx.Get(CloneContextKey).(*[]*event.Event); ok && len(*list) > 0 {
+		out := *list
+		*list = nil
+		return out
+	}
+	return nil
+}
