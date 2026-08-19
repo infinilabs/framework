@@ -169,6 +169,11 @@ func ConnectToManager() error {
 	req.ContentType = "application/json"
 	req.Path = common.REGISTER_API
 	req.Body = util.MustToJSONBytes(registerReq)
+	// Enrollment ticket (one-time registration pass; required when the
+	// server sets configs.server.enrollment.required: true).
+	if et := global.Env().SystemConfig.Configs.EnrollmentToken.Get(); et != "" {
+		req.AddHeader("X-Enrollment-Token", et)
+	}
 
 	server, res, err := submitRequestToManager(&req)
 	if err == nil && server != "" {
