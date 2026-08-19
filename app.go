@@ -35,6 +35,7 @@ import (
 	"os/signal"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -183,6 +184,14 @@ func (app *App) initWithFlags() {
 	flag.IntVar(&app.maxMEM, "mem", -1, "the max size of Memory to use, soft limit in megabyte")
 	flag.StringVar(&app.svcFlag, "service", "", "service management, options: install,uninstall,start,stop")
 	flag.StringVar(&app.svcUser, "service-user", "", "OS user account used to run the service")
+
+	// -e KEY=VALUE (repeatable): environment overrides applied BEFORE the
+	// config loads. Picked up by $[[env.KEY]] template expansion in the
+	// YAML (OS env wins over the YAML env: section), so deployments can
+	// parameterize any templated setting from the command line instead of
+	// editing config files. Example:
+	//   agent -e MANAGED=true -e REMOTE_CONFIG_SERVERS=http://lp:29000
+	flag.Var(&cliEnvOverrides{}, "e", "environment override KEY=VALUE (repeatable, feeds $[[env.KEY]])")
 
 	if debugFlagInitFunc != nil {
 		debugFlagInitFunc()
@@ -621,4 +630,21 @@ func (app *App) Run() {
 	if err != nil {
 		log.Error(err)
 	}
+}
+
+// cliEnvOverrides collects repeatable -e KEY=VALUE flags; Apply sets them
+// into the process environment before configuration loading begins.
+type cliEnvOverrides struct {
+	pairs []string
+}
+
+func (c *cliEnvOverrides) String() string { return strings.Join(c.pairs, " ") }
+
+func (c *cliEnvOverrides) Set(v string) error {
+	idx := strings.Index(v, "=")
+	if idx <= 0 {
+		return fmt.Errorf("-e expects KEY=VALUE, got %q", v)
+	}
+	c.pairs = append(c.pairs, v)
+	return os.Setenv(v[:idx], v[idx+1:])
 }
