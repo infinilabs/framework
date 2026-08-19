@@ -83,7 +83,7 @@ func (cred *Credential) DecodeBasicAuth() (*model.BasicAuth, error) {
 	var dv interface{}
 	dv, err := cred.Decode()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if auth, ok := dv.(model.BasicAuth); ok {
