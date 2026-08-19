@@ -299,6 +299,7 @@ func (h *APIHandler) registerInstance(w http.ResponseWriter, req *http.Request, 
 	// Enrollment ticket: when required, registration without a valid,
 	// unconsumed ticket is rejected before any record is written.
 	enrollmentCtx := orm.NewContextWithParent(req.Context()).DirectAccess()
+	var validTicket *EnrollmentToken
 	if serverConfig.Enrollment.Required {
 		ticket := strings.TrimSpace(req.Header.Get("X-Enrollment-Token"))
 		if ticket == "" {
@@ -309,7 +310,8 @@ func (h *APIHandler) registerInstance(w http.ResponseWriter, req *http.Request, 
 			_ = util.FromJSONBytes(body, &probe)
 			ticket = strings.TrimSpace(probe.EnrollmentToken)
 		}
-		if redeemEnrollmentToken(enrollmentCtx, ticket) == nil {
+		validTicket = validateEnrollmentToken(enrollmentCtx, ticket)
+		if validTicket == nil {
 			log.Warnf("configs server: registration rejected for instance %s (invalid/expired/exhausted enrollment ticket)", instance.ID)
 			h.WriteError(w, "invalid enrollment token", http.StatusForbidden)
 			return
@@ -328,13 +330,14 @@ func (h *APIHandler) registerInstance(w http.ResponseWriter, req *http.Request, 
 	// token (a static token also qualifies — bootstrap admin). A fresh
 	// instance is authenticated by the static gate already.
 	ormCtx := orm.NewContextWithParent(req.Context()).DirectAccess()
-	if loadInstanceToken(ormCtx, instance.ID) != nil {
-		presented := extractBearerToken(req)
-		if !ValidateInstanceToken(ormCtx, instance.ID, presented) &&
-			!validateStaticToken(presented) &&
-			!matchesRegisteredAccessToken(ormCtx, instance.ID, presented) {
+	presentedCred := extractBearerToken(req)
+	hasCredential := loadInstanceToken(ormCtx, instance.ID) != nil || instance.AccessToken != nil
+	if hasCredential {
+		if !matchesManagerToken(ormCtx, instance.ID, presentedCred) &&
+			!matchesRegisteredAccessToken(ormCtx, instance.ID, presentedCred) &&
+			!validateStaticToken(presentedCred) {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="configs"`)
-			h.WriteError(w, "unauthorized: instance token required to re-register", http.StatusUnauthorized)
+			h.WriteError(w, "unauthorized: instance credential required to re-register", http.StatusUnauthorized)
 			return
 		}
 	}
@@ -349,16 +352,23 @@ func (h *APIHandler) registerInstance(w http.ResponseWriter, req *http.Request, 
 	// receives no credentials and no configs until an admin approves it.
 	approved := instance.Status == StatusApproved
 
+	if validTicket != nil && created {
+		// Burn a use only when this registration created the instance;
+		// re-registrations (pending agents retry every cycle) are free.
+		consumeEnrollmentToken(enrollmentCtx, validTicket)
+	}
+
 	resp := util.MapStr{
 		"id":       instance.ID,
 		"approved": approved,
 	}
 	if approved {
-		// Mint (or rotate on re-register) the per-instance token; the
-		// response is the only place the plaintext ever appears.
-		token, err := MintInstanceToken(ormCtx, instance.ID)
+		// Mint the framework-standard manager token (AccessToken via
+		// access_token.CreateAPIToken — standard storage, revocation and
+		// UI); the response is the only place the plaintext ever appears.
+		token, err := mintManagerToken(instance.ID, instance.Name)
 		if err != nil {
-			h.WriteError(w, "mint instance token: "+err.Error(), http.StatusInternalServerError)
+			h.WriteError(w, "mint manager token: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		resp["manager_token"] = token
@@ -433,14 +443,16 @@ func (h *APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, _ htt
 		// pending ones hold no paired credential yet and their sync
 		// carries nothing sensitive (empty config set) — heartbeat
 		// visibility is exactly what pending needs.
-		if presentToken := loadInstanceToken(orm.NewContext().DirectAccess(), obj.Client.ID); presentToken != nil {
-			presented := extractBearerToken(req)
-			if !ValidateInstanceToken(orm.NewContext().DirectAccess(), obj.Client.ID, presented) &&
-				!matchesRegisteredAccessToken(orm.NewContext().DirectAccess(), obj.Client.ID, presented) {
-				w.Header().Set("WWW-Authenticate", `Bearer realm="configs"`)
-				h.WriteError(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
+		// Accepted credentials: the framework-standard manager token
+		// (minted at approve/register through access_token.CreateAPIToken)
+		// or the agent's registered self API token (pre-exchange).
+		ormAuthCtx := orm.NewContext().DirectAccess()
+		presented := extractBearerToken(req)
+		if !matchesManagerToken(ormAuthCtx, obj.Client.ID, presented) &&
+			!matchesRegisteredAccessToken(ormAuthCtx, obj.Client.ID, presented) {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="configs"`)
+			h.WriteError(w, "unauthorized", http.StatusUnauthorized)
+			return
 		}
 	}
 
@@ -633,9 +645,9 @@ func (h *APIHandler) approveInstanceHandler(w http.ResponseWriter, req *http.Req
 		log.Infof("configs server: instance %s (%s) approved", id, inst.Name)
 	}
 
-	token, err := MintInstanceToken(ctx, id)
+	token, err := mintManagerToken(id, inst.Name)
 	if err != nil {
-		h.WriteError(w, "mint instance token: "+err.Error(), http.StatusInternalServerError)
+		h.WriteError(w, "mint manager token: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	h.WriteJSON(w, util.MapStr{"id": id, "status": StatusApproved, "manager_token": token}, http.StatusOK)

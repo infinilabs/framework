@@ -14,6 +14,7 @@ import (
 
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
+	log "infini.sh/framework/core/log"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 )
@@ -93,10 +94,10 @@ func mintEnrollmentToken(name string, maxUses int, ttl time.Duration, createdBy 
 	return rec, plaintext, nil
 }
 
-// redeemEnrollmentToken validates and consumes a presented enrollment
-// token. Returns nil when the ticket is invalid (unknown, revoked,
-// expired, or exhausted) — the caller rejects the registration.
-func redeemEnrollmentToken(ctx *orm.Context, plaintext string) *EnrollmentToken {
+// validateEnrollmentToken checks a presented enrollment ticket WITHOUT
+// consuming it. Returns the record when valid (known, unrevoked,
+// unexpired, uses remaining), nil otherwise.
+func validateEnrollmentToken(ctx *orm.Context, plaintext string) *EnrollmentToken {
 	if plaintext == "" || !strings.HasPrefix(plaintext, enrollmentTokenPrefix) {
 		return nil
 	}
@@ -119,11 +120,21 @@ func redeemEnrollmentToken(ctx *orm.Context, plaintext string) *EnrollmentToken 
 	if !t.ExpiresAt.IsZero() && time.Now().UTC().After(t.ExpiresAt) {
 		return nil
 	}
+	return t
+}
+
+// consumeEnrollmentToken increments the ticket's use counter. Called only
+// when a registration actually CREATES a new instance — re-registration
+// by a known instance must not burn uses (pending agents re-register
+// every sync cycle while awaiting approval).
+func consumeEnrollmentToken(ctx *orm.Context, t *EnrollmentToken) {
+	if t == nil {
+		return
+	}
 	t.UsedCount++
 	if err := orm.Save(ctx, t); err != nil {
-		return nil
+		log.Warnf("configs server: failed to consume enrollment token %s: %v", t.ID, err)
 	}
-	return t
 }
 
 func decodeEnrollmentHits(res *orm.SearchResult) ([]EnrollmentToken, int64, error) {

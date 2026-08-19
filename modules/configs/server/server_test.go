@@ -56,8 +56,8 @@ func TestDiffConfigs_AllStates(t *testing.T) {
 
 	t.Run("client-only config → deleted", func(t *testing.T) {
 		client := map[string]common.ConfigFile{
-			"a.yml": cfg("a.yml", 1),
-			"b.yml": cfg("b.yml", 2),
+			"a.yml":    cfg("a.yml", 1),
+			"b.yml":    cfg("b.yml", 2),
 			"gone.yml": cfg("gone.yml", 1),
 		}
 		resp := diffConfigs(assigned, client)
@@ -73,8 +73,8 @@ func TestDiffConfigs_AllStates(t *testing.T) {
 		localOnly := cfg("local.yml", 1)
 		localOnly.Managed = false
 		client := map[string]common.ConfigFile{
-			"a.yml":    cfg("a.yml", 1),
-			"b.yml":    cfg("b.yml", 2),
+			"a.yml":     cfg("a.yml", 1),
+			"b.yml":     cfg("b.yml", 2),
 			"local.yml": localOnly,
 		}
 		resp := diffConfigs(assigned, client)
