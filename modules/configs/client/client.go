@@ -300,11 +300,15 @@ func claimUnauthorizedRegisterRetrySlot() bool {
 }
 
 func recoverManagedRegistrationWithBootstrap() error {
-	if _, err := restoreManagedBootstrapAccessTokenFunc(); err != nil {
-		return err
-	}
 	if err := clearManagedRegistrationStateFunc(); err != nil {
 		return err
+	}
+	// Bootstrap token is OPTIONAL: admission-mode servers approve manually
+	// and issue credentials on approve; retrying registration plainly is
+	// the correct recovery there. Only static-token servers need the
+	// bootstrap restore, and its absence is not an error.
+	if _, err := restoreManagedBootstrapAccessTokenFunc(); err != nil {
+		log.Debugf("no bootstrap token configured (admission-mode server?): %v", err)
 	}
 	return reconnectToManagerFunc()
 }
