@@ -53,27 +53,40 @@ type Envelope struct {
 //
 // It tolerates both the agent LogEvent envelope and a bare JSON map
 // (which is then treated as the record's Attributes wholesale).
+//
+// The envelope's flat metadata is the record's stable Resource attribute
+// collection and is stored solely under Meta["resource"] — re-encoding
+// via EncodeEnvelope then restores the original wire shape.
 func DecodeEnvelope(data []byte) (*event.Event, error) {
 	var env Envelope
 	if err := json.Unmarshal(data, &env); err != nil {
 		return nil, err
 	}
 
-	e := &event.Event{Agent: env.Agent}
-	if e.Fields == nil {
-		e.Fields = util.MapStr{}
+	// Bare JSON map fallback: a payload matching none of the envelope
+	// fields is treated as the record's Attributes wholesale.
+	if env.Agent == nil && len(env.Meta) == 0 && len(env.Fields) == 0 && env.Timestamp == "" {
+		var raw util.MapStr
+		if err := json.Unmarshal(data, &raw); err == nil && len(raw) > 0 {
+			env.Fields = raw
+		}
 	}
+
+	e := &event.Event{Agent: env.Agent}
 	e.Fields = env.Fields
 	if e.Fields == nil {
 		e.Fields = util.MapStr{}
 	}
 
-	// metadata holds the free-form/stable attributes; expose the otel
-	// Resource collection under Meta["resource"] for model symmetry.
+	// metadata is the stable Resource attribute collection. A metadata
+	// map that already carries an explicit resource key (produced by
+	// EncodeEnvelope from a richer event.Meta) is kept as-is; otherwise
+	// the flat map becomes the resource collection.
 	e.Meta = util.MapStr{}
 	if len(env.Meta) > 0 {
-		e.Meta = env.Meta.Clone()
-		if _, ok := e.Meta[MetaResourceKey]; !ok {
+		if _, ok := env.Meta[MetaResourceKey]; ok {
+			e.Meta = env.Meta.Clone()
+		} else {
 			e.Meta[MetaResourceKey] = env.Meta.Clone()
 		}
 	}
@@ -96,7 +109,9 @@ func EncodeEnvelope(e *event.Event) ([]byte, error) {
 		env.Fields = e.Fields
 	}
 	if len(e.Meta) > 0 {
-		if res, ok := e.Meta[MetaResourceKey].(util.MapStr); ok && len(e.Meta) == 1 {
+		// A Meta holding only the resource collection flattens back to
+		// the agent's wire shape (DecodeEnvelope's inverse).
+		if res, ok := resourceMap(e.Meta); ok && len(e.Meta) == 1 {
 			env.Meta = res
 		} else {
 			env.Meta = e.Meta.Clone()

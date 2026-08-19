@@ -105,6 +105,13 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 		return nil
 	}
 
+	// The record convention is only valid inside the sub-chain; save and
+	// restore the previous value so the batch's last record does not leak
+	// to processors downstream of for_each (and nested for_each keeps
+	// working).
+	previous := c.Get(pipeline.RecordContextKey)
+	defer c.Set(pipeline.RecordContextKey, previous)
+
 	for i := range msgs {
 		if c.IsCanceled() || !c.ShouldContinue() {
 			break
