@@ -263,11 +263,55 @@ func RegisterProcessorPlugin(name string, constructor ProcessorConstructor) {
 // discovery API (see modules/pipeline) can render configuration forms.
 var processorMetadata = map[string]map[string]FilterProperty{}
 
+// processorCategories carries the domain/category of processors registered
+// via RegisterDomainProcessor (e.g. "event", "parsing", "connector"), so the
+// discovery API can group the catalog and consumers can namespace lookups.
+// Processors registered without a category default to "general".
+var processorCategories = map[string]string{}
+
 // RegisterProcessorPluginWithConfigMetadata registers a processor and
 // records the schema of its config struct for discovery.
 func RegisterProcessorPluginWithConfigMetadata(name string, constructor ProcessorConstructor, configStruct interface{}) {
 	RegisterProcessorPlugin(name, constructor)
 	processorMetadata[name] = ExtractFilterMetadata(configStruct)
+}
+
+// Domain-qualified processor registration.
+//
+// Processors keep their bare name as the YAML key (full backward
+// compatibility with deployed configs), but gain a category for catalog
+// grouping and namespaced lookup. The optional "domain:name" syntax in
+// processor configs resolves to the same constructor as the bare name;
+// registration conflicts are still detected on the bare name, so a
+// same-named processor from a different domain must pick a distinct
+// bare name.
+
+// RegisterDomainProcessor registers a processor under its bare name with
+// a category, plus the "category:name" alias for explicit YAML lookups.
+func RegisterDomainProcessor(category, name string, constructor ProcessorConstructor) {
+	RegisterProcessorPlugin(name, constructor)
+	if category != "" {
+		processorCategories[name] = category
+		// category-qualified alias (distinct registry entry, same constructor)
+		_ = registry.RegisterProcessor(category+":"+name, constructor)
+	}
+}
+
+// RegisterDomainProcessorWithConfigMetadata is RegisterDomainProcessor
+// plus config-schema extraction for the discovery API.
+func RegisterDomainProcessorWithConfigMetadata(category, name string, constructor ProcessorConstructor, configStruct interface{}) {
+	RegisterDomainProcessor(category, name, constructor)
+	processorMetadata[name] = ExtractFilterMetadata(configStruct)
+	processorMetadata[category+":"+name] = processorMetadata[name]
+}
+
+// ProcessorCategory returns the registered category of a processor
+// ("general" when none was declared).
+func ProcessorCategory(name string) string {
+	if c, ok := processorCategories[name]; ok {
+		return c
+	}
+	return "general"
 }
 
 // GetProcessorMetadata returns {name: {properties}} for every registered
@@ -278,9 +322,33 @@ func GetProcessorMetadata() util.MapStr {
 		x, _ := processorMetadata[name]
 		result[name] = util.MapStr{
 			"properties": x,
+			"category":   ProcessorCategory(name),
 		}
 	}
 	return result
+}
+
+// GetProcessorCatalog groups the processor registry by category for
+// designer UIs: {category: {name: {properties, category}}}. Bare names
+// only — the domain-qualified aliases are internal resolution detail.
+func GetProcessorCatalog() util.MapStr {
+	grouped := util.MapStr{}
+	for name := range registry.ProcessorConstructors() {
+		if strings.Contains(name, ":") {
+			continue // qualified alias, not a catalog entry
+		}
+		cat := ProcessorCategory(name)
+		if grouped[cat] == nil {
+			grouped[cat] = util.MapStr{}
+		}
+		catMap := grouped[cat].(util.MapStr)
+		x, _ := processorMetadata[name]
+		catMap[name] = util.MapStr{
+			"properties": x,
+			"category":   cat,
+		}
+	}
+	return grouped
 }
 
 func RegisterFilterPlugin(name string, constructor FilterConstructor) {

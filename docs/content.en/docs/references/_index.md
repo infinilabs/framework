@@ -14,6 +14,7 @@ Comprehensive reference documentation for the INFINI Framework's core systems an
 - [Modules]({{< relref "modules" >}}) — Module lifecycle system for building and registering framework extensions
 - [Pipeline & Processors]({{< relref "pipeline" >}}) — Data processing pipelines with conditional logic and custom processor development
 - [Task Scheduling]({{< relref "task" >}}) — Interval-based, cron-based, and transient task execution
+- [Pipeline Record Processing]({{< relref "pipeline_record" >}}) — The record-processing convention: batch splitting, pluggable payload codecs, failure strategies, and batch-aware processors
 - [Queue]({{< relref "queue" >}}) — Pluggable message queue abstraction with disk, memory, Kafka, and Redis backends
 - [Key-Value Store]({{< relref "kv" >}}) — Pluggable KV storage with Badger, Elasticsearch, and file-based backends
 - [Statistics]({{< relref "stats" >}}) — Metrics collection with counters, gauges, timings, and StatsD integration

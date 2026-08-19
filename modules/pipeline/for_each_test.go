@@ -34,6 +34,24 @@ func init() {
 	pipeline.RegisterProcessorPlugin("test_upper", func(*config.Config) (pipeline.Processor, error) { return upperCaser{}, nil })
 }
 
+// The record convention is only valid inside the sub-chain: after Process
+// returns, the shared context must not hand out the batch's last record to
+// downstream processors.
+func TestForEach_RecordClearedAfterProcess(t *testing.T) {
+	body := `{"payload":{"message":"x"},"timestamp":"2026-08-18T10:00:00Z"}`
+	p := buildForEach(t, nil)
+	ctx := &pipeline.Context{Context: t.Context()}
+	msgs := []queue.Message{{Data: []byte(body), Size: len(body), Offset: queue.AcquireOffset(0, 1)}}
+	ctx.Set(param.ParaKey("messages"), msgs)
+
+	if err := p.Process(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if rec, ok := pipeline.CurrentRecord(ctx); ok {
+		t.Fatalf("record leaked out of for_each: %v", rec)
+	}
+}
+
 func buildForEach(t *testing.T, extra map[string]interface{}) *ForEachProcessor {
 	t.Helper()
 	cfgMap := util.MapStr{
@@ -106,24 +124,6 @@ func TestForEach_EmptyBatchNoop(t *testing.T) {
 	ctx := &pipeline.Context{Context: t.Context()} // no messages key
 	if err := p.Process(ctx); err != nil {
 		t.Fatal(err)
-	}
-}
-
-// The record convention is only valid inside the sub-chain: after Process
-// returns, the shared context must not hand out the batch's last record to
-// downstream processors.
-func TestForEach_RecordClearedAfterProcess(t *testing.T) {
-	body := `{"payload":{"message":"x"},"timestamp":"2026-08-18T10:00:00Z"}`
-	p := buildForEach(t, nil)
-	ctx := &pipeline.Context{Context: t.Context()}
-	msgs := []queue.Message{{Data: []byte(body), Size: len(body), Offset: queue.AcquireOffset(0, 1)}}
-	ctx.Set(param.ParaKey("messages"), msgs)
-
-	if err := p.Process(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if rec, ok := pipeline.CurrentRecord(ctx); ok {
-		t.Fatalf("record leaked out of for_each: %v", rec)
 	}
 }
 
