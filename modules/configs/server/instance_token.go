@@ -168,7 +168,7 @@ func (h *APIHandler) exchangeTokenHandler(w http.ResponseWriter, req *http.Reque
 		return
 	}
 	h.WriteJSON(w, util.MapStr{
-		"manager_token":  token,
-		"grace_seconds":  int(rotationGrace.Seconds()),
+		"manager_token": token,
+		"grace_seconds": int(rotationGrace.Seconds()),
 	}, http.StatusOK)
 }
