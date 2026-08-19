@@ -32,6 +32,7 @@ Comprehensive reference documentation for the INFINI Framework's core systems an
 ## Operations
 
 - [HTTP Client]({{< relref "http_client" >}}) — HTTP client configuration with proxy, TLS, and connection management
+- [Reverse Websocket Channel]({{< relref "websocket_reverse" >}}) — Control-plane-to-agent HTTP proxying over agent-initiated websockets (NAT traversal without inbound ports)
 - [Service Management]({{< relref "service" >}}) — Install, start, stop, and uninstall services, including run-as-user setup
 - [Keystore]({{< relref "keystore" >}}) — Secure storage for sensitive configuration values
 - [Makefile]({{< relref "makefile" >}}) — Build system commands and variables
