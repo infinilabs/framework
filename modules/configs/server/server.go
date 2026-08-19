@@ -85,11 +85,20 @@ const (
 	LabelRegistered = "managed_registered"
 )
 
+// Instance admission states (Instance.Status).
+const (
+	StatusPending  = "pending"  // registered, awaiting admin approval
+	StatusApproved = "approved" // admitted; full sync + credentials
+)
+
 // AllInstancesID assigns a ManagedConfig to every syncing instance.
 const AllInstancesID = "*"
 
 // instanceTokenExchangeAPI rotates an instance's manager token.
 const instanceTokenExchangeAPI = "/instance/_exchange_token"
+
+// instanceApproveAPI admits a pending instance (management action).
+const instanceApproveAPI = "/instance/:id/_approve"
 
 type APIHandler struct {
 	api.Handler
@@ -126,10 +135,14 @@ func Setup() {
 	api.HandleAPIMethod(api.POST, common.REGISTER_API, registerGate(handler.registerInstance))
 	api.HandleAPIMethod(api.POST, common.SYNC_API, gate(handler.syncConfigs))
 	api.HandleAPIMethod(api.POST, instanceTokenExchangeAPI, gate(handler.exchangeTokenHandler))
+	// Admission: management UI approves pending instances. The gate admits
+	// admins (static token); the handler mints the instance credential.
+	api.HandleAPIMethod(api.POST, instanceApproveAPI, gate(handler.approveInstanceHandler))
 
 	api.HandleUIMethod(api.POST, common.REGISTER_API, registerGate(handler.registerInstance))
 	api.HandleUIMethod(api.POST, common.SYNC_API, gate(handler.syncConfigs))
 	api.HandleUIMethod(api.POST, instanceTokenExchangeAPI, gate(handler.exchangeTokenHandler))
+	api.HandleUIMethod(api.POST, instanceApproveAPI, gate(handler.approveInstanceHandler))
 
 	if len(cfg.Auth.Tokens) > 0 {
 		log.Infof("configs server ready: %s + %s (bearer token auth, %d token(s) accepted)", common.REGISTER_API, common.SYNC_API, len(cfg.Auth.Tokens))
@@ -261,15 +274,24 @@ func (h *APIHandler) registerInstance(w http.ResponseWriter, req *http.Request, 
 		return
 	}
 
-	// Mint (or rotate on re-register) the per-instance token; the response
-	// is the only place the plaintext ever appears.
-	token, err := MintInstanceToken(ormCtx, instance.ID)
-	if err != nil {
-		h.WriteError(w, "mint instance token: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
+	// Admission: a PENDING instance is visible in the management UI but
+	// receives no credentials and no configs until an admin approves it.
+	approved := instance.Status == StatusApproved
 
-	resp := util.MapStr{"id": instance.ID, "manager_token": token}
+	resp := util.MapStr{
+		"id":       instance.ID,
+		"approved": approved,
+	}
+	if approved {
+		// Mint (or rotate on re-register) the per-instance token; the
+		// response is the only place the plaintext ever appears.
+		token, err := MintInstanceToken(ormCtx, instance.ID)
+		if err != nil {
+			h.WriteError(w, "mint instance token: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		resp["manager_token"] = token
+	}
 	if !created {
 		resp["exists"] = true // the framework client treats "exists" as success
 	} else {
@@ -297,6 +319,9 @@ func upsertInstance(instance *model.Instance) (bool, error) {
 	}
 	instance.Labels[LabelRegistered] = now
 	instance.Labels[LabelLastSyncAt] = now
+	if instance.Status == "" {
+		instance.Status = StatusPending
+	}
 
 	if exists {
 		// keep server-side timestamps; refresh the self-description
@@ -348,6 +373,12 @@ func (h *APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, _ htt
 	}
 
 	assigned := loadAssignedConfigs(obj.Client.ID)
+	if loadInstanceStatus(orm.NewContext().DirectAccess(), obj.Client.ID) != StatusApproved {
+		// Not approved yet (or status unknown): heartbeat counts, configs
+		// do not flow. The client keeps re-registering and will pick up
+		// approval on the next register/sync cycle.
+		assigned = nil
+	}
 
 	// Fast path: identical hash and no forced sync → nothing changed.
 	serverHash := ConfigsHash(assigned)
@@ -480,4 +511,55 @@ func matchesRegisteredAccessToken(ctx *orm.Context, instanceID, presented string
 		return false
 	}
 	return subtle.ConstantTimeCompare([]byte(presented), []byte(want)) == 1
+}
+
+// loadInstanceStatus returns the admission status of an instance ("" when
+// unknown).
+func loadInstanceStatus(ctx *orm.Context, instanceID string) string {
+	inst := model.Instance{}
+	inst.ID = instanceID
+	exists, err := orm.GetV2(ctx, &inst)
+	if err != nil || !exists {
+		return ""
+	}
+	return inst.Status
+}
+
+// approveInstanceHandler — POST /instance/:id/_approve
+//
+// Management action: flip a pending instance to approved and mint its
+// per-instance token. The instance receives the token on its next
+// register (the framework client re-registers while unapproved) or
+// exchange call.
+func (h *APIHandler) approveInstanceHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	id := ps.ByName("id")
+	ctx := orm.NewContextWithParent(req.Context()).DirectAccess()
+
+	inst := model.Instance{}
+	inst.ID = id
+	exists, err := orm.GetV2(ctx, &inst)
+	if err != nil && !isNotFound(err) {
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err != nil || !exists {
+		h.WriteOpRecordNotFoundJSON(w, id)
+		return
+	}
+
+	if inst.Status != StatusApproved {
+		inst.Status = StatusApproved
+		if err := orm.Save(ctx, &inst); err != nil {
+			h.WriteError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		log.Infof("configs server: instance %s (%s) approved", id, inst.Name)
+	}
+
+	token, err := MintInstanceToken(ctx, id)
+	if err != nil {
+		h.WriteError(w, "mint instance token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	h.WriteJSON(w, util.MapStr{"id": id, "status": StatusApproved, "manager_token": token}, http.StatusOK)
 }
