@@ -102,7 +102,11 @@ type ResponseMessage struct {
     PeerID    string
     Chunk     string        // base64-encoded body chunk
     Done      bool          // final frame
-    Status    int           // HTTP status (on Done)
+    Status    int           // HTTP status (on Done; 0 is not valid —
+                            // a Done frame without Status is only legal with Error)
+    Error     string        // execution failure (on Done): the agent could not
+                            // produce an HTTP response at all; mutually exclusive
+                            // with Status
 }
 ```
 
@@ -118,6 +122,8 @@ type ResponseMessage struct {
 | `ParseResponsePayload(s)` | CP | Parse a RESPONSE body |
 | `msg.SetBody(b)` / `msg.BodyBytes()` | both | Body encode/decode |
 | `msg.NormalizedHeaders()` | agent | Canonical header handling |
+| `WriteChunkedResponse(write, id, peer, status, body, chunkBytes)` | agent → CP | Stream a response back; rejects non-HTTP status codes (<100 or >599) |
+| `WriteFailureResponse(write, id, peer, err)` | agent → CP | Terminate the stream when the request could not be executed at all (no HTTP status exists) |
 
 ### Constants
 
@@ -188,6 +194,16 @@ manager.HandleResponsePayload(frameBody) // assembles chunks, enforces the cap
 | `ErrNotConnected` | No active session for the peer | ✅ same |
 | handshake mismatch | HELLO did not match a pending (sessionID, peerID) | ❌ configuration error |
 | response exceeds `MaxResponseBytes` | Agent streamed more than the cap | ❌ request fails |
+| agent execution failure | Done frame carries `Error` — the agent never produced an HTTP response | ❌ request fails with the agent's error |
+| Done frame with neither `Status` nor `Error` | Agent-side protocol violation | ❌ request fails loudly (never silently treated as 200) |
+
+A `Done` frame only means "the response stream ends here" — success or failure
+is expressed exclusively by `Status` (a real HTTP status from the locally
+executed request) or `Error` (no HTTP response exists). The manager rejects a
+bare `Done` with neither field rather than defaulting to 200, so agent-side
+bugs surface immediately instead of masquerading as successful empty
+responses. Agent implementations should always terminate via
+`WriteChunkedResponse` (which validates the status) or `WriteFailureResponse`.
 
 ## Security Model
 

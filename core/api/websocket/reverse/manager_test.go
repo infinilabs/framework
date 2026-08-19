@@ -1,6 +1,7 @@
 package reverse
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -69,5 +70,57 @@ func TestSessionManagerDisconnectFailsPendingRequest(t *testing.T) {
 	_, err := manager.ProxyRequest("peer-1", &util.Request{Method: http.MethodGet, Path: "/stats"}, nil, send, nil)
 	if !IsRecoverableError(err) {
 		t.Fatalf("expected recoverable disconnect error, got %v", err)
+	}
+}
+
+// A Done frame carrying Error means the agent could not execute the request
+// at all; the call must fail with the agent's error and must not be retried.
+func TestSessionManagerExecutionFailure(t *testing.T) {
+	manager := NewSessionManager(ManagerOptions{})
+	manager.RegisterPendingSession("session-1", "peer-1")
+	if err := manager.ActivateSession("session-1", "peer-1"); err != nil {
+		t.Fatalf("activate session: %v", err)
+	}
+
+	send := func(sessionID, payload string) error {
+		msg, err := ParseRequestPayload(strings.TrimPrefix(payload, RequestCommand+" "))
+		if err != nil {
+			t.Fatalf("parse request payload: %v", err)
+		}
+		return WriteFailureResponse(func(responsePayload string) error {
+			return manager.HandleResponsePayload(strings.TrimPrefix(responsePayload, ResponseCommand+" "))
+		}, msg.RequestID, msg.PeerID, errors.New("local handler blew up"))
+	}
+
+	_, err := manager.ProxyRequest("peer-1", &util.Request{Method: http.MethodGet, Path: "/stats"}, nil, send, nil)
+	if err == nil || !strings.Contains(err.Error(), "local handler blew up") {
+		t.Fatalf("expected execution failure, got %v", err)
+	}
+	if IsRecoverableError(err) {
+		t.Fatal("execution failure must not be recoverable")
+	}
+}
+
+// A Done frame with neither Status nor Error is an agent-side protocol
+// violation and must fail loudly instead of defaulting to 200.
+func TestSessionManagerRejectsDoneWithoutStatus(t *testing.T) {
+	manager := NewSessionManager(ManagerOptions{})
+	manager.RegisterPendingSession("session-1", "peer-1")
+	if err := manager.ActivateSession("session-1", "peer-1"); err != nil {
+		t.Fatalf("activate session: %v", err)
+	}
+
+	send := func(sessionID, payload string) error {
+		msg, err := ParseRequestPayload(strings.TrimPrefix(payload, RequestCommand+" "))
+		if err != nil {
+			t.Fatalf("parse request payload: %v", err)
+		}
+		frame := FormatResponseCommand(ResponseMessage{RequestID: msg.RequestID, PeerID: msg.PeerID, Done: true})
+		return manager.HandleResponsePayload(strings.TrimPrefix(frame, ResponseCommand+" "))
+	}
+
+	_, err := manager.ProxyRequest("peer-1", &util.Request{Method: http.MethodGet, Path: "/stats"}, nil, send, nil)
+	if err == nil || !strings.Contains(err.Error(), "neither status nor error") {
+		t.Fatalf("expected missing status error, got %v", err)
 	}
 }

@@ -1,7 +1,9 @@
 package reverse
 
 import (
+	"errors"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -39,5 +41,45 @@ func TestRequestMessageApplyHeaders(t *testing.T) {
 	}
 	if req.Header.Get("X-Test") != "value" {
 		t.Fatalf("unexpected x-test header: %s", req.Header.Get("X-Test"))
+	}
+}
+
+func TestWriteChunkedResponseRejectsInvalidStatus(t *testing.T) {
+	write := func(payload string) error {
+		t.Fatal("no frame should be written for an invalid status")
+		return nil
+	}
+	if err := WriteChunkedResponse(write, "req-1", "peer-1", 0, []byte("body"), DefaultResponseChunkBytes); err == nil {
+		t.Fatal("expected error for zero status")
+	}
+	if err := WriteChunkedResponse(write, "req-1", "peer-1", 99, []byte("body"), DefaultResponseChunkBytes); err == nil {
+		t.Fatal("expected error for out-of-range status")
+	}
+	if err := WriteChunkedResponse(write, "req-1", "peer-1", 600, []byte("body"), DefaultResponseChunkBytes); err == nil {
+		t.Fatal("expected error for out-of-range status")
+	}
+}
+
+func TestWriteFailureResponse(t *testing.T) {
+	var frames []string
+	err := WriteFailureResponse(func(payload string) error {
+		frames = append(frames, payload)
+		return nil
+	}, "req-1", "peer-1", errors.New("boom"))
+	if err != nil {
+		t.Fatalf("write failure response: %v", err)
+	}
+	if len(frames) != 1 {
+		t.Fatalf("expected exactly one frame, got %d", len(frames))
+	}
+	if !strings.HasPrefix(frames[0], ResponseCommand+" ") {
+		t.Fatalf("unexpected payload: %s", frames[0])
+	}
+	msg, err := ParseResponsePayload(strings.TrimPrefix(frames[0], ResponseCommand+" "))
+	if err != nil {
+		t.Fatalf("parse response payload: %v", err)
+	}
+	if !msg.Done || msg.Error != "boom" || msg.Status != 0 || msg.Chunk != "" {
+		t.Fatalf("unexpected failure frame: %+v", msg)
 	}
 }

@@ -283,11 +283,15 @@ func (m *SessionManager) acceptResponse(msg ResponseMessage) {
 	}
 
 	if msg.Done {
-		status := msg.Status
-		if status == 0 {
-			status = http.StatusOK
+		if msg.Error != "" {
+			m.completePendingLocked(msg.RequestID, pending, 0, fmt.Errorf("reverse peer failed to execute request: %s", msg.Error))
+			return
 		}
-		m.completePendingLocked(msg.RequestID, pending, status, nil)
+		if msg.Status == 0 {
+			m.completePendingLocked(msg.RequestID, pending, 0, fmt.Errorf("malformed reverse response: done frame carries neither status nor error"))
+			return
+		}
+		m.completePendingLocked(msg.RequestID, pending, msg.Status, nil)
 	}
 }
 

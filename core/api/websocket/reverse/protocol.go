@@ -2,6 +2,7 @@ package reverse
 
 import (
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -35,8 +36,15 @@ type ResponseMessage struct {
 	RequestID string `json:"request_id"`
 	PeerID    string `json:"instance_id"`
 	Chunk     string `json:"chunk,omitempty"`
-	Status    int    `json:"status,omitempty"`
-	Done      bool   `json:"done,omitempty"`
+	// Status is the HTTP status of the locally executed request, set on the
+	// Done frame. 0 is not a valid HTTP status (valid range is 100-599);
+	// a Done frame without Status is only legal together with Error.
+	Status int `json:"status,omitempty"`
+	// Error reports an execution failure on the Done frame: the agent could
+	// not produce an HTTP response at all, so there is no status to report.
+	// Mutually exclusive with Status.
+	Error string `json:"error,omitempty"`
+	Done  bool   `json:"done,omitempty"`
 }
 
 func ParseHelloPayload(payload string) (HelloMessage, error) {
@@ -133,7 +141,14 @@ func (m ResponseMessage) ChunkBytes() ([]byte, error) {
 	return base64.StdEncoding.DecodeString(m.Chunk)
 }
 
+// WriteChunkedResponse streams body back to the control plane in chunkBytes-sized
+// base64 frames, followed by a final Done frame carrying status. status must be
+// a real HTTP status code; if the request could not be executed at all, use
+// WriteFailureResponse instead.
 func WriteChunkedResponse(write func(payload string) error, requestID, peerID string, status int, body []byte, chunkBytes int) error {
+	if status < 100 || status > 599 {
+		return fmt.Errorf("status must be a valid HTTP status code (100-599), got %d", status)
+	}
 	if chunkBytes <= 0 {
 		chunkBytes = DefaultResponseChunkBytes
 	}
@@ -159,4 +174,19 @@ func WriteChunkedResponse(write func(payload string) error, requestID, peerID st
 		Done:      true,
 	}
 	return write(FormatResponseCommand(done))
+}
+
+// WriteFailureResponse terminates the response stream for requestID with an
+// execution failure: the agent could not produce an HTTP response at all, so
+// there is no status code to report.
+func WriteFailureResponse(write func(payload string) error, requestID, peerID string, cause error) error {
+	msg := ResponseMessage{
+		RequestID: requestID,
+		PeerID:    peerID,
+		Done:      true,
+	}
+	if cause != nil {
+		msg.Error = cause.Error()
+	}
+	return write(FormatResponseCommand(msg))
 }
