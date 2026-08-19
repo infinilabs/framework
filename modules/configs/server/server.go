@@ -329,8 +329,13 @@ func (h *APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, _ htt
 	// instances that hold per-instance tokens must be checked against them —
 	// a revoked static token must not keep a registered instance alive, and
 	// conversely a valid instance token must pass even if statics rotate.
+	// Accepted credentials: the minted InstanceToken (Bearer, from the
+	// register/exchange response) OR the agent's registered self API token
+	// (X-API-Token — what the framework client sends before exchange).
 	if presentToken := loadInstanceToken(orm.NewContext().DirectAccess(), obj.Client.ID); presentToken != nil {
-		if !ValidateInstanceToken(orm.NewContext().DirectAccess(), obj.Client.ID, extractBearerToken(req)) {
+		presented := extractBearerToken(req)
+		if !ValidateInstanceToken(orm.NewContext().DirectAccess(), obj.Client.ID, presented) &&
+			!matchesRegisteredAccessToken(orm.NewContext().DirectAccess(), obj.Client.ID, presented) {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="configs"`)
 			h.WriteError(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -456,4 +461,23 @@ func readBody(req *http.Request) ([]byte, error) {
 // ErrNotFound / elastic's ErrNotFound), which upsert treats as "create".
 func isNotFound(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "not found")
+}
+
+// matchesRegisteredAccessToken constant-time compares the presented token
+// with the instance's registered self API token (Instance.AccessToken).
+func matchesRegisteredAccessToken(ctx *orm.Context, instanceID, presented string) bool {
+	if presented == "" {
+		return false
+	}
+	inst := model.Instance{}
+	inst.ID = instanceID
+	exists, err := orm.GetV2(ctx, &inst)
+	if err != nil || !exists || inst.AccessToken == nil {
+		return false
+	}
+	want := strings.TrimSpace(inst.AccessToken.Value)
+	if want == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(presented), []byte(want)) == 1
 }
