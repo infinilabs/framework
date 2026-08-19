@@ -173,6 +173,23 @@ func ConnectToManager() error {
 	server, res, err := submitRequestToManager(&req)
 	if err == nil && server != "" {
 		if res.StatusCode == 200 || util.ContainStr(string(res.Body), "exists") {
+			// Admission flow: the manager may hold the instance as PENDING
+			// (visible, no credentials). Capture the manager token when
+			// present; otherwise stay unregistered so we keep re-registering
+			// until an admin approves us.
+			var regResp struct {
+				Approved     bool   `json:"approved"`
+				ManagerToken string `json:"manager_token"`
+			}
+			if util.FromJSONBytes(res.Body, &regResp) == nil && regResp.ManagerToken != "" {
+				_ = keystore.SetValue(common.ManagerTokenKeystoreKey, []byte(regResp.ManagerToken))
+				global.Env().SystemConfig.Configs.ManagerConfig.AccessToken = ucfg.SecretString(regResp.ManagerToken)
+				log.Info("received manager token from config manager")
+			}
+			if util.FromJSONBytes(res.Body, &regResp) == nil && !regResp.Approved {
+				log.Warnf("instance %v registered as PENDING on %v - waiting for admin approval", info.ID, server)
+				return nil // no local marker: re-register next cycle until approved
+			}
 			if err := execPostRegisterHooks(server, res); err != nil {
 				return err
 			}
