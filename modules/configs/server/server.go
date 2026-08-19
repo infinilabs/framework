@@ -328,10 +328,11 @@ func (h *APIHandler) registerInstance(w http.ResponseWriter, req *http.Request, 
 	// token (a static token also qualifies — bootstrap admin). A fresh
 	// instance is authenticated by the static gate already.
 	ormCtx := orm.NewContextWithParent(req.Context()).DirectAccess()
-	existingToken := loadInstanceToken(ormCtx, instance.ID)
-	if existingToken != nil {
+	if loadInstanceToken(ormCtx, instance.ID) != nil {
 		presented := extractBearerToken(req)
-		if !ValidateInstanceToken(ormCtx, instance.ID, presented) && !validateStaticToken(presented) {
+		if !ValidateInstanceToken(ormCtx, instance.ID, presented) &&
+			!validateStaticToken(presented) &&
+			!matchesRegisteredAccessToken(ormCtx, instance.ID, presented) {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="configs"`)
 			h.WriteError(w, "unauthorized: instance token required to re-register", http.StatusUnauthorized)
 			return
