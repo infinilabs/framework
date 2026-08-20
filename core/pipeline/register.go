@@ -251,6 +251,16 @@ type Constructor func(config *config.Config) (ProcessorBase, error)
 
 var registry = NewNamespace()
 
+// LookupProcessorConstructor resolves a processor constructor by its
+// registered (bare) name — nil when unknown. Hosts use this to build
+// ad-hoc chains (e.g. dry-run replay of a spec's processor list).
+func LookupProcessorConstructor(name string) ProcessorConstructor {
+	if ctor, ok := registry.ProcessorConstructors()[name]; ok {
+		return ctor
+	}
+	return nil
+}
+
 func RegisterProcessorPlugin(name string, constructor ProcessorConstructor) {
 	err := registry.RegisterProcessor(name, constructor)
 	if err != nil {

@@ -206,6 +206,8 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 			continue
 		}
 		c.Set(pipeline.RecordContextKey, rec)
+		clones := &[]*event.Event{}
+		c.Set(pipeline.CloneContextKey, clones)
 		if p.cfg.OnFailure == "tag" {
 			var tags []string
 			c.Set(pipeline.FailureTagsKey, &tags)
@@ -249,7 +251,27 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 		i := decodedIdx[j]
 		msgs[i].Data = encoded
 		msgs[i].Size = len(encoded)
+
+		// Clones (clone processor): materialize each as an extra batch
+		// member sharing the original's offset semantics.
+		for _, cl := range pipeline.TakeClones(c) {
+			if pipeline.IsDropped(cl) {
+				continue
+			}
+			cloned, cerr := p.codec.Encode(cl)
+			if cerr != nil {
+				log.Warnf("for_each: failed to encode clone at offset %v: %v", msgs[i].Offset, cerr)
+				continue
+			}
+			msgs = append(msgs, queue.Message{
+				Offset: msgs[i].Offset,
+				Data:   cloned,
+				Size:   len(cloned),
+			})
+		}
 	}
+	// publish the (possibly extended) batch back to the context
+	c.Set(param.ParaKey(p.cfg.MessageField), msgs)
 	return nil
 }
 

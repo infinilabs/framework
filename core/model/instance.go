@@ -66,6 +66,11 @@ type Instance struct {
 
 	Host *HostInfo `json:"host,omitempty" elastic_mapping:"host: { type: object }"`
 
+	// AccessToken is the agent's self-generated API token (the console
+	// token-exchange convention): managers store it at registration and
+	// use it for reverse calls (stats, pipeline tasks, proxying).
+	AccessToken *Token `config:"access_token" json:"access_token,omitempty" elastic_mapping:"access_token:{type:object}"`
+
 	Network  NetworkInfo   `json:"network,omitempty" elastic_mapping:"network: { type: object }"`
 	Services []ServiceInfo `json:"services,omitempty" elastic_mapping:"services: { type: object }"`
 	Status   string        `json:"status,omitempty" elastic_mapping:"status: { type: keyword, copy_to:search_text }"`
@@ -137,7 +142,20 @@ func GetInstanceInfo() Instance {
 
 	_, publicIP, _, _ := util.GetPublishNetworkDeviceInfo(global.Env().SystemConfig.NodeConfig.MajorIpPattern)
 
-	instance.Endpoint = global.Env().SystemConfig.APIConfig.GetEndpoint()
+	// The advertised endpoint must point at a server that actually serves
+	// requests. Deployments commonly disable the dedicated API port
+	// (api.enabled: false) and serve everything on the web port — in that
+	// case advertise the web address, not the (unserving) API default.
+	sysCfg := global.Env().SystemConfig
+	if sysCfg.APIConfig.Enabled {
+		instance.Endpoint = sysCfg.APIConfig.GetEndpoint()
+	} else {
+		schema := "http"
+		if sysCfg.WebAppConfig.TLSConfig.TLSEnabled {
+			schema = "https"
+		}
+		instance.Endpoint = fmt.Sprintf("%s://%s", schema, sysCfg.WebAppConfig.NetworkConfig.GetPublishAddr())
+	}
 
 	ips := util.GetLocalIPs()
 	if len(ips) > 0 {
