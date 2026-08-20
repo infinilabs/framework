@@ -405,10 +405,15 @@ func upsertInstance(instance *model.Instance) (bool, error) {
 	}
 
 	if exists {
-		// keep server-side timestamps; refresh the self-description
+		// Keep server-owned fields; refresh the self-description only.
+		// Status is server-owned (admission) — the incoming payload has
+		// no say, otherwise every heartbeat/re-register would clobber an
+		// approved instance back to pending.
 		created := existing.Created
+		status := existing.Status
 		instanceCopy := *instance
 		instanceCopy.Created = created
+		instanceCopy.Status = status
 		return false, orm.Save(ctx, &instanceCopy)
 	}
 	created := time.Now().UTC()
