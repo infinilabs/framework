@@ -150,9 +150,13 @@ func (h *APIHandler) exchangeTokenHandler(w http.ResponseWriter, req *http.Reque
 
 	ctx := orm.NewContextWithParent(req.Context()).DirectAccess()
 
-	// The caller must hold the instance's CURRENT token (or a static token —
-	// static holders are bootstrap admins and may also rotate).
-	ok := ValidateInstanceToken(ctx, body.InstanceID, presented)
+	// Accepted credentials: the current standard manager token, the
+	// instance's registered self API token (the exchange's whole purpose:
+	// self token → manager token), or a static admin token.
+	ok := matchesManagerToken(ctx, body.InstanceID, presented)
+	if !ok {
+		ok = matchesRegisteredAccessToken(ctx, body.InstanceID, presented)
+	}
 	if !ok {
 		ok = validateStaticToken(presented)
 	}
