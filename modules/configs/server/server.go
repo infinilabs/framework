@@ -350,7 +350,11 @@ func (h *APIHandler) registerInstance(w http.ResponseWriter, req *http.Request, 
 
 	// Admission: a PENDING instance is visible in the management UI but
 	// receives no credentials and no configs until an admin approves it.
-	approved := instance.Status == StatusApproved
+	// Admission state is SERVER-OWNED: read it back from the stored
+	// record (upsert preserves it), never from the incoming payload —
+	// agents don't send a status, so the payload would always read as
+	// pending and an approved agent would loop waiting for approval.
+	approved := loadInstanceStatus(ormCtx, instance.ID) == StatusApproved
 
 	if validTicket != nil && created {
 		// Burn a use only when this registration created the instance;
