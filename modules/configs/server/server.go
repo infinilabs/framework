@@ -298,25 +298,35 @@ func (h *APIHandler) registerInstance(w http.ResponseWriter, req *http.Request, 
 		h.WriteError(w, "instance id is required (plain Instance or {client:{...}} payload)", http.StatusBadRequest)
 		return
 	}
-	// Enrollment ticket: when required, registration without a valid,
-	// unconsumed ticket is rejected before any record is written.
+	// Enrollment ticket applies to NEW registrations only. An instance
+	// that already exists and presents its persistent credential (the
+	// standard manager token from a previous approved registration, or
+	// its registered self token) re-registers WITHOUT a ticket —
+	// otherwise every restart would demand a fresh one-day ticket and
+	// enrollment would defeat the whole credential lifecycle.
 	enrollmentCtx := orm.NewContextWithParent(req.Context()).DirectAccess()
 	var validTicket *EnrollmentToken
+	presentedCred := extractBearerToken(req)
 	if serverConfig.Enrollment.Required {
-		ticket := strings.TrimSpace(req.Header.Get("X-Enrollment-Token"))
-		if ticket == "" {
-			// also accept it in the payload wrapper for convenience
-			var probe struct {
-				EnrollmentToken string `json:"enrollment_token"`
+		if matchesManagerToken(enrollmentCtx, instance.ID, presentedCred) ||
+			matchesRegisteredAccessToken(enrollmentCtx, instance.ID, presentedCred) {
+			log.Debugf("configs server: instance %s re-registers with its persistent credential (no enrollment ticket needed)", instance.ID)
+		} else {
+			ticket := strings.TrimSpace(req.Header.Get("X-Enrollment-Token"))
+			if ticket == "" {
+				// also accept it in the payload wrapper for convenience
+				var probe struct {
+					EnrollmentToken string `json:"enrollment_token"`
+				}
+				_ = util.FromJSONBytes(body, &probe)
+				ticket = strings.TrimSpace(probe.EnrollmentToken)
 			}
-			_ = util.FromJSONBytes(body, &probe)
-			ticket = strings.TrimSpace(probe.EnrollmentToken)
-		}
-		validTicket = validateEnrollmentToken(enrollmentCtx, ticket)
-		if validTicket == nil {
-			log.Warnf("configs server: registration rejected for instance %s (invalid/expired/exhausted enrollment ticket)", instance.ID)
-			h.WriteError(w, "invalid enrollment token", http.StatusForbidden)
-			return
+			validTicket = validateEnrollmentToken(enrollmentCtx, ticket)
+			if validTicket == nil {
+				log.Warnf("configs server: registration rejected for instance %s (invalid/expired/exhausted enrollment ticket)", instance.ID)
+				h.WriteError(w, "invalid enrollment token", http.StatusForbidden)
+				return
+			}
 		}
 	}
 
@@ -332,7 +342,6 @@ func (h *APIHandler) registerInstance(w http.ResponseWriter, req *http.Request, 
 	// token (a static token also qualifies — bootstrap admin). A fresh
 	// instance is authenticated by the static gate already.
 	ormCtx := orm.NewContextWithParent(req.Context()).DirectAccess()
-	presentedCred := extractBearerToken(req)
 	hasCredential := loadInstanceToken(ormCtx, instance.ID) != nil || instance.AccessToken != nil
 	if hasCredential {
 		if !matchesManagerToken(ormCtx, instance.ID, presentedCred) &&
