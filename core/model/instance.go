@@ -142,7 +142,20 @@ func GetInstanceInfo() Instance {
 
 	_, publicIP, _, _ := util.GetPublishNetworkDeviceInfo(global.Env().SystemConfig.NodeConfig.MajorIpPattern)
 
-	instance.Endpoint = global.Env().SystemConfig.APIConfig.GetEndpoint()
+	// The advertised endpoint must point at a server that actually serves
+	// requests. Deployments commonly disable the dedicated API port
+	// (api.enabled: false) and serve everything on the web port — in that
+	// case advertise the web address, not the (unserving) API default.
+	sysCfg := global.Env().SystemConfig
+	if sysCfg.APIConfig.Enabled {
+		instance.Endpoint = sysCfg.APIConfig.GetEndpoint()
+	} else {
+		schema := "http"
+		if sysCfg.WebAppConfig.TLSConfig.TLSEnabled {
+			schema = "https"
+		}
+		instance.Endpoint = fmt.Sprintf("%s://%s", schema, sysCfg.WebAppConfig.NetworkConfig.GetPublishAddr())
+	}
 
 	ips := util.GetLocalIPs()
 	if len(ips) > 0 {
