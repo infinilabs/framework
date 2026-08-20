@@ -143,6 +143,8 @@ func Setup() {
 		return
 	}
 
+	setupReverseChannel()
+
 	orm.MustRegisterSchemaWithIndexName(model.Instance{}, "instance")
 	orm.MustRegisterSchemaWithIndexName(ManagedConfig{}, "managed-configs")
 	orm.MustRegisterSchemaWithIndexName(InstanceToken{}, "instance-tokens")
