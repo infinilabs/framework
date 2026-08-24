@@ -32,4 +32,6 @@ import "infini.sh/framework/core/api"
 func Init() {
 	handler := APIHandler{}
 	api.HandleAPIMethod(api.POST, "/keystore", handler.setKeystoreValue)
+	api.HandleAPIMethod(api.GET, "/keystore", handler.listKeystoreKeys)
+	api.HandleAPIMethod(api.DELETE, "/keystore", handler.deleteKeystoreKey)
 }

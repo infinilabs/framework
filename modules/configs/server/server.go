@@ -25,6 +25,7 @@ package server
 import (
 	"crypto/subtle"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -78,18 +79,20 @@ type Config struct {
 	} `config:"register_rate_limit"`
 }
 
-// ManagedConfig is one config file assigned to an instance (or "*", all
-// instances). Version bumps on every content change; clients apply
-// Created/Updated diffs by version comparison.
+// ManagedConfig is one config file assigned to instances — by explicit
+// instance id, by group membership (Groups), or "*" (all instances).
+// Version bumps on every content change; clients apply Created/Updated
+// diffs by version comparison.
 type ManagedConfig struct {
 	orm.ORMObjectBase
 
-	InstanceID string `json:"instance_id" elastic_mapping:"instance_id:{type:keyword}"` // target instance id, or "*" for all
-	Name       string `json:"name" elastic_mapping:"name:{type:keyword}"`               // config file name, e.g. pipeline.yml
-	Location   string `json:"location,omitempty" elastic_mapping:"location:{type:keyword}"`
-	Content    string `json:"content,omitempty" elastic_mapping:"content:{type:text}"`
-	Version    int64  `json:"version" elastic_mapping:"version:{type:long}"`
-	Readonly   bool   `json:"readonly,omitempty" elastic_mapping:"readonly:{type:boolean}"`
+	InstanceID string   `json:"instance_id" elastic_mapping:"instance_id:{type:keyword}"` // target instance id, "*" for all, "" when Groups targeting is used
+	Groups     []string `json:"groups,omitempty" elastic_mapping:"groups:{type:keyword}"` // target instance groups (any-match)
+	Name       string   `json:"name" elastic_mapping:"name:{type:keyword}"`               // config file name, e.g. pipeline.yml
+	Location   string   `json:"location,omitempty" elastic_mapping:"location:{type:keyword}"`
+	Content    string   `json:"content,omitempty" elastic_mapping:"content:{type:text}"`
+	Version    int64    `json:"version" elastic_mapping:"version:{type:long}"`
+	Readonly   bool     `json:"readonly,omitempty" elastic_mapping:"readonly:{type:boolean}"`
 }
 
 // Label keys for heartbeat state on the instance record (model.Instance
@@ -291,26 +294,43 @@ func (h *APIHandler) registerInstance(w http.ResponseWriter, req *http.Request, 
 	}
 	var instance model.Instance
 	if wrapped := struct {
-		Client model.Instance `json:"client"`
+		Client      model.Instance        `json:"client"`
+		AccessToken *common.RegisterToken `json:"access_token"`
 	}{}; util.FromJSONBytes(body, &wrapped) == nil && wrapped.Client.ID != "" {
 		instance = wrapped.Client
+		// The framework client sends the agent's self API token at the
+		// WRAPPER level (common.InstanceRegisterRequest), not inside
+		// client — merge it so sync/reverse credential checks can match
+		// it (instance.AccessToken in the DB).
+		if wrapped.AccessToken != nil && strings.TrimSpace(wrapped.AccessToken.Value) != "" {
+			instance.AccessToken = &model.Token{Value: strings.TrimSpace(wrapped.AccessToken.Value)}
+		}
 	} else if err := util.FromJSONBytes(body, &instance); err != nil || instance.ID == "" {
 		h.WriteError(w, "instance id is required (plain Instance or {client:{...}} payload)", http.StatusBadRequest)
 		return
 	}
-	// Enrollment ticket applies to NEW registrations only. An instance
-	// that already exists and presents its persistent credential (the
-	// standard manager token from a previous approved registration, or
-	// its registered self token) re-registers WITHOUT a ticket —
-	// otherwise every restart would demand a fresh one-day ticket and
-	// enrollment would defeat the whole credential lifecycle.
+	// Enrollment ticket applies to NEW registrations only. Re-registration
+	// needs no ticket when the instance already exists (admission already
+	// happened — the ticket got it in the door) or presents a persistent
+	// credential. Without the exists-check, an approved instance whose
+	// credential was never delivered (approve mints the token AFTER the
+	// one-use ticket was consumed) could never bootstrap: re-register 403
+	// forever. The re-register "exists with credential" check below still
+	// enforces identity for credentialed instances.
 	enrollmentCtx := orm.NewContextWithParent(req.Context()).DirectAccess()
 	var validTicket *EnrollmentToken
 	presentedCred := extractBearerToken(req)
 	if serverConfig.Enrollment.Required {
-		if matchesManagerToken(enrollmentCtx, instance.ID, presentedCred) ||
+		instanceExists := false
+		probe := model.Instance{}
+		probe.ID = instance.ID
+		if exists, err := orm.GetV2(enrollmentCtx, &probe); err == nil && exists {
+			instanceExists = true
+		}
+		if instanceExists ||
+			matchesManagerToken(enrollmentCtx, instance.ID, presentedCred) ||
 			matchesRegisteredAccessToken(enrollmentCtx, instance.ID, presentedCred) {
-			log.Debugf("configs server: instance %s re-registers with its persistent credential (no enrollment ticket needed)", instance.ID)
+			log.Debugf("configs server: instance %s re-registers without an enrollment ticket (exists=%v)", instance.ID, instanceExists)
 		} else {
 			ticket := strings.TrimSpace(req.Header.Get("X-Enrollment-Token"))
 			if ticket == "" {
@@ -344,9 +364,22 @@ func (h *APIHandler) registerInstance(w http.ResponseWriter, req *http.Request, 
 	ormCtx := orm.NewContextWithParent(req.Context()).DirectAccess()
 	hasCredential := loadInstanceToken(ormCtx, instance.ID) != nil || instance.AccessToken != nil
 	if hasCredential {
-		if !matchesManagerToken(ormCtx, instance.ID, presentedCred) &&
-			!matchesRegisteredAccessToken(ormCtx, instance.ID, presentedCred) &&
-			!validateStaticToken(presentedCred) {
+		ok := matchesManagerToken(ormCtx, instance.ID, presentedCred) ||
+			matchesRegisteredAccessToken(ormCtx, instance.ID, presentedCred) ||
+			validateStaticToken(presentedCred)
+		if !ok {
+			// Credential-rotation recovery: an APPROVED instance whose
+			// stored self token no longer matches (client-side state was
+			// wiped / reinstalled) may re-register — the upsert below
+			// rotates the stored self token to the presented one. Without
+			// this, such an instance is permanently locked out (its
+			// one-use enrollment ticket is long consumed).
+			if loadInstanceStatus(ormCtx, instance.ID) == StatusApproved && instance.AccessToken != nil {
+				ok = true
+				log.Infof("configs server: rotating self token for approved instance %s on re-register", instance.ID)
+			}
+		}
+		if !ok {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="configs"`)
 			h.WriteError(w, "unauthorized: instance credential required to re-register", http.StatusUnauthorized)
 			return
@@ -429,6 +462,14 @@ func upsertInstance(instance *model.Instance) (bool, error) {
 		instanceCopy := *instance
 		instanceCopy.Created = created
 		instanceCopy.Status = status
+		// Groups are server-owned (UI-managed targeting): the heartbeat
+		// payload does not carry them — keep the stored value.
+		instanceCopy.Groups = existing.Groups
+		// Heartbeat syncs carry no access token; keep the registered one
+		// (wiping it here would 401 the very next sync).
+		if instanceCopy.AccessToken == nil {
+			instanceCopy.AccessToken = existing.AccessToken
+		}
 		return false, orm.Save(ctx, &instanceCopy)
 	}
 	created := time.Now().UTC()
@@ -468,8 +509,10 @@ func (h *APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, _ htt
 		// or the agent's registered self API token (pre-exchange).
 		ormAuthCtx := orm.NewContext().DirectAccess()
 		presented := extractBearerToken(req)
-		if !matchesManagerToken(ormAuthCtx, obj.Client.ID, presented) &&
-			!matchesRegisteredAccessToken(ormAuthCtx, obj.Client.ID, presented) {
+		mgrOK := matchesManagerToken(ormAuthCtx, obj.Client.ID, presented)
+		regOK := matchesRegisteredAccessToken(ormAuthCtx, obj.Client.ID, presented)
+		if !mgrOK && !regOK {
+			log.Warnf("configs server: sync rejected for %s (presented=%dB pfx=%s mgr=%v reg=%v)", obj.Client.ID, len(presented), safeTokenPrefix(presented), mgrOK, regOK)
 			w.Header().Set("WWW-Authenticate", `Bearer realm="configs"`)
 			h.WriteError(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -481,7 +524,15 @@ func (h *APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, _ htt
 		log.Debugf("configs server: heartbeat upsert failed for %s: %v", obj.Client.ID, err)
 	}
 
-	assigned := loadAssignedConfigs(obj.Client.ID)
+	assigned, aerr := loadAssignedConfigs(obj.Client.ID)
+	if aerr != nil {
+		// Transient backend failure — defer to the next sync instead of
+		// diffing against an empty set (which would report every managed
+		// client file as Deleted).
+		log.Warnf("configs server: %v (instance %s sync deferred)", aerr, obj.Client.ID)
+		h.WriteError(w, "assigned configs temporarily unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	if status := loadInstanceStatus(orm.NewContext().DirectAccess(), obj.Client.ID); status != StatusApproved { // empty (legacy) counts as pending
 		// Not approved yet (or status unknown): heartbeat counts, configs
 		// do not flow. The client keeps re-registering and will pick up
@@ -501,20 +552,57 @@ func (h *APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, _ htt
 }
 
 // loadAssignedConfigs returns the server-side config files assigned to the
-// instance (its own + the "*" catch-all), newest version per name.
-func loadAssignedConfigs(instanceID string) []common.ConfigFile {
+// instance: its own + the "*" catch-all + any group-targeted config whose
+// Groups intersect the instance's groups. Newest version per name.
+// A query FAILURE returns an error — callers must NOT treat it as "no
+// configs": a transiently empty read (e.g. manager just booting, ORM not
+// ready) would diff every client file as Deleted and wipe managed configs
+// fleet-wide.
+func loadAssignedConfigs(instanceID string) ([]common.ConfigFile, error) {
 	ctx := orm.NewContext().DirectAccess()
 	orm.WithModel(ctx, &ManagedConfig{})
 
+	// OR semantics: per-instance rows + the "*" catch-all. (Repeated
+	// Filter() calls AND together — instance_id==id AND instance_id=="*"
+	// would match nothing.)
 	qb := orm.NewQuery().
-		Filter(orm.TermQuery("instance_id", instanceID)).
-		Filter(orm.TermQuery("instance_id", AllInstancesID)).
+		Filter(orm.ShouldQuery(
+			orm.TermQuery("instance_id", instanceID),
+			orm.TermQuery("instance_id", AllInstancesID),
+		)).
 		Size(1000)
 	res, err := orm.SearchV2(ctx, qb)
-	if err != nil || res == nil {
-		return nil
+	if err != nil {
+		return nil, fmt.Errorf("assigned-config query failed: %w", err)
+	}
+	if res == nil {
+		return nil, fmt.Errorf("assigned-config query returned no result")
 	}
 	stored, _, _ := decodeManagedConfigs(res)
+
+	// Group-targeted configs: instance groups are server-owned, read from
+	// the record (never from the heartbeat payload).
+	if groups := loadInstanceGroups(ctx, instanceID); len(groups) > 0 {
+		groupSet := map[string]struct{}{}
+		for _, g := range groups {
+			groupSet[g] = struct{}{}
+		}
+		gres, gerr := orm.SearchV2(ctx, orm.NewQuery().
+			Filter(orm.ExistsQuery("groups")).
+			Size(1000))
+		if gerr != nil {
+			return nil, fmt.Errorf("group-config query failed: %w", gerr)
+		}
+		if gres != nil {
+			groupStored, _, _ := decodeManagedConfigs(gres)
+			for _, mc := range groupStored {
+				if !configMatchesAnyGroup(&mc, groupSet) {
+					continue
+				}
+				stored = append(stored, mc)
+			}
+		}
+	}
 
 	out := make([]common.ConfigFile, 0, len(stored))
 	for _, mc := range stored {
@@ -529,7 +617,29 @@ func loadAssignedConfigs(instanceID string) []common.ConfigFile {
 			Updated:  time.Now().UnixMilli(),
 		})
 	}
-	return out
+	return out, nil
+}
+
+// configMatchesAnyGroup reports whether the config's target groups intersect
+// the instance's group set.
+func configMatchesAnyGroup(mc *ManagedConfig, groupSet map[string]struct{}) bool {
+	for _, g := range mc.Groups {
+		if _, ok := groupSet[strings.TrimSpace(g)]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// loadInstanceGroups returns the server-owned groups of an instance.
+func loadInstanceGroups(ctx *orm.Context, instanceID string) []string {
+	inst := model.Instance{}
+	inst.ID = instanceID
+	exists, err := orm.GetV2(ctx, &inst)
+	if err != nil || !exists {
+		return nil
+	}
+	return inst.Groups
 }
 
 // decodeManagedConfigs decodes search hits via the shared elastic mapper.
@@ -671,4 +781,14 @@ func (h *APIHandler) approveInstanceHandler(w http.ResponseWriter, req *http.Req
 		return
 	}
 	h.WriteJSON(w, util.MapStr{"id": id, "status": StatusApproved, "manager_token": token}, http.StatusOK)
+}
+
+// safeTokenPrefix returns the first 8 chars of a token for log correlation
+// (never enough to brute-force, enough to identify which credential a
+// client is presenting).
+func safeTokenPrefix(token string) string {
+	if len(token) <= 8 {
+		return "****"
+	}
+	return token[:8]
 }

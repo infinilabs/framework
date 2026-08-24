@@ -14,6 +14,7 @@ import (
 
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 )
@@ -166,13 +167,24 @@ func (h *APIHandler) exchangeTokenHandler(w http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	token, err := MintInstanceToken(ctx, body.InstanceID)
+	// Mint the framework-standard manager token (access_token machinery:
+	// stored in KV, validated by matchesManagerToken). The legacy
+	// InstanceToken scheme (MintInstanceToken) is NOT accepted by sync
+	// anymore — returning it here poisoned clients' credentials.
+	instanceName := ""
+	nameInst := model.Instance{}
+	nameInst.ID = body.InstanceID
+	if exists, err := orm.GetV2(ctx, &nameInst); err == nil && exists {
+		instanceName = nameInst.Name
+	}
+	token, err := mintManagerToken(body.InstanceID, instanceName)
 	if err != nil {
 		h.WriteError(w, "mint token: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	h.WriteJSON(w, util.MapStr{
-		"manager_token": token,
-		"grace_seconds": int(rotationGrace.Seconds()),
+		"manager_token":     token,
+		"manager_api_token": token, // agent-side key (managed.ExchangeTokens)
+		"grace_seconds":     int(rotationGrace.Seconds()),
 	}, http.StatusOK)
 }

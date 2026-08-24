@@ -139,6 +139,8 @@ func handleReverseHello(c *framework_ws.WebsocketConnection, array []string) {
 	}
 	if err := reverseManager.HandleHelloPayload(strings.Join(array[1:], " ")); err != nil {
 		log.Warnf("configs server: reverse hello rejected: %v", err)
+	} else {
+		log.Info("configs server: reverse hello accepted")
 	}
 }
 

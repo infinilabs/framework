@@ -112,6 +112,7 @@ func StartWeb(cfg config.WebAppConfig) {
 
 	registerMCPAutoUIHandler(cfg)
 
+	mountedFuncPatterns := map[string]bool{} // embedding_api 已挂载的 ServeMux 模式
 	if cfg.EmbeddingAPI {
 		if registeredAPIMethodHandler != nil {
 			for k, v := range registeredAPIMethodHandler {
@@ -125,13 +126,19 @@ func StartWeb(cfg config.WebAppConfig) {
 			for k, v := range registeredAPIFuncHandler {
 				log.Debug("register http handler: ", k)
 				uiServeMux.HandleFunc(k, v)
+				mountedFuncPatterns[k] = true
 			}
 		}
 	}
 
 	if cfg.WebsocketConfig.Enabled {
 		websocket.InitWebSocket(cfg.WebsocketConfig)
-		uiServeMux.HandleFunc("/ws", websocket.ServeWs)
+		// embedding_api 可能已把 API 域注册的 /ws (StartAPI 的
+		// HandleAPIFunc) 挂到本 mux — 重复 HandleFunc 在 Go 1.22+
+		// 的 ServeMux 语义下 panic, 跳过。
+		if !mountedFuncPatterns["/ws"] && !mountedFuncPatterns[cfg.WebsocketConfig.BasePath] {
+			uiServeMux.HandleFunc("/ws", websocket.ServeWs)
+		}
 		if registeredWebSocketCommandHandler != nil {
 			for k, v := range registeredWebSocketCommandHandler {
 				log.Debug("register websocket handler: ", k, " ", v)

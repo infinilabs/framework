@@ -59,6 +59,12 @@ type Instance struct {
 	Labels map[string]string `json:"labels,omitempty" elastic_mapping:"labels:{type:object}"`
 	Tags   []string          `json:"tags,omitempty"`
 
+	// Groups is the SERVER-OWNED grouping of instances (e.g. "es",
+	// "gateway-edge"): managed from the management UI, used to target
+	// config delivery (ManagedConfig.Groups). Instances do not report it —
+	// registration/heartbeat upserts preserve the stored value.
+	Groups []string `json:"groups,omitempty" elastic_mapping:"groups:{type:keyword}}"`
+
 	//user can pass
 	Description string `json:"description,omitempty" config:"description" elastic_mapping:"description:{type:keyword}"`
 
