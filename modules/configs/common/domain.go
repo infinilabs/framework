@@ -39,7 +39,7 @@ const SYNC_API = "/configs/_sync"
 const (
 	ManagerTokenKeystoreKey          = "configs_manager_token"
 	ManagerBootstrapTokenKeystoreKey = "configs_manager_bootstrap_token"
-	AgentAccessTokenKeystoreKey      = "agent_access_token"
+	InstanceAccessTokenKeystoreKey   = "instance_access_token"
 )
 
 type RegisterToken struct {
@@ -131,11 +131,11 @@ type InstanceSettings struct {
 	Secrets     []string `config:"secrets"`
 }
 
+// SupportsManagedAccessToken reports whether an application joining the
+// managed-config flow should hand a keystore-backed access token to the
+// console at registration time. Any Framework-based instance (Agent,
+// Gateway, or third-party apps) qualifies; empty names are skipped since
+// there is nothing meaningful to mint a token for.
 func SupportsManagedAccessToken(applicationName string) bool {
-	switch strings.ToLower(strings.TrimSpace(applicationName)) {
-	case "agent", "gateway":
-		return true
-	default:
-		return false
-	}
+	return strings.TrimSpace(applicationName) != ""
 }

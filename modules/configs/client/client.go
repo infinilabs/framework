@@ -227,7 +227,7 @@ func buildManagedRegisterAccessToken(info model.Instance) (*common.RegisterToken
 	if shouldSkipManagedRegisterAccessToken(info.Application.Version.VersionNumber) {
 		return nil, nil
 	}
-	accessToken, err := common.EnsureTokenInKeystore(common.AgentAccessTokenKeystoreKey)
+	accessToken, err := common.EnsureTokenInKeystore(common.InstanceAccessTokenKeystoreKey)
 	if err != nil {
 		return nil, err
 	}
@@ -246,6 +246,13 @@ func shouldSkipManagedRegisterAccessToken(version string) bool {
 	version = strings.TrimSpace(version)
 	if version == "" {
 		return false
+	}
+	// Snapshot/dev builds (e.g. 0.0.1-SNAPSHOT) carry the NEWEST code —
+	// they must not be classified as legacy by their low version number.
+	for _, marker := range []string{"SNAPSHOT", "snapshot", "dev", "DEV"} {
+		if strings.Contains(version, marker) {
+			return false
+		}
 	}
 	parsed, err := util.ParseSemantic(version)
 	if err != nil {
