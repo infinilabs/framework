@@ -538,6 +538,15 @@ func (h *APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, _ htt
 		// do not flow. The client keeps re-registering and will pick up
 		// approval on the next register/sync cycle.
 		assigned = nil
+		// Do NOT diff against the (empty) assigned set: a pending instance
+		// that already holds local managed files (e.g. it re-registered
+		// under a new identity but kept its data dir, or approval is
+		// momentarily missing) would otherwise have every local config
+		// reported as Deleted and wiped — breaking its running pipelines
+		// until an admin approves and republishes. Report "no change";
+		// the diff resumes once the instance is approved.
+		h.WriteJSON(w, common.ConfigSyncResponse{Changed: false}, http.StatusOK)
+		return
 	}
 
 	// Fast path: identical hash and no forced sync → nothing changed.
