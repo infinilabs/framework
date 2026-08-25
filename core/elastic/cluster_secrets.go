@@ -10,8 +10,8 @@ import (
 
 	"infini.sh/framework/core/keystore"
 	"infini.sh/framework/core/util"
-	keystore2 "infini.sh/framework/lib/keystore"
 	ucfg "infini.sh/framework/lib/go-ucfg"
+	keystore2 "infini.sh/framework/lib/keystore"
 )
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -104,13 +104,25 @@ func HydrateClusterSecrets(cfg *ElasticsearchConfig) {
 		return
 	}
 	if cfg.BasicAuth != nil && cfg.BasicAuth.Username != "" && !isRealSecret(cfg.BasicAuth.Password.Get()) {
-		if v, ok := loadClusterSecret(ClusterBasicAuthPasswordKey(cfg.ID)); ok {
+		v, ok := loadClusterSecret(ClusterBasicAuthPasswordKey(cfg.ID))
+		if ok {
+			if v == "" {
+				log.Warnf("cluster [%s]'s basic auth password is empty: %v", cfg.ID)
+			}
 			cfg.BasicAuth.Password = ucfg.SecretString(v)
+		} else {
+			log.Warnf("cluster [%s]'s basic auth password not found in the keystore: %v", cfg.ID)
 		}
 	}
 	if !isRealSecret(cfg.Token.Get()) {
-		if v, ok := loadClusterSecret(ClusterTokenKey(cfg.ID)); ok {
+		v, ok := loadClusterSecret(ClusterTokenKey(cfg.ID))
+		if ok {
+			if v == "" {
+				log.Warnf("cluster [%s]'s token is empty: %v", cfg.ID)
+			}
 			cfg.Token = ucfg.SecretString(v)
+		} else {
+			log.Warnf("cluster [%s]'s token not found in the keystore: %v", cfg.ID)
 		}
 	}
 }
@@ -140,6 +152,7 @@ func stashClusterSecret(key, value, otherKey string) {
 	}
 }
 
+// Return value: (trimmed value, a bool indidcating if key eixsts)
 func loadClusterSecret(key string) (string, bool) {
 	v, err := keystore.GetValue(key)
 	if err != nil {
@@ -149,7 +162,7 @@ func loadClusterSecret(key string) (string, bool) {
 		return "", false
 	}
 	s := strings.TrimSpace(string(v))
-	return s, s != ""
+	return s, true
 }
 
 // isRealSecret reports whether s carries an actual secret: not empty and
