@@ -140,6 +140,19 @@ func SetValue(key string, value []byte) error {
 	return ksw.Save()
 }
 
+// DeleteValue removes a key from the keystore and persists the change.
+// Removing a key that is not present is a no-op.
+func DeleteValue(key string) error {
+	ksw, err := GetWriteableKeystore()
+	if err != nil {
+		return err
+	}
+	if err := ksw.Delete(key); err != nil {
+		return err
+	}
+	return ksw.Save()
+}
+
 func GetVariableResolver() (ucfg.Option, error) {
 	return ucfg.Resolve(func(keyName string) (string, parse.Config, error) {
 		if strings.HasPrefix(keyName, "keystore.") {
