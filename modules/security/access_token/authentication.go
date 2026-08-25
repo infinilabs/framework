@@ -16,6 +16,7 @@ import (
 
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
@@ -608,4 +609,80 @@ func listAccessTokensFromKV(ownerID string) ([]util.MapStr, error) {
 		})
 	}
 	return out, nil
+}
+
+// ListTokens returns all access tokens (KV mode reads the id index; native
+// mode reads the ORM). Sensitive: the plaintext token strings are included —
+// admin-surface only.
+func ListTokens() ([]*security.AccessToken, error) {
+	if isNative() {
+		ctx := orm.NewContext().DirectAccess()
+		ctx.PermissionScope(security.PermissionScopePlatform)
+		res, err := orm.SearchV2(ctx, orm.NewQuery().Size(1000))
+		if err != nil {
+			return nil, err
+		}
+		rows, _, err := elastic.DecodeHits[security.AccessToken](res)
+		out := make([]*security.AccessToken, 0, len(rows))
+		for i := range rows {
+			out = append(out, &rows[i])
+		}
+		return out, err
+	}
+	ids, err := loadTokenIDs()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*security.AccessToken, 0, len(ids))
+	for _, id := range ids {
+		tokenString, err := kv.GetValue(kvAccessTokenIndexBucket, []byte(id))
+		if err != nil || len(tokenString) == 0 {
+			continue
+		}
+		t, err := GetToken(string(tokenString))
+		if err != nil || t == nil {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out, nil
+}
+
+// DeleteTokenByID revokes a token by its id (removes the KV record and the
+// id index entry; native mode deletes the ORM row). The presented token
+// stops validating immediately.
+func DeleteTokenByID(tokenID string) error {
+	if tokenID == "" {
+		return fmt.Errorf("token id is required")
+	}
+	if isNative() {
+		ctx := orm.NewContext().DirectAccess()
+		ctx.PermissionScope(security.PermissionScopePlatform)
+		t := security.AccessToken{}
+		t.ID = tokenID
+		return orm.Delete(ctx, &t)
+	}
+	tokenString, err := kv.GetValue(kvAccessTokenIndexBucket, []byte(tokenID))
+	if err != nil {
+		return err
+	}
+	if len(tokenString) > 0 {
+		if err := kv.DeleteKey(KVAccessTokenBucket, tokenString); err != nil {
+			return err
+		}
+	}
+	if err := kv.DeleteKey(kvAccessTokenIndexBucket, []byte(tokenID)); err != nil {
+		return err
+	}
+	ids, err := loadTokenIDs()
+	if err != nil {
+		return err
+	}
+	rest := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id != tokenID {
+			rest = append(rest, id)
+		}
+	}
+	return saveTokenIDs(rest)
 }

@@ -4,6 +4,7 @@ package easysearch
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"infini.sh/framework/core/api"
@@ -12,6 +13,7 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/elastic/common"
 )
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -95,6 +97,27 @@ func registerClusterAPI() {
 			if cfg.Reserved {
 				return errors.New("reserved cluster cannot be deleted")
 			}
+			return nil
+		},
+		// Live registration: writing a cluster record takes effect
+		// immediately — no restart or boot-time ORM reload needed. This is
+		// what lets a manager (e.g. LogPilot) push sink clusters to gateways
+		// dynamically; pipelines referencing the cluster id resolve on the
+		// next use.
+		PostCreate: func(cfg *elastic.ElasticsearchConfig) error {
+			if _, err := common.InitElasticInstance(*cfg); err != nil {
+				return fmt.Errorf("cluster %s saved but live registration failed: %w", cfg.ID, err)
+			}
+			return nil
+		},
+		PostUpdate: func(cfg *elastic.ElasticsearchConfig) error {
+			if _, err := common.InitElasticInstance(*cfg); err != nil {
+				return fmt.Errorf("cluster %s updated but live re-registration failed: %w", cfg.ID, err)
+			}
+			return nil
+		},
+		PostDelete: func(cfg *elastic.ElasticsearchConfig) error {
+			elastic.RemoveInstance(cfg.ID)
 			return nil
 		},
 	})

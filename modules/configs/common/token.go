@@ -21,17 +21,46 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-/* Copyright © INFINI Ltd. All rights reserved.
+/* Copyright © INFINI LTD. All rights reserved.
  * Web: https://infinilabs.com
  * Email: hello#infini.ltd */
 
-package api
+package common
 
-import "infini.sh/framework/core/api"
+import (
+	"strings"
 
-func Init() {
-	handler := APIHandler{}
-	api.HandleAPIMethod(api.POST, "/keystore", handler.setKeystoreValue)
-	api.HandleAPIMethod(api.GET, "/keystore", handler.listKeystoreKeys)
-	api.HandleAPIMethod(api.DELETE, "/keystore", handler.deleteKeystoreKey)
+	"infini.sh/framework/core/keystore"
+	"infini.sh/framework/core/util"
+	keystore2 "infini.sh/framework/lib/keystore"
+)
+
+func LoadTokenFromKeystore(key string) (string, error) {
+	value, err := keystore.GetValue(key)
+	if err == keystore2.ErrKeyDoesntExists {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(value)), nil
+}
+
+func SaveTokenToKeystore(key, value string) error {
+	return keystore.SetValue(key, util.UnsafeStringToBytes(strings.TrimSpace(value)))
+}
+
+func EnsureTokenInKeystore(key string) (string, error) {
+	value, err := LoadTokenFromKeystore(key)
+	if err != nil {
+		return "", err
+	}
+	if value != "" {
+		return value, nil
+	}
+	value = util.GenerateRandomString(48)
+	if err := SaveTokenToKeystore(key, value); err != nil {
+		return "", err
+	}
+	return value, nil
 }

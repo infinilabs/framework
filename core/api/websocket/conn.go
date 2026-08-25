@@ -30,7 +30,6 @@ package websocket
 import (
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
-	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"net/http"
 	"strings"
@@ -48,8 +47,10 @@ const (
 	// Send pings to peer with this period. Must be less than pongWait.
 	pingPeriod = (pongWait * 9) / 10
 
-	// Maximum message size allowed from peer.
-	maxMessageSize = 512
+	// Maximum message size allowed from peer. The reverse channel streams
+	// chunked proxied HTTP bodies through this hub (base64 chunks of up to
+	// 32KB), so this must comfortably exceed a chunk frame.
+	maxMessageSize = 8 * 1024 * 1024
 )
 
 var upgrader = websocket.Upgrader{
@@ -212,9 +213,7 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 		for _, v := range callbacksOnConnect {
 			err := v(c.id, w, r)
 			if err != nil {
-				if global.Env().IsDebug {
-					log.Error(err)
-				}
+				log.Warnf("websocket connection rejected: %v", err)
 				closeMessage := websocket.FormatCloseMessage(websocket.ClosePolicyViolation, err.Error())
 				if closeErr := ws.WriteMessage(websocket.CloseMessage, closeMessage); closeErr != nil {
 					log.Error("Failed to send close message:", closeErr)

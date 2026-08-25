@@ -302,12 +302,14 @@ type ConfigsConfig struct {
 	ValidConfigsExtensions     []string  `config:"valid_config_extensions"`
 	TLSConfig                  TLSConfig `config:"tls"` //server or client's certs
 	ManagerConfig              struct {
-		LocalConfigsRepoPath string    `config:"local_configs_repo_path"`
-		BasicAuth            BasicAuth `config:"basic_auth"`
+		LocalConfigsRepoPath string            `config:"local_configs_repo_path"`
+		BasicAuth            BasicAuth         `config:"basic_auth"`
+		AccessToken          ucfg.SecretString `config:"access_token"`
 	} `config:"manager"`
-	AlwaysRegisterAfterRestart bool     `config:"always_register_after_restart"`
-	AllowGeneratedMetricsTasks bool     `config:"allow_generated_metrics_tasks"`
-	IgnoredPath                []string `config:"ignored_path"`
+	EnrollmentToken            ucfg.SecretString `config:"enrollment_token"` // one-time registration pass (configs.server.enrollment.required)
+	AlwaysRegisterAfterRestart bool              `config:"always_register_after_restart"`
+	AllowGeneratedMetricsTasks bool              `config:"allow_generated_metrics_tasks"`
+	IgnoredPath                []string          `config:"ignored_path"`
 }
 
 type BasicAuth struct {
