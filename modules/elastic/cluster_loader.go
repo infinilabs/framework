@@ -36,6 +36,9 @@ func LoadClustersFromORM() {
 		return
 	}
 	for _, cfg := range clusters {
+		// ORM records persist the marshal mask, not the real credential:
+		// hydrate from the keystore before building the live client.
+		elastic.HydrateClusterSecrets(&cfg)
 		if _, err := common.InitElasticInstance(cfg); err != nil {
 			log.Warnf("cluster %s (%s): init failed: %v", cfg.ID, cfg.Name, err)
 		}
