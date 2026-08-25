@@ -30,7 +30,7 @@ package keystore
 import (
 	"github.com/stretchr/testify/assert"
 	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/elastic"
+	ucfg "infini.sh/framework/lib/go-ucfg"
 	"os"
 	"path"
 	"testing"
@@ -56,7 +56,16 @@ func TestConfigVariable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	esConfigs := []elastic.ElasticsearchConfig{}
+	// 本地同构结构体: 避免 import core/elastic (cluster_secrets 引用本包,
+	// 测试再引 elastic 会成环)。
+	type testBasicAuth struct {
+		Username string            `config:"username"`
+		Password ucfg.SecretString `config:"password"`
+	}
+	type testESConfig struct {
+		BasicAuth *testBasicAuth `config:"basic_auth"`
+	}
+	esConfigs := []testESConfig{}
 	esCfg, err := cfg.Child("elasticsearch", -1)
 	if err != nil {
 		t.Fatal(err)
