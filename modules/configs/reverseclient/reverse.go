@@ -262,9 +262,16 @@ func localBaseURL() string {
 	} else {
 		return "http://127.0.0.1"
 	}
-	// binding is host:port — for loopback keep the port, use 127.0.0.1
+	// Loopback preference: wildcard bindings (0.0.0.0/::) are reached via
+	// 127.0.0.1, but a binding pinned to a specific interface IP (e.g. a
+	// second instance on a LAN address) must keep that host — nothing
+	// listens on the loopback rewrite for such bindings.
 	if i := strings.LastIndex(addr, ":"); i > 0 {
-		return schema + "://127.0.0.1" + addr[i:]
+		host := addr[:i]
+		if host == "" || host == "0.0.0.0" || host == "::" {
+			host = "127.0.0.1"
+		}
+		return schema + "://" + host + addr[i:]
 	}
 	return schema + "://127.0.0.1"
 }
