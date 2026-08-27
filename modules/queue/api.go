@@ -145,7 +145,11 @@ func (module *API) QueueStatsAction(w http.ResponseWriter, req *http.Request, ps
 		for _, q := range qs {
 			err := module.getQueueStats(t, q, metadata, consumer, useKey, data)
 			if err != nil {
-				panic(err)
+				// A single queue failing its stats (e.g. offset/depth errors
+				// when a kafka broker is unreachable) must not take down the
+				// whole stats endpoint — skip that queue, return the rest.
+				_ = log.Errorf("queue [%v] stats failed, skipped: %v", q, err)
+				continue
 			}
 		}
 		log.Tracef("queue [%v] stats: %v", t, data)
