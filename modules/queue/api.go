@@ -145,7 +145,10 @@ func (module *API) QueueStatsAction(w http.ResponseWriter, req *http.Request, ps
 		for _, q := range qs {
 			err := module.getQueueStats(t, q, metadata, consumer, useKey, data)
 			if err != nil {
-				panic(err)
+				// 单个队列统计失败 (如 kafka broker 不可达时的 offset/depth
+				// 错误) 不应拖垮整个 stats 端点 — 跳过该队列, 其余照常返回。
+				_ = log.Errorf("queue [%v] stats failed, skipped: %v", q, err)
+				continue
 			}
 		}
 		log.Tracef("queue [%v] stats: %v", t, data)
