@@ -66,7 +66,10 @@ type Config struct {
 	MaxConnectionPerHost    int                    `config:"max_connection_per_node"`
 	QueueLabels             map[string]interface{} `config:"queues,omitempty"`
 	Selector                queue.QueueSelector    `config:"queue_selector"`
-	Consumer                *queue.ConsumerConfig  `config:"consumer"`
+	// ForceQueueType 强制本 processor 消费的队列为指定后端类型 (如 kafka)。
+	// 用于跨实例传输段: 写端 (Agent) 与读端 (Gateway) 必须落同一实现。
+	ForceQueueType string                `config:"force_queue_type"`
+	Consumer       *queue.ConsumerConfig `config:"consumer"`
 	MaxWorkers              int                    `config:"max_worker_size"`
 	DetectActiveQueue       bool                   `config:"detect_active_queue"`
 	DetectIntervalInMs      int                    `config:"detect_interval"`
@@ -209,6 +212,15 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 		}
 		log.Debug("exit consumer processor")
 	}()
+
+	// 强制类型: 在检测/消费前把 selector 命中的队列注册为指定后端
+	// (首次自动创建, 已存在异型配置则覆盖), 保证两端落同一实现。
+	if processor.config.ForceQueueType != "" {
+		for _, k := range processor.config.Selector.Keys {
+			queue.EnsureTypedConfig(processor.config.ForceQueueType, k)
+			log.Infof("consumer [%v] enforces queue [%v] to type [%v]", processor.id, k, processor.config.ForceQueueType)
+		}
+	}
 
 	//handle updates
 	if processor.config.DetectActiveQueue {

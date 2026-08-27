@@ -168,6 +168,22 @@ func GetOrInitConfig(key string) *QueueConfig {
 	return AdvancedGetOrInitConfig("", key, nil)
 }
 
+// EnsureTypedConfig 确保指定名字的队列以 queueType 类型注册。动态创建的
+// 队列缺省落回 default handler (disk); 传输段需要显式切换后端 (如 kafka
+// 总线) 时, 用本函数强制类型并对已存在的异型配置就地覆盖注册。
+func EnsureTypedConfig(queueType, key string) *QueueConfig {
+	if queueType == "" {
+		return GetOrInitConfig(key)
+	}
+	cfg := AdvancedGetOrInitConfig(queueType, key, nil)
+	if cfg != nil && cfg.Type != queueType {
+		cfg.Type = queueType
+		RegisterConfig(cfg)
+		log.Infof("queue [%v] switched to type [%v]", key, queueType)
+	}
+	return cfg
+}
+
 func SmartGetOrInitConfig(cfg *QueueConfig) *QueueConfig {
 	if cfg.ID != "" {
 		v, _ := GetConfigByUUID(cfg.ID)
