@@ -66,7 +66,12 @@ type Config struct {
 	MaxConnectionPerHost    int                    `config:"max_connection_per_node"`
 	QueueLabels             map[string]interface{} `config:"queues,omitempty"`
 	Selector                queue.QueueSelector    `config:"queue_selector"`
-	Consumer                *queue.ConsumerConfig  `config:"consumer"`
+	// ForceQueueType enforces the backend type (e.g. kafka) of the queues
+	// consumed by this processor. Used by cross-instance transport segments:
+	// the writer (Agent) and the reader (Gateway) must land on the same
+	// queue implementation.
+	ForceQueueType string                `config:"force_queue_type"`
+	Consumer       *queue.ConsumerConfig `config:"consumer"`
 	MaxWorkers              int                    `config:"max_worker_size"`
 	DetectActiveQueue       bool                   `config:"detect_active_queue"`
 	DetectIntervalInMs      int                    `config:"detect_interval"`
@@ -209,6 +214,17 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 		}
 		log.Debug("exit consumer processor")
 	}()
+
+	// Force the type: before detection/consumption, register the queues
+	// matched by the selector as the specified backend (auto-created on
+	// first use; an existing config with a different type is overwritten),
+	// so both ends land on the same implementation.
+	if processor.config.ForceQueueType != "" {
+		for _, k := range processor.config.Selector.Keys {
+			queue.EnsureTypedConfig(processor.config.ForceQueueType, k)
+			log.Infof("consumer [%v] enforces queue [%v] to type [%v]", processor.id, k, processor.config.ForceQueueType)
+		}
+	}
 
 	//handle updates
 	if processor.config.DetectActiveQueue {
