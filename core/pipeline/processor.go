@@ -42,12 +42,14 @@ package pipeline
 import (
 	"runtime"
 	"strings"
+	"time"
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/stats"
 )
 
 type ProcessorBase interface {
@@ -266,9 +268,17 @@ func (procs *Processors) Process(ctx *Context) error {
 		log.Trace("pipeline: ", ctx.Config.Name, ", start processing:", ctx.processHistory, "->", p.Name())
 
 		ctx.AddFlowProcess(p.Name())
+		start := time.Now()
 		err := p.Process(ctx)
+		// Per-processor call stats (stats "pipeline" category, flat key =
+		// pipeline.processor.metric): source for the rate/error/latency of
+		// the processing stage under chain pressure. Stats writes are
+		// buffered, safe on the hot path.
+		stats.Increment("pipeline", ctx.Config.Name, "processor", p.Name(), "total_process")
+		stats.IncrementBy("pipeline", "processor_cost."+ctx.Config.Name+"."+p.Name(), time.Since(start).Microseconds())
 		//event, err = p.Filter(filterCfg,ctx)
 		if err != nil {
+			stats.Increment("pipeline", ctx.Config.Name, "processor", p.Name(), "total_error")
 			log.Error("error on processing:", p.Name(), ",", err)
 			return err
 		}

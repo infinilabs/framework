@@ -379,6 +379,10 @@ func (processor *QueueConsumerProcessor) HandleQueueConfig(qConfig *queue.QueueC
 			processor.wg.Add(1)
 			contextForWorker := pipeline.Context{}
 			contextForWorker.ResetContext()
+			// Inherit the owning pipeline's config (incl. Name): per-processor
+			// stats of message-level sub-chains (stats "pipeline" category)
+			// attribute to a pipeline via ctx.Config.Name.
+			contextForWorker.Config = ctx.Config
 			err := processor.pool.Submit(&pipeline.Task{
 				Handler: func(ctx *pipeline.Context, v ...interface{}) {
 					processor.NewSlicedWorker(ctx, v...)
@@ -667,6 +671,7 @@ READ_DOCS:
 
 			newCtx := pipeline.Context{}
 			newCtx.ParentContext = ctx
+			newCtx.Config = ctx.Config
 			newCtx.Context = ctx.Context
 			newCtx.Data = ctx.CloneData()
 
