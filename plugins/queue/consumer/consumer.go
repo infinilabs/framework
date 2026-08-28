@@ -375,6 +375,9 @@ func (processor *QueueConsumerProcessor) HandleQueueConfig(qConfig *queue.QueueC
 			processor.wg.Add(1)
 			contextForWorker := pipeline.Context{}
 			contextForWorker.ResetContext()
+			// 继承所属 pipeline 的配置 (含 Name): 消息级子链的处理器统计
+			// (stats 的 pipeline 分类) 依赖 ctx.Config.Name 归属到具体管线。
+			contextForWorker.Config = ctx.Config
 			err := processor.pool.Submit(&pipeline.Task{
 				Handler: func(ctx *pipeline.Context, v ...interface{}) {
 					processor.NewSlicedWorker(ctx, v...)
@@ -641,6 +644,7 @@ READ_DOCS:
 
 			newCtx := pipeline.Context{}
 			newCtx.ParentContext = ctx
+			newCtx.Config = ctx.Config
 			newCtx.Context = ctx.Context
 			newCtx.Data = ctx.CloneData()
 

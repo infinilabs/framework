@@ -42,12 +42,14 @@ package pipeline
 import (
 	"runtime"
 	"strings"
+	"time"
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/stats"
 )
 
 type ProcessorBase interface {
@@ -266,9 +268,15 @@ func (procs *Processors) Process(ctx *Context) error {
 		log.Trace("pipeline: ", ctx.Config.Name, ", start processing:", ctx.processHistory, "->", p.Name())
 
 		ctx.AddFlowProcess(p.Name())
+		start := time.Now()
 		err := p.Process(ctx)
+		// 处理器级调用统计 (pipeline 分类, 扁平键 = 管线名.处理器名.指标):
+		// 链路压力「加工」阶段的速率/错误/耗时来源。stats 写入带缓冲, 热路径安全。
+		stats.Increment("pipeline", ctx.Config.Name, "processor", p.Name(), "total_process")
+		stats.IncrementBy("pipeline", "processor_cost."+ctx.Config.Name+"."+p.Name(), time.Since(start).Microseconds())
 		//event, err = p.Filter(filterCfg,ctx)
 		if err != nil {
+			stats.Increment("pipeline", ctx.Config.Name, "processor", p.Name(), "total_error")
 			log.Error("error on processing:", p.Name(), ",", err)
 			return err
 		}
