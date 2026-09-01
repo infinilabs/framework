@@ -57,3 +57,4 @@ generated_*.go
 .latest_commit_hash.txt
 /plugins/enterprise/
 .claude/
+core/elastic/.keystore/
