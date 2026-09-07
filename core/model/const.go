@@ -21,17 +21,9 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-/* Copyright © INFINI Ltd. All rights reserved.
- * Web: https://infinilabs.com
- * Email: hello#infini.ltd */
+package model
 
-package api
-
-import "infini.sh/framework/core/api"
-
-func Init() {
-	handler := APIHandler{}
-	api.HandleAPIMethod(api.POST, "/keystore", handler.setKeystoreValue)
-	api.HandleAPIMethod(api.GET, "/keystore", handler.listKeystoreKeys)
-	api.HandleAPIMethod(api.DELETE, "/keystore", handler.deleteKeystoreKey)
-}
+const (
+	CredentialIDSystemKey = "credential_id"
+	API_TOKEN             = "X-API-TOKEN"
+)

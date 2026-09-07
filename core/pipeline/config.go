@@ -145,7 +145,7 @@ func (this PipelineConfigV2) ProcessorsEquals(target PipelineConfigV2) bool {
 	if err != nil {
 		panic(err)
 	}
-	targetCfg, err := this.GetProcessorsConfig()
+	targetCfg, err := target.GetProcessorsConfig()
 	if err != nil {
 		panic(err)
 	}

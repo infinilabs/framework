@@ -27,10 +27,31 @@
 
 package common
 
-import "infini.sh/framework/core/model"
+import (
+	"strings"
+
+	"infini.sh/framework/core/model"
+)
 
 const REGISTER_API = "/instance/_register"
 const SYNC_API = "/configs/_sync"
+
+const (
+	ManagerTokenKeystoreKey          = "configs_manager_token"
+	ManagerBootstrapTokenKeystoreKey = "configs_manager_bootstrap_token"
+	InstanceAccessTokenKeystoreKey   = "instance_access_token"
+)
+
+type RegisterToken struct {
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+	Value       string `json:"value,omitempty"`
+}
+
+type InstanceRegisterRequest struct {
+	Client      model.Instance `json:"client"`
+	AccessToken *RegisterToken `json:"access_token,omitempty"`
+}
 
 type ConfigFile struct {
 	Name     string `json:"name,omitempty"`
@@ -108,4 +129,13 @@ type ConfigRepo struct {
 type InstanceSettings struct {
 	ConfigFiles []string `config:"configs"`
 	Secrets     []string `config:"secrets"`
+}
+
+// SupportsManagedAccessToken reports whether an application joining the
+// managed-config flow should hand a keystore-backed access token to the
+// console at registration time. Any Framework-based instance (Agent,
+// Gateway, or third-party apps) qualifies; empty names are skipped since
+// there is nothing meaningful to mint a token for.
+func SupportsManagedAccessToken(applicationName string) bool {
+	return strings.TrimSpace(applicationName) != ""
 }

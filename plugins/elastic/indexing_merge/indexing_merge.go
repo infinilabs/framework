@@ -287,6 +287,15 @@ READ_DOCS:
 
 			util.WalkBytesAndReplace(pop, util.NEWLINE, util.SPACE)
 
+			// Data stream (create) documents must carry a top-level date
+			// @timestamp; the otel envelope keeps the timestamp at the
+			// envelope level and the record body under "payload", which
+			// neither reaches the doc top level. Normalize envelope docs
+			// for data stream semantics; bare docs pass through as-is.
+			if writeOpType == "create" {
+				pop = normalizeDataStreamDoc(pop)
+			}
+
 			docBuf.Write(pop)
 			docBuf.WriteString("\n")
 
@@ -341,4 +350,71 @@ CLEAN_BUFFER:
 		return
 	}
 	goto READ_DOCS
+}
+
+// normalizeDataStreamDoc turns one otel envelope (the queue's LogEvent JSON:
+// {"metadata":{...},"payload":{...},"timestamp":"..."}) into a data stream
+// compatible document:
+//
+//   - payload fields are promoted to the top level (message etc. become
+//     first-class doc fields)
+//   - a top-level @timestamp is derived from payload.timestamp /
+//     payload.observed_timestamp / the envelope timestamp / now — data
+//     streams reject documents without a date @timestamp
+//   - timestamp mirrors @timestamp (conventional sort field)
+//   - metadata.file (agent collection origin) is kept as top-level "file"
+//
+// Documents that are not envelopes (no "payload" key) pass through
+// unchanged except for the @timestamp stamp.
+func normalizeDataStreamDoc(doc []byte) []byte {
+	var m util.MapStr
+	if err := util.FromJSONBytes(doc, &m); err != nil {
+		return doc
+	}
+
+	ts := ""
+	if payload, ok := m["payload"].(map[string]interface{}); ok {
+		for _, k := range []string{"timestamp", "@timestamp", "observed_timestamp"} {
+			if v, ok := payload[k].(string); ok && v != "" {
+				ts = v
+				break
+			}
+		}
+	}
+	if ts == "" {
+		if v, ok := m["timestamp"].(string); ok {
+			ts = v
+		}
+	}
+	if ts == "" {
+		ts = time.Now().UTC().Format(time.RFC3339Nano)
+	}
+
+	out := util.MapStr{}
+	if payload, ok := m["payload"].(map[string]interface{}); ok {
+		for k, v := range payload {
+			out[k] = v
+		}
+	} else {
+		for k, v := range m {
+			out[k] = v
+		}
+	}
+	out["@timestamp"] = ts
+	out["timestamp"] = ts
+
+	if meta, ok := m["metadata"].(map[string]interface{}); ok {
+		if f, ok := meta["file"].(map[string]interface{}); ok {
+			out["file"] = f
+		}
+		if rt, ok := meta["log_type"].(string); ok && rt != "" {
+			out["log_type"] = rt
+		}
+		// per-pattern label (e.g. server|deprecation|slowlog|gc) — virtual
+		// streams split on this field.
+		if lk, ok := meta["log_kind"].(string); ok && lk != "" {
+			out["log_kind"] = lk
+		}
+	}
+	return util.MustToJSONBytes(out)
 }

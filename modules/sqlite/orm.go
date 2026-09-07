@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/aggregate"
@@ -53,6 +54,67 @@ type SQLiteORM struct {
 // KiB units per SQLite convention). 64 MiB comfortably holds hot indexes
 // for metadata-scale stores.
 const defaultCacheSizeKB = -65536
+
+// healMu serializes FTS self-healing across concurrent writers.
+var healMu sync.Mutex
+
+// isCorruptErr reports whether a SQLite error indicates a corrupt database
+// image. SQLITE_CORRUPT (11) and its extended forms - notably
+// SQLITE_CORRUPT_VTAB (267), the "database disk image is malformed" seen
+// when an FTS5 index has torn pages after an abnormal shutdown - all carry
+// "malformed" or "corrupt" in the message.
+func isCorruptErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "malformed") || strings.Contains(msg, "corrupt")
+}
+
+// healFTSIndexes rebuilds every FTS5 virtual table from its content table.
+// External-content FTS5 indexes are derived data, so a rebuild is always
+// safe: it cannot lose rows, it just regenerates the doclists. Corruption
+// from an unclean shutdown usually lands in these index pages (writes to
+// the content table mirror into the FTS shadows), which leaves the main
+// rows readable but their INSERT/DELETE failing with CORRUPT_VTAB.
+func (handler *SQLiteORM) healFTSIndexes() {
+	healMu.Lock()
+	defer healMu.Unlock()
+	rows, err := handler.DB.Query("SELECT name FROM sqlite_master WHERE type='table' AND sql LIKE '%USING fts5%'")
+	if err != nil {
+		log.Warnf("sqlite heal: cannot list FTS tables: %v", err)
+		return
+	}
+	var names []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err == nil && name != "" {
+			names = append(names, name)
+		}
+	}
+	rows.Close()
+	for _, name := range names {
+		if _, err := handler.DB.Exec(fmt.Sprintf("INSERT INTO [%s]([%s]) VALUES('rebuild')", name, name)); err != nil {
+			log.Warnf("sqlite heal: rebuild FTS %s failed: %v", name, err)
+		} else {
+			log.Infof("sqlite heal: rebuilt FTS index %s", name)
+		}
+	}
+}
+
+// execHealing runs a write statement; on a corruption error it rebuilds
+// the FTS indexes once and retries - a failed DELETE/UPDATE on an otherwise
+// healthy row (main table intact, FTS shadows torn) then succeeds without
+// operator intervention.
+func (handler *SQLiteORM) execHealing(query string, args ...interface{}) (sql.Result, error) {
+	result, err := handler.DB.Exec(query, args...)
+	if err != nil && isCorruptErr(err) {
+		log.Warnf("sqlite: corruption detected on write (%v) - rebuilding FTS indexes and retrying once", err)
+		handler.healFTSIndexes()
+		return handler.DB.Exec(query, args...)
+	}
+	return result, err
+}
 
 // defaultMmapSize caps how much of the database file SQLite serves via
 // memory-mapped I/O instead of pread syscalls. 256 MiB comfortably covers the
@@ -165,7 +227,7 @@ func (handler *SQLiteORM) Create(ctx *api.Context, o interface{}) error {
 		log.Debug("sqlite Create: ", query, " id=", id)
 	}
 
-	_, err := handler.DB.Exec(query, id, rawJSON)
+	_, err := handler.execHealing(query, id, rawJSON)
 	return err
 }
 
@@ -183,7 +245,7 @@ func (handler *SQLiteORM) Save(ctx *api.Context, o interface{}) error {
 		log.Debug("sqlite Save: ", query, " id=", id)
 	}
 
-	_, err := handler.DB.Exec(query, id, rawJSON)
+	_, err := handler.execHealing(query, id, rawJSON)
 	return err
 }
 
@@ -201,7 +263,7 @@ func (handler *SQLiteORM) Update(ctx *api.Context, o interface{}) error {
 		log.Debug("sqlite Update: ", query, " id=", id)
 	}
 
-	result, err := handler.DB.Exec(query, rawJSON, id)
+	result, err := handler.execHealing(query, rawJSON, id)
 	if err != nil {
 		return err
 	}
@@ -227,7 +289,7 @@ func (handler *SQLiteORM) Delete(ctx *api.Context, o interface{}) error {
 		log.Debug("sqlite Delete: ", query, " id=", id)
 	}
 
-	_, err := handler.DB.Exec(query, id)
+	_, err := handler.execHealing(query, id)
 	return err
 }
 
@@ -244,7 +306,7 @@ func (handler *SQLiteORM) DeleteBy(o interface{}, query interface{}) error {
 		log.Debug("sqlite DeleteBy: ", sqlStr)
 	}
 
-	_, err := handler.DB.Exec(sqlStr)
+	_, err := handler.execHealing(sqlStr)
 	return err
 }
 
@@ -261,7 +323,7 @@ func (handler *SQLiteORM) UpdateBy(o interface{}, query interface{}) error {
 		log.Debug("sqlite UpdateBy: ", sqlStr)
 	}
 
-	_, err := handler.DB.Exec(sqlStr)
+	_, err := handler.execHealing(sqlStr)
 	return err
 }
 
@@ -674,7 +736,7 @@ func (handler *SQLiteORM) DeleteByQuery(ctx *api.Context, qb *api.QueryBuilder) 
 		log.Debug("sqlite DeleteByQuery: ", sqlStr, " args=", args)
 	}
 
-	result, err := handler.DB.Exec(sqlStr, args...)
+	result, err := handler.execHealing(sqlStr, args...)
 	if err != nil {
 		return nil, err
 	}

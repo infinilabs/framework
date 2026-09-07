@@ -51,6 +51,12 @@ func handleClusterChange(ctx *orm.Context, op orm.Operation, o interface{}) (*or
 		return ctx, o, nil
 	}
 
+	// ORM-loaded records carry the marshal mask instead of the real
+	// credential (SecretString json round-trip): hydrate from the keystore
+	// so identity comparison and live re-initialization below see real
+	// credentials. A no-op when the caller's copy already carries them.
+	elastic.HydrateClusterSecrets(cfg)
+
 	switch op {
 	case orm.OpCreate:
 		if _, err := common.InitElasticInstance(*cfg); err != nil {
@@ -86,6 +92,7 @@ func handleClusterChange(ctx *orm.Context, op orm.Operation, o interface{}) (*or
 		}
 
 	case orm.OpDelete:
+		elastic.RemoveClusterSecrets(cfg.ID)
 		elastic.RemoveInstance(cfg.ID)
 		elastic.InvalidateClient(*cfg)
 		log.Debugf("cluster %s (%s): live client removed after delete", cfg.ID, cfg.Name)

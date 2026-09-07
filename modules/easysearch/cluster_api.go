@@ -4,6 +4,7 @@ package easysearch
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"infini.sh/framework/core/api"
@@ -12,6 +13,7 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/elastic/common"
 )
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -89,12 +91,49 @@ func registerClusterAPI() {
 			// loop persists status for it (the loop keys off this source value).
 			cfg.Source = elastic.ElasticsearchConfigSourceElasticsearch
 			cfg.Enabled = true
+			// SecretString round-trips through the ORM as the marshal mask,
+			// so the real credential must be stashed in the keystore before
+			// the record is saved (see core/elastic/cluster_secrets.go).
+			elastic.StashClusterSecrets(cfg)
+			return nil
+		},
+		PrepareUpdate: func(cfg *elastic.ElasticsearchConfig, delta util.MapStr) error {
+			// Partial-update mode hands this hook a sparse object: the new
+			// credential (when retyped) only exists in the raw request body.
+			elastic.StashClusterSecretsFromDelta(cfg.ID, delta)
 			return nil
 		},
 		GuardDelete: func(cfg *elastic.ElasticsearchConfig) error {
 			if cfg.Reserved {
 				return errors.New("reserved cluster cannot be deleted")
 			}
+			return nil
+		},
+		// Live registration: writing a cluster record takes effect
+		// immediately - no restart or boot-time ORM reload needed. This is
+		// what lets a manager (e.g. LogPilot) push sink clusters to gateways
+		// dynamically; pipelines referencing the cluster id resolve on the
+		// next use.
+		PostCreate: func(cfg *elastic.ElasticsearchConfig) error {
+			elastic.HydrateClusterSecrets(cfg)
+			if _, err := common.InitElasticInstance(*cfg); err != nil {
+				return fmt.Errorf("cluster %s saved but live registration failed: %w", cfg.ID, err)
+			}
+			return nil
+		},
+		PostUpdate: func(cfg *elastic.ElasticsearchConfig) error {
+			// crud reloads the record from the ORM before post hooks run:
+			// hydrate so live registration sees the real credential, not
+			// the mask persisted in the record.
+			elastic.HydrateClusterSecrets(cfg)
+			if _, err := common.InitElasticInstance(*cfg); err != nil {
+				return fmt.Errorf("cluster %s updated but live re-registration failed: %w", cfg.ID, err)
+			}
+			return nil
+		},
+		PostDelete: func(cfg *elastic.ElasticsearchConfig) error {
+			elastic.RemoveClusterSecrets(cfg.ID)
+			elastic.RemoveInstance(cfg.ID)
 			return nil
 		},
 	})
