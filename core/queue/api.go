@@ -499,25 +499,30 @@ func GetConfigBySelector(selector *QueueSelector) []*QueueConfig {
 	return cfgs
 }
 
+// GetConfigByLabels returns the queue configs whose labels match ALL of the
+// requested label pairs (AND semantics): a queue missing one of the keys, or
+// carrying a different value for it, is excluded. The previous implementation
+// only required at least one matching pair — a queue tagged {topic:x} was
+// selected by a {topic:x, env:prod} selector even though it has no env tag.
 func GetConfigByLabels(labels map[string]interface{}) []*QueueConfig {
 
 	cfgs := []*QueueConfig{}
+	if len(labels) == 0 {
+		return cfgs
+	}
 	configs.Range(func(key, value interface{}) bool {
 		v := value.(*QueueConfig)
 		if v != nil {
-			matched := false
+			matched := true
 			for x, y := range labels {
-				if v.Labels != nil {
-					z, ok := v.Labels[x]
-					if ok {
-						if util.ToString(z) == util.ToString(y) {
-							matched = true
-						} else {
-							//skip when it does not match label's value
-							matched = false
-							return true
-						}
-					}
+				if v.Labels == nil {
+					matched = false
+					break
+				}
+				z, ok := v.Labels[x]
+				if !ok || util.ToString(z) != util.ToString(y) {
+					matched = false
+					break
 				}
 			}
 			if matched {

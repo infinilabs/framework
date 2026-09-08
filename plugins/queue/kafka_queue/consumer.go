@@ -73,10 +73,7 @@ func (this *Consumer) CommitOffset(off queue.Offset) error {
 	defer cancel()
 
 	var ret error
-	offset := map[string]map[int32]kgo.EpochOffset{}
-	offset[this.qCfg.ID] = map[int32]kgo.EpochOffset{}
-	offset[this.qCfg.ID][0] = kgo.EpochOffset{Offset: off.Position, Epoch: -1}
-	this.client.CommitOffsetsSync(ctx, offset, func(client *kgo.Client, request *kmsg.OffsetCommitRequest, response *kmsg.OffsetCommitResponse, err error) {
+	this.client.CommitOffsetsSync(ctx, offsetsToCommit(this.qCfg, off), func(client *kgo.Client, request *kmsg.OffsetCommitRequest, response *kmsg.OffsetCommitResponse, err error) {
 		if ret != nil {
 			log.Error(ret)
 		}
@@ -87,6 +84,19 @@ func (this *Consumer) CommitOffset(off queue.Offset) error {
 		log.Infof("commit %v[%v] offset: %v", this.qCfg.Name, this.qCfg.ID, off.String())
 	}
 	return ret
+}
+
+// offsetsToCommit builds the kgo commit request for one queue offset. The
+// partition comes from the offset itself (queue offsets carry
+// segment=partition since FetchMessages): committing hard-wired to
+// partition 0 silently corrupted the committed positions of every
+// multi-partition topic — each partition's progress overwrote partition 0's
+// commit and its own was never persisted.
+func offsetsToCommit(qCfg *queue.QueueConfig, off queue.Offset) map[string]map[int32]kgo.EpochOffset {
+	offset := map[string]map[int32]kgo.EpochOffset{}
+	offset[qCfg.ID] = map[int32]kgo.EpochOffset{}
+	offset[qCfg.ID][int32(off.Segment)] = kgo.EpochOffset{Offset: off.Position, Epoch: -1}
+	return offset
 }
 
 func (this *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (messages []queue.Message, isTimeout bool, err error) {
