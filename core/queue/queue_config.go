@@ -168,6 +168,24 @@ func GetOrInitConfig(key string) *QueueConfig {
 	return AdvancedGetOrInitConfig("", key, nil)
 }
 
+// EnsureTypedConfig ensures the named queue is registered with the given
+// queueType. Dynamically created queues fall back to the default handler
+// (disk); transport segments that must switch the backend explicitly (e.g. a
+// kafka bus) use this to force the type, overwriting the registration in
+// place when an existing config carries a different type.
+func EnsureTypedConfig(queueType, key string) *QueueConfig {
+	if queueType == "" {
+		return GetOrInitConfig(key)
+	}
+	cfg := AdvancedGetOrInitConfig(queueType, key, nil)
+	if cfg != nil && cfg.Type != queueType {
+		cfg.Type = queueType
+		RegisterConfig(cfg)
+		log.Infof("queue [%v] switched to type [%v]", key, queueType)
+	}
+	return cfg
+}
+
 func SmartGetOrInitConfig(cfg *QueueConfig) *QueueConfig {
 	if cfg.ID != "" {
 		v, _ := GetConfigByUUID(cfg.ID)

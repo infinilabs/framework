@@ -41,6 +41,7 @@ package indexing_merge
 
 import (
 	"fmt"
+	"hash/fnv"
 	"runtime"
 	"sync"
 	"time"
@@ -81,6 +82,13 @@ type Config struct {
 	WriteOpType string `config:"write_op_type"` //create, index, update
 
 	KeyField string `config:"key_field"` //the field name used as document's primary key aka `_id
+
+	// KeyFields builds a deterministic `_id` by concatenating the values of
+	// the given dot-path fields (missing paths contribute a `\x00` marker)
+	// and hashing them. Combined with write_op_type=create this makes
+	// at-least-once replays idempotent: duplicated deliveries hit ES version
+	// conflicts (409, non-retryable) instead of being indexed again.
+	KeyFields []string `config:"key_fields"`
 
 	Elasticsearch string `config:"elasticsearch"`
 
@@ -260,7 +268,9 @@ READ_DOCS:
 			}
 
 			var id_part = ""
-			if processor.config.KeyField != "" {
+			if len(processor.config.KeyFields) > 0 {
+				id_part = fmt.Sprintf(", \"_id\":\"%v\"", processor.fingerprintID(pop))
+			} else if processor.config.KeyField != "" {
 				source := util.MapStr{}
 				err := util.FromJSONBytes(pop, &source)
 				if err != nil {
@@ -417,4 +427,46 @@ func normalizeDataStreamDoc(doc []byte) []byte {
 		}
 	}
 	return util.MustToJSONBytes(out)
+}
+
+// fingerprintID derives a deterministic document id: the configured dot-path
+// fields are looked up in the queue message, joined and hashed (FNV-1a 64).
+// When NONE of the fields resolve, the raw message bytes are hashed instead —
+// the fallback keeps distinct documents apart for sources lacking e.g. file
+// metadata. Deterministic ids make at-least-once replays idempotent when
+// combined with write_op_type=create: duplicated deliveries turn into
+// ES version conflicts instead of duplicate documents.
+//
+// NOTE the fields must be stable across redeliveries: per-attempt stamps like
+// ingest timestamps change between retries and defeat dedup; content-derived
+// or source-location fields (file path/offset) do not.
+func (processor *IndexingMergeProcessor) fingerprintID(pop []byte) string {
+	h := fnv.New64a()
+
+	source := util.MapStr{}
+	if err := util.FromJSONBytes(pop, &source); err != nil {
+		// undecodable message - hash the raw bytes as-is
+		h.Write(pop)
+		return fmt.Sprintf("%x", h.Sum64())
+	}
+
+	matched := false
+	for _, f := range processor.config.KeyFields {
+		h.Write([]byte{'|'})
+		v, err := source.GetValue(f)
+		if err != nil || v == nil {
+			// keep positional meaning for missing fields
+			h.Write([]byte("\x00"))
+			continue
+		}
+		matched = true
+		h.Write([]byte(util.ToString(v)))
+	}
+	if !matched {
+		// none of the key fields exist on this message: fall back to a
+		// content hash so unrelated messages don't collapse into one id
+		h.Reset()
+		h.Write(pop)
+	}
+	return fmt.Sprintf("%x", h.Sum64())
 }

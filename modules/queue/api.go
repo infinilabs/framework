@@ -76,7 +76,12 @@ func (module *API) SingleQueueStatsAction(w http.ResponseWriter, req *http.Reque
 	useKey := module.Get(req, "use_key", "false")
 
 	data := util.MapStr{}
-	module.getQueueStats("", ps.MustGetParameter("id"), metadata, consumer, useKey, data)
+	err := module.getQueueStatsSafe("", ps.MustGetParameter("id"), metadata, consumer, useKey, data)
+	if err != nil {
+		data["error"] = err.Error()
+		module.WriteJSON(w, data, http.StatusInternalServerError)
+		return
+	}
 	module.WriteJSON(w, data, 200)
 }
 
@@ -143,9 +148,15 @@ func (module *API) QueueStatsAction(w http.ResponseWriter, req *http.Request, ps
 	for t, qs := range queues {
 		data := util.MapStr{}
 		for _, q := range qs {
-			err := module.getQueueStats(t, q, metadata, consumer, useKey, data)
+			err := module.getQueueStatsSafe(t, q, metadata, consumer, useKey, data)
 			if err != nil {
-				panic(err)
+				// A single queue failing its stats (e.g. offset/depth panics
+				// when a kafka broker is unreachable) must not take down the
+				// whole stats endpoint — mark that queue with an error entry,
+				// return the rest.
+				_ = log.Errorf("queue [%v] stats failed, skipped: %v", q, err)
+				data[q] = util.MapStr{"error": err.Error()}
+				continue
 			}
 		}
 		log.Tracef("queue [%v] stats: %v", t, data)
@@ -154,6 +165,19 @@ func (module *API) QueueStatsAction(w http.ResponseWriter, req *http.Request, ps
 	module.WriteJSON(w, util.MapStr{
 		"queue": datas,
 	}, 200)
+}
+
+// getQueueStatsSafe wraps getQueueStats with a recover: queue handlers may
+// panic on remote stats failures (e.g. kafka Depth/LatestOffset/GetOffset on
+// an unreachable broker), and one broken queue must not take down the whole
+// stats endpoint. The panic is converted into a per-queue error instead.
+func (module *API) getQueueStatsSafe(t, q string, metadata string, consumer string, useKey string, data util.MapStr) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.Errorf("queue [%v] stats failed: %v", q, r)
+		}
+	}()
+	return module.getQueueStats(t, q, metadata, consumer, useKey, data)
 }
 
 func (module *API) getQueueStats(t, q string, metadata string, consumer string, useKey string, data util.MapStr) error {
