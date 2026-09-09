@@ -223,7 +223,7 @@ When `SkipCatchError` is `false` (the default), the pipeline catches errors from
 
 ## Conditional Processing
 
-Pipelines support `if`/`then`/`else` blocks for conditional execution. Conditions are evaluated against the pipeline context, and the matching branch is executed.
+Pipelines support `if`/`then`/`else` blocks for conditional execution. The condition is evaluated against the **current record** when the processor runs inside a per-record sub-chain (e.g. `for_each`), so field names refer to the record's own attributes (`file.path`, `log_level`, ...). Outside a record scope the condition is evaluated against the pipeline context, where fields are referenced through the `_ctx.` prefix:
 
 ```yaml
 processor:
@@ -238,13 +238,51 @@ processor:
           message: "non-POST request"
 ```
 
+The same block inside a `for_each` sub-chain routes each record by its own fields:
+
+```yaml
+processor:
+  - for_each:
+      processor:
+        - if:
+            contains:
+              file.path: "nginx"
+          then:
+            - mutate:
+                add:
+                  route: nginx-pipeline
+          else:
+            - mutate:
+                add:
+                  route: default-pipeline
+```
+
 ### Structure
 
 | Field | Description |
 |-------|-------------|
-| `if` | A condition block. Supports operators like `equals` that compare context values against expected values. |
-| `then` | A list of processors to execute when the condition is `true`. |
-| `else` | A list of processors to execute when the condition is `false`. Optional. |
+| `if` | A condition block (see the operator table below). |
+| `then` | A processor (or list of processors) to execute when the condition is `true`. |
+| `else` | A processor (or list of processors) to execute when the condition is `false`. Optional. |
+
+### Supported Condition Operators
+
+All operators from the conditions system (`core/conditions/`) are available in `if` blocks — see the Conditions reference for the complete syntax of each:
+
+| Operator | Description |
+|----------|-------------|
+| [`equals`](conditions/equals/) | Exact value match (string, int, float, bool) |
+| [`contains`](conditions/contains/) | Substring match on strings or string arrays |
+| [`regexp`](conditions/regexp/) | Regular expression match |
+| [`prefix`](conditions/prefix/) / [`suffix`](conditions/suffix/) | String starts-with / ends-with check |
+| [`in`](conditions/in/) | Value membership in a list |
+| [`range`](conditions/range/) | Numeric range comparison (`gt`, `gte`, `lt`, `lte`) |
+| [`exists`](conditions/exists/) | Field existence and non-empty check |
+| [`length`](conditions/length/) | Collection/string length equality |
+| [`network`](conditions/network/) | IP address network membership (named networks or CIDR) |
+| [`and`](conditions/and/) / [`or`](conditions/or/) / [`not`](conditions/not/) | Logical combination and negation |
+| [`queue_has_lag`](conditions/queue_has_lag/) / [`consumer_has_lag`](conditions/consumer_has_lag/) | Queue or consumer group lag detection |
+| [`cluster_available`](conditions/cluster_available/) | Elasticsearch cluster availability |
 
 ### Nested Conditions
 
@@ -408,21 +446,8 @@ import _ "your_app/plugins/health"
 
 ## Built-in Processors
 
-The framework ships with several built-in processors registered via `RegisterProcessorPlugin`.
+The framework ships with a growing set of built-in processors registered via `RegisterProcessorPlugin` / `RegisterDomainProcessor` — framework primitives (`echo`, `dag`, `for_each`), queue bridges (`consumer`, `queue_output`), Elasticsearch indexing (`bulk_indexing`, `json_indexing`, `indexing_merge`, `merge_to_bulk`), output transports (`otlp_export`), general-purpose helpers (`http`, `smtp`, `replay`), and a wide catalog of record processors for parsing, transforming, enriching, routing and governing records inside `for_each` sub-chains (`dissect`, `grok`, `mutate`, `geoip`, `throttle`, `script`, ...).
 
-### Framework Processors (`modules/pipeline/`)
+Every processor has its own reference page — description, configuration parameters with types and defaults, and an example — under the **Processor Reference** section. Record processors operate on the current record inside `for_each` sub-chains (most are no-ops outside a record scope); they are registered by domain category, the bare name is the YAML key, and `category:name` is an explicit alias.
 
-| Processor | Description |
-|-----------|-------------|
-| `echo` | Logs a configured message. Useful for debugging and verifying pipeline flow. |
-| `dag` | Executes a directed acyclic graph (DAG) of processors, enabling parallel and dependency-based execution within a pipeline. |
-
-### Plugin Processors (`plugins/`)
-
-| Processor | Description |
-|-----------|-------------|
-| `http` | Sends HTTP requests to external services. Supports templated URLs, custom headers, and response handling. |
-| `smtp` | Sends email notifications via SMTP. |
-| `replay` | Replays recorded events for testing or reprocessing. |
-| `bulk_indexing` | Indexes documents into Elasticsearch in bulk for high-throughput ingestion. |
-| `json_indexing` | Indexes JSON documents into Elasticsearch. |
+The same catalog is discoverable at runtime via the `GET /pipeline/processors` API (`?grouped=1` groups the catalog by category).

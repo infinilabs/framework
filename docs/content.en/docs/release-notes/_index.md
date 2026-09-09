@@ -32,6 +32,10 @@ Information about release notes of INFINI Framework is provided here.
 - feat(crud): extend the generated CRUD with migration hooks driven by CocoAI's hand-written handlers — `ExtraOptions` per action (login, CORS, sensitive-field masking), custom `IDParam`, `CtxDecorate` orm-context markers, `UpdateMode` partial/full/`?replace=` with `ProtectedFields` + `PrepareUpdate`, best-effort `PostCreate/PostUpdate/PostDelete`, `PostGet` refinement, and `PrepareSearch`/`PostSearch` for injected filters and per-hit mapping; the MCP tool now registers on GET _search only (no duplicate tool names); `SkipActions` keeps hand-written endpoints where the generator cannot express the semantics (upsert/replace-keeping-system-fields, cache-first fetch); full-object update mode now merges through a map so `ProtectedFields` are restored from the loaded record, and `PrepareUpdate` receives the raw body as the delta
 - feat(orm): fluent `SetAggs` query-builder API and a refactored SQLite SQL builder backing it
 - feat(security): add deletion guards `SafeRemoveAll`/`IsDangerousPath`/`IsPathWithin` (`core/util`) so externally-driven deletes (configured repository roots, control-plane-supplied paths) can never act as a general `rm -rf` — system-critical locations and bare data roots are refused (content under data roots stays allowed, e.g. `/var/lib/elasticsearch`), containment is strict and symlink-resolved, and unsafe targets fail loudly instead of silently deleting #410
+- feat(configs): managed-config server with token auth — `POST /instance/_register` mints a per-instance token (read-once body handling so bare Instance payloads register correctly), `POST /configs/_sync` does heartbeat + hash fast-path + version diff with instance-token validation, and `POST /instance/_exchange_token` rotates tokens with a 1h grace window; tokens are stored sha256-hashed and compared in constant time #405
+- feat(queue): add the `queue_output` processor — chain-tail batch→queue bridge enabling two-stage pipelines (process on one queue, `bulk_indexing` from another); push failures leave the offset uncommitted (at-least-once) #405
+- feat(sqlite): self-heal FTS index corruption on writes — ORM write/delete statements failing with `SQLITE_CORRUPT_VTAB` (torn FTS5 shadow pages after an unclean shutdown) trigger a serialized rebuild of the FTS indexes from their content table and retry once; FTS indexes are derived data, so regeneration never loses rows #406
+- perf(pipeline): probe the current record via `Parameters.Peek` — the `GetValue` miss path built a stack-capturing error for every `CurrentRecord` call outside a record scope (µs + 6 allocs per if/then/else evaluation); the bare locked map read restores the no-record path to pre-fix allocation counts #408
 
 ### 🐛 Bug fix  
 - fix: expand configs.template when loading templated config files #391
@@ -39,11 +43,16 @@ Information about release notes of INFINI Framework is provided here.
 - fix: health api requires a system cluster that may not exist #393
 - fix: pipeline task not visible right after creation #393
 - fix(sqlite): whitelist field identifiers spliced into SQL text — query-supplied field names (`?filter`, `?sort`, legacy conds, GroupBy) were rendered into `json_extract` paths and ORDER BY fragments without escaping, enabling SQL injection by an authenticated caller; identifiers are now validated against a strict whitelist and invalid ones degrade to NULL (predicates match nothing, ORDER BY/GROUP BY degrade to constants) #412
+- fix(elastic+pipeline): keystore-backed cluster credentials + pipeline config reload — `SecretString`'s shadow mask no longer replaces the real basic_auth/token on ORM round-trips (`StashClusterSecrets`/`HydrateClusterSecrets`/`RemoveClusterSecrets`; in-memory real values win, API responses keep the mask), and config-reload change detection no longer reports processors as equal to themselves #407
+- fix(pipeline): if/then/else evaluates against the current record inside per-record sub-chains — conditions were checked against the record-less pipeline Context and silently never fired inside `for_each`; they now resolve the bound record's fields, falling back to the context at pipeline level #408
+- fix(queue): label selector AND semantics, kafka partition commits, consumer config overrides — `GetConfigByLabels` requires ALL requested label pairs (a queue tagged `{topic:x}` is no longer selected by a `{topic:x, env:prod}` selector; `matched` defaults to false and is enabled only when every pair verifies), kafka `CommitOffset` persists each partition's own offset instead of overwriting partition 0, and the queue-consumer processor applies its `consumer` overrides to a `Clone()` covering every field instead of mutating the shared registry config #413
 
 ### ✈️ Improvements  
 - refactor: add EventSink support to overall utilization collector #387
 - refactor: enable CORS for GET /setting/application #390
 - refactor: rate limit the large cluster warning in metric collection #394
+- docs: catalog built-in processors and condition operators in the pipeline/conditions references #414
+- docs: per-processor and per-condition reference sections — one page for each of the 51 registered processors and 16 condition operators, in a uniform format (category/scope, configuration parameters with types and defaults, examples) #414
 
 ## 1.4.2 (2026-06-23)
 ### ❌ Breaking changes  
