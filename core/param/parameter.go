@@ -707,9 +707,9 @@ func (para *Parameters) Peek(key ParaKey) (interface{}, bool) {
 			// the whole-collection read: found only when a Meta map exists
 			return para.Meta, para.Meta != nil
 		}
-		return para.Meta.GetValueOK(subKey)
+		return para.Meta.PeekValue(subKey)
 	}
-	return para.Data.GetValueOK(k)
+	return para.Data.PeekValue(k)
 }
 
 func (para *Parameters) GetOrDefault(key ParaKey, val interface{}) interface{} {

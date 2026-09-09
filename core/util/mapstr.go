@@ -141,13 +141,13 @@ func (m MapStr) GetValue(key string) (interface{}, error) {
 	return walkMap(key, m, opGet)
 }
 
-// GetValueOK gets a value from the map and reports whether the key exists,
+// PeekValue gets a value from the map and reports whether the key exists,
 // using the same resolution order as GetValue — the literal (possibly
 // dotted) key first, then dot-notation walking nested maps with slice and
 // array segments addressed by numeric index — but without constructing the
 // stack-capturing error of the miss path. Prefer it over GetValue for
 // hot-path probes where a miss is common and expected.
-func (m MapStr) GetValueOK(key string) (interface{}, bool) {
+func (m MapStr) PeekValue(key string) (interface{}, bool) {
 	if v, ok := m[key]; ok {
 		return v, true
 	}
@@ -169,7 +169,7 @@ func (m MapStr) GetValueOK(key string) (interface{}, bool) {
 
 // walkStep resolves one segment of a read-only walk: map lookups for
 // MapStr and map[string]interface{}, numeric indexing for slices and
-// arrays. It is the shared resolution primitive of GetValueOK; walkMap
+// arrays. It is the shared resolution primitive of PeekValue; walkMap
 // cannot use it for intermediates because the mutating operations must
 // keep converting through toMapStr.
 func walkStep(node interface{}, part string) (interface{}, bool) {

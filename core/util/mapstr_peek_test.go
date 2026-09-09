@@ -21,10 +21,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// GetValueOK walks the map without error construction, so it shares the
+// PeekValue walks the map without error construction, so it shares the
 // resolution semantics of GetValue (walkMap) only by convention — this
 // matrix locks the two walks to the same answers.
-func TestGetValueOK_MatchesGetValue(t *testing.T) {
+func TestPeekValue_MatchesGetValue(t *testing.T) {
 	m := MapStr{
 		"flat":       "v1",
 		"x.y":        "flat-literal", // dotted key stored flat, wins over nesting
@@ -61,35 +61,35 @@ func TestGetValueOK_MatchesGetValue(t *testing.T) {
 	}
 
 	for _, c := range keys {
-		v, ok := m.GetValueOK(c.key)
+		v, ok := m.PeekValue(c.key)
 		assert.Equal(t, c.ok, ok, "key %q", c.key)
 		assert.Equal(t, c.want, v, "key %q", c.key)
 
 		got, err := m.GetValue(c.key)
 		if c.ok {
 			assert.NoError(t, err, "key %q", c.key)
-			assert.Equal(t, c.want, got, "GetValueOK disagrees with GetValue on key %q", c.key)
+			assert.Equal(t, c.want, got, "PeekValue disagrees with GetValue on key %q", c.key)
 		} else {
 			assert.Error(t, err, "key %q", c.key)
 		}
 	}
 }
 
-func BenchmarkGetValueOK_Miss(b *testing.B) {
+func BenchmarkPeekValue_Miss(b *testing.B) {
 	m := MapStr{"record": "r1"}
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		if _, ok := m.GetValueOK("missing"); ok {
+		if _, ok := m.PeekValue("missing"); ok {
 			b.Fatal("unexpected hit")
 		}
 	}
 }
 
-func BenchmarkGetValueOK_Hit(b *testing.B) {
+func BenchmarkPeekValue_Hit(b *testing.B) {
 	m := MapStr{"record": "r1"}
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		if v, ok := m.GetValueOK("record"); !ok || v != "r1" {
+		if v, ok := m.PeekValue("record"); !ok || v != "r1" {
 			b.Fatal("unexpected miss")
 		}
 	}
