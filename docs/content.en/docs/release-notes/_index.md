@@ -38,6 +38,7 @@ Information about release notes of INFINI Framework is provided here.
 - fix: register elasticsearch instance even when version probe fails #393
 - fix: health api requires a system cluster that may not exist #393
 - fix: pipeline task not visible right after creation #393
+- fix(sqlite): whitelist field identifiers spliced into SQL text — query-supplied field names (`?filter`, `?sort`, legacy conds, GroupBy) were rendered into `json_extract` paths and ORDER BY fragments without escaping, enabling SQL injection by an authenticated caller; identifiers are now validated against a strict whitelist and invalid ones degrade to NULL (predicates match nothing, ORDER BY/GROUP BY degrade to constants) #412
 
 ### ✈️ Improvements  
 - refactor: add EventSink support to overall utilization collector #387
