@@ -513,17 +513,22 @@ func GetConfigByLabels(labels map[string]interface{}) []*QueueConfig {
 	configs.Range(func(key, value interface{}) bool {
 		v := value.(*QueueConfig)
 		if v != nil {
-			matched := true
+			matched := false
+			verified := 0
 			for x, y := range labels {
 				if v.Labels == nil {
-					matched = false
 					break
 				}
 				z, ok := v.Labels[x]
 				if !ok || util.ToString(z) != util.ToString(y) {
-					matched = false
 					break
 				}
+				verified++
+			}
+			// not matched by default — enable only when every requested
+			// label pair was explicitly verified
+			if verified == len(labels) {
+				matched = true
 			}
 			if matched {
 				cfgs = append(cfgs, v)
