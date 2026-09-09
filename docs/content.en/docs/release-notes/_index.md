@@ -53,6 +53,7 @@ Information about release notes of INFINI Framework is provided here.
 - refactor: rate limit the large cluster warning in metric collection #394
 - docs: catalog built-in processors and condition operators in the pipeline/conditions references #414
 - docs: per-processor and per-condition reference sections — one page for each of the 51 registered processors and 16 condition operators, in a uniform format (category/scope, configuration parameters with types and defaults, examples) #414
+- fixdoc: replace relref shortcodes embedded in link destinations with plain relative page links, silencing the docs build's "Page 'HAHAHUGOSHORTCODE-...' not found" warnings #415
 
 ## 1.4.2 (2026-06-23)
 ### ❌ Breaking changes  
