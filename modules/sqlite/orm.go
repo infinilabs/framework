@@ -378,7 +378,7 @@ func (handler *SQLiteORM) Search(t interface{}, q *api.Query) (error, api.Result
 	if q.Sort != nil && len(*q.Sort) > 0 {
 		var sorts []string
 		for _, s := range *q.Sort {
-			sorts = append(sorts, fmt.Sprintf("json_extract(raw, '$.%s') %s", s.Field, string(s.SortType)))
+			sorts = append(sorts, fmt.Sprintf("%s %s", sqliteOrm.SafeJSONPathExpr(s.Field), sqliteOrm.SafeSortDirection(string(s.SortType))))
 		}
 		sqlStr += " ORDER BY " + strings.Join(sorts, ", ")
 	}
@@ -456,7 +456,7 @@ func (handler *SQLiteORM) SearchWithResultItemMapper(resultArray interface{}, it
 	if q.Sort != nil && len(*q.Sort) > 0 {
 		var sorts []string
 		for _, s := range *q.Sort {
-			sorts = append(sorts, fmt.Sprintf("json_extract(raw, '$.%s') %s", s.Field, string(s.SortType)))
+			sorts = append(sorts, fmt.Sprintf("%s %s", sqliteOrm.SafeJSONPathExpr(s.Field), sqliteOrm.SafeSortDirection(string(s.SortType))))
 		}
 		sqlStr += " ORDER BY " + strings.Join(sorts, ", ")
 	}
@@ -508,8 +508,8 @@ func (handler *SQLiteORM) SearchWithResultItemMapper(resultArray interface{}, it
 func (handler *SQLiteORM) GroupBy(t interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{}) {
 	tableName := handler.GetIndexName(t)
 
-	sqlStr := fmt.Sprintf("SELECT json_extract(raw, '$.%s') as grp, COUNT(*) as cnt FROM [%s] GROUP BY grp",
-		groupField, tableName)
+	sqlStr := fmt.Sprintf("SELECT %s as grp, COUNT(*) as cnt FROM [%s] GROUP BY grp",
+		sqliteOrm.SafeJSONPathExpr(groupField), tableName)
 	if haveQuery != "" {
 		sqlStr += fmt.Sprintf(" HAVING %s", haveQuery)
 	}
@@ -526,12 +526,15 @@ func (handler *SQLiteORM) GroupBy(t interface{}, selectField, groupField string,
 
 	finalResult := map[string]interface{}{}
 	for rows.Next() {
-		var key string
+		// NULL group keys (empty table, or a field that degraded to NULL
+		// via SafeJSONPathExpr) scan into the empty-string bucket instead
+		// of erroring.
+		var key sql.NullString
 		var count int64
 		if err := rows.Scan(&key, &count); err != nil {
 			return err, nil
 		}
-		finalResult[key] = count
+		finalResult[key.String] = count
 	}
 	return nil, finalResult
 }
@@ -607,7 +610,7 @@ func (handler *SQLiteORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*api
 				if s.Field == "_score" {
 					expr = "id" // no scoring in sqlite; stable tiebreaker
 				}
-				sortParts = append(sortParts, fmt.Sprintf("%s %s", expr, string(s.SortType)))
+				sortParts = append(sortParts, fmt.Sprintf("%s %s", expr, sqliteOrm.SafeSortDirection(string(s.SortType))))
 			}
 			sqlStr += " ORDER BY " + strings.Join(sortParts, ", ")
 		}
@@ -785,7 +788,7 @@ func buildLegacyWhere(conds []*api.Cond) ([]string, []interface{}) {
 	var args []interface{}
 
 	for _, c := range conds {
-		jsonPath := fmt.Sprintf("json_extract(raw, '$.%s')", c.Field)
+		jsonPath := sqliteOrm.SafeJSONPathExpr(c.Field)
 		switch c.QueryType {
 		case api.Match:
 			if c.BoolType == api.MustNot {
