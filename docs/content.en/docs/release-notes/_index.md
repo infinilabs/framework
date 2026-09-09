@@ -44,6 +44,7 @@ Information about release notes of INFINI Framework is provided here.
 - refactor: add EventSink support to overall utilization collector #387
 - refactor: enable CORS for GET /setting/application #390
 - refactor: rate limit the large cluster warning in metric collection #394
+- docs: catalog built-in processors and condition operators in the pipeline/conditions references #414
 
 ## 1.4.2 (2026-06-23)
 ### ❌ Breaking changes  
