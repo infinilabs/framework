@@ -102,7 +102,7 @@ users:
     roles: [admin]
 ```
 
-See [Keystore]({{< relref "keystore" >}}) for managing secret values.
+See [Keystore](keystore/) for managing secret values.
 
 ### Other backends
 
@@ -203,7 +203,7 @@ A permission key is an opaque string the application defines and checks via
 `api.RequirePermission(...)`. Conventions vary by app — e.g.
 `"<scope>:<resource>:<action>"` or `"<scope>#<resource>/<action>"`. The
 framework itself only compares strings; the application registers the
-meaningful keys (see [API & Web Framework]({{< relref "api_web" >}}) for how
+meaningful keys (see [API & Web Framework](api_web/) for how
 handlers attach permission requirements).
 
 ---
