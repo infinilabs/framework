@@ -70,7 +70,13 @@ func CurrentRecord(ctx *Context) (*event.Event, bool) {
 	if ctx == nil {
 		return nil, false
 	}
-	rec, ok := ctx.Get(RecordContextKey).(*event.Event)
+	// Peek skips the GetValue miss path, which wraps a stack-capturing
+	// error for every probe outside a record scope.
+	v, ok := ctx.Peek(RecordContextKey)
+	if !ok {
+		return nil, false
+	}
+	rec, ok := v.(*event.Event)
 	if !ok || rec == nil {
 		return nil, false
 	}

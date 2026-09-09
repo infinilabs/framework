@@ -192,7 +192,16 @@ func (p IfThenElseProcessor) Process(ctx *Context) error {
 		return nil
 	}
 
-	if p.cond.Check(ctx) {
+	// Inside a per-record sub-chain (e.g. for_each), the condition must be
+	// evaluated against the current record's fields — the pipeline
+	// parameters carry no per-record data. Fall back to the context when no
+	// record is bound (pipeline-level usage).
+	values := conditions.ValuesMap(ctx)
+	if rec, ok := CurrentRecord(ctx); ok {
+		values = rec
+	}
+
+	if p.cond.Check(values) {
 		if global.Env().IsDebug {
 			log.Trace("if -> then branch")
 		}

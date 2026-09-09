@@ -684,6 +684,34 @@ func (para *Parameters) Get(key ParaKey) interface{} {
 	return v
 }
 
+// Peek returns the value stored under key and whether the key exists,
+// resolving the key with the same semantics as GetValue — the literal
+// (possibly dotted) key first, then dot-notation walking nested maps and
+// addressing slice/array segments by numeric index, with the @timestamp
+// and @metadata special cases — but reporting a miss as (nil, false)
+// instead of building an errors.Wrapf with a captured stack trace. Use it
+// for hot-path existence probes where a miss is common and expected
+// (e.g. pipeline.CurrentRecord): a GetValue miss costs microseconds and
+// allocations per probe.
+func (para *Parameters) Peek(key ParaKey) (interface{}, bool) {
+	k := string(key)
+	para.init()
+	para.l.RLock()
+	defer para.l.RUnlock()
+
+	if k == timestampFieldKey {
+		return para.Timestamp, true
+	}
+	if subKey, ok := metadataKey(k); ok {
+		if subKey == "" || para.Meta == nil {
+			// the whole-collection read: found only when a Meta map exists
+			return para.Meta, para.Meta != nil
+		}
+		return para.Meta.PeekValue(subKey)
+	}
+	return para.Data.PeekValue(k)
+}
+
 func (para *Parameters) GetOrDefault(key ParaKey, val interface{}) interface{} {
 	para.init()
 	s := string(key)
