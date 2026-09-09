@@ -394,6 +394,46 @@ var xxHashPool = sync.Pool{
 	},
 }
 
+// applyProcessorConsumerOverrides folds the processor's `consumer` config
+// block into the (cloned) per-worker consumer config. Zero values mean "not
+// configured" and keep the registry value. EOFMaxRetryTimes,
+// ClientExpiredInSeconds and AutoResetOffset were previously missing here:
+// configuring them on the processor silently had no effect — the kafka
+// lock-hold duration, the EOF retry budget and the earliest/latest start
+// position always came from whatever the registry happened to hold.
+func applyProcessorConsumerOverrides(dst, src *queue.ConsumerConfig) {
+	if src == nil {
+		return
+	}
+	if src.EOFRetryDelayInMs > 0 {
+		dst.EOFRetryDelayInMs = src.EOFRetryDelayInMs
+	}
+	if src.FetchMaxMessages > 0 {
+		dst.FetchMaxMessages = src.FetchMaxMessages
+	}
+	if src.FetchMaxWaitMs > 0 {
+		dst.FetchMaxWaitMs = src.FetchMaxWaitMs
+	}
+	if src.ConsumeTimeoutInSeconds > 0 {
+		dst.ConsumeTimeoutInSeconds = src.ConsumeTimeoutInSeconds
+	}
+	if src.FetchMinBytes > 0 {
+		dst.FetchMinBytes = src.FetchMinBytes
+	}
+	if src.FetchMaxBytes > 0 {
+		dst.FetchMaxBytes = src.FetchMaxBytes
+	}
+	if src.EOFMaxRetryTimes > 0 {
+		dst.EOFMaxRetryTimes = src.EOFMaxRetryTimes
+	}
+	if src.ClientExpiredInSeconds > 0 {
+		dst.ClientExpiredInSeconds = src.ClientExpiredInSeconds
+	}
+	if src.AutoResetOffset != "" {
+		dst.AutoResetOffset = src.AutoResetOffset
+	}
+}
+
 func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, v ...interface{}) {
 	qConfig := v[0].(*queue.QueueConfig)
 	workerID := v[1].(string)
@@ -440,26 +480,9 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 		}
 	}
 
-	var consumerConfig = queue.GetOrInitConsumerConfig(qConfig.ID, groupName, processor.config.Consumer.Name)
+	var consumerConfig = queue.GetOrInitConsumerConfig(qConfig.ID, groupName, processor.config.Consumer.Name).Clone()
 	//override consumer config with processor's consumer config
-	if processor.config.Consumer.EOFRetryDelayInMs > 0 {
-		consumerConfig.EOFRetryDelayInMs = processor.config.Consumer.EOFRetryDelayInMs
-	}
-	if processor.config.Consumer.FetchMaxMessages > 0 {
-		consumerConfig.FetchMaxMessages = processor.config.Consumer.FetchMaxMessages
-	}
-	if processor.config.Consumer.FetchMaxWaitMs > 0 {
-		consumerConfig.FetchMaxWaitMs = processor.config.Consumer.FetchMaxWaitMs
-	}
-	if processor.config.Consumer.ConsumeTimeoutInSeconds > 0 {
-		consumerConfig.ConsumeTimeoutInSeconds = processor.config.Consumer.ConsumeTimeoutInSeconds
-	}
-	if processor.config.Consumer.FetchMinBytes > 0 {
-		consumerConfig.FetchMinBytes = processor.config.Consumer.FetchMinBytes
-	}
-	if processor.config.Consumer.FetchMaxBytes > 0 {
-		consumerConfig.FetchMaxBytes = processor.config.Consumer.FetchMaxBytes
-	}
+	applyProcessorConsumerOverrides(consumerConfig, processor.config.Consumer)
 
 	//skip empty queue
 	if processor.config.SkipEmptyQueue && !queue.ConsumerHasLag(qConfig, consumerConfig) {
@@ -597,7 +620,6 @@ READ_DOCS:
 
 				//log.Errorf("slice_worker, error on consume queue:[%v], slice_id:%v, no data fetched, offset: %v", qConfig.Name, sliceID, ctx1)
 				goto CLEAN_BUFFER
-				return
 			}
 			//log.Errorf("slice_worker, error on queue:[%v], slice_id:%v, %v", qConfig.Name, sliceID, err)
 			log.Flush()

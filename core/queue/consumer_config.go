@@ -71,6 +71,37 @@ func (cfg *ConsumerConfig) Key() string {
 	return getConsumerKey(cfg.Group, cfg.Name)
 }
 
+// Clone returns a field-by-field copy of the config. Consumers must clone
+// before applying processor-level overrides: the config returned from the
+// registry is a shared pointer, and mutating it in place leaks one
+// processor's fetch settings into every other consumer of the same
+// queue+group. The cached fetchMaxWaitMs and the commit locker start fresh
+// in the copy. (Explicit copy instead of a struct dereference to stay
+// copylocks-clean.)
+func (cfg *ConsumerConfig) Clone() *ConsumerConfig {
+	clone := &ConsumerConfig{
+		Source:                  cfg.Source,
+		Group:                   cfg.Group,
+		Name:                    cfg.Name,
+		AutoResetOffset:         cfg.AutoResetOffset,
+		AutoCommitOffset:        cfg.AutoCommitOffset,
+		SimpleSlicedGroup:       cfg.SimpleSlicedGroup,
+		FetchMinBytes:           cfg.FetchMinBytes,
+		FetchMaxBytes:           cfg.FetchMaxBytes,
+		FetchMaxMessages:        cfg.FetchMaxMessages,
+		FetchMaxWaitMs:          cfg.FetchMaxWaitMs,
+		ConsumeTimeoutInSeconds: cfg.ConsumeTimeoutInSeconds,
+		EOFMaxRetryTimes:        cfg.EOFMaxRetryTimes,
+		EOFRetryDelayInMs:       cfg.EOFRetryDelayInMs,
+		ClientExpiredInSeconds:  cfg.ClientExpiredInSeconds,
+	}
+	clone.ID = cfg.ID
+	clone.Created = cfg.Created
+	clone.Updated = cfg.Updated
+	clone.System = cfg.System
+	return clone
+}
+
 func (cfg *ConsumerConfig) KeepActive() {
 	stats.TimestampNow("consumer", cfg.ID, "last_active")
 }
