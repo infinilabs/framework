@@ -43,6 +43,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -685,16 +686,76 @@ func (para *Parameters) Get(key ParaKey) interface{} {
 }
 
 // Peek returns the value stored under key and whether the key exists,
-// without the error machinery of GetValue. Use it for hot-path existence
-// probes where a miss is common and expected (e.g. pipeline.CurrentRecord):
-// a GetValue miss builds an errors.Wrapf with a captured stack trace, which
-// costs microseconds and allocations per probe.
+// resolving the key with the same semantics as GetValue — the literal
+// (possibly dotted) key first, then dot-notation walking nested maps and
+// addressing slice/array segments by numeric index, with the @timestamp
+// and @metadata special cases — but reporting a miss as (nil, false)
+// instead of building an errors.Wrapf with a captured stack trace. Use it
+// for hot-path existence probes where a miss is common and expected
+// (e.g. pipeline.CurrentRecord): a GetValue miss costs microseconds and
+// allocations per probe.
 func (para *Parameters) Peek(key ParaKey) (interface{}, bool) {
+	k := string(key)
 	para.init()
 	para.l.RLock()
-	v, ok := para.Data[string(key)]
-	para.l.RUnlock()
-	return v, ok
+	defer para.l.RUnlock()
+
+	if k == timestampFieldKey {
+		return para.Timestamp, true
+	}
+	if subKey, ok := metadataKey(k); ok {
+		if subKey == "" || para.Meta == nil {
+			// the whole-collection read: found only when a Meta map exists
+			return para.Meta, para.Meta != nil
+		}
+		return peekValue(subKey, para.Meta)
+	}
+	return peekValue(k, para.Data)
+}
+
+// peekValue mirrors walkMap's lookup order for gets without building the
+// stack-capturing errors of the miss path: the literal key first (which
+// also covers dotted keys stored flat), then a split on "." walking nested
+// maps; slice and array segments are addressed by numeric index.
+func peekValue(key string, data util.MapStr) (interface{}, bool) {
+	if v, ok := data[key]; ok {
+		return v, true
+	}
+	// a dot-free key can only resolve as the literal checked above — skip
+	// the split (and its allocation) on the hot miss path
+	if !strings.Contains(key, ".") {
+		return nil, false
+	}
+	var cur interface{} = data
+	for _, part := range strings.Split(key, ".") {
+		switch node := cur.(type) {
+		case util.MapStr:
+			v, ok := node[part]
+			if !ok {
+				return nil, false
+			}
+			cur = v
+		case map[string]interface{}:
+			v, ok := node[part]
+			if !ok {
+				return nil, false
+			}
+			cur = v
+		default:
+			rv := reflect.ValueOf(cur)
+			switch rv.Kind() {
+			case reflect.Slice, reflect.Array:
+				idx, err := strconv.Atoi(part)
+				if err != nil || idx < 0 || idx >= rv.Len() {
+					return nil, false
+				}
+				cur = rv.Index(idx).Interface()
+			default:
+				return nil, false
+			}
+		}
+	}
+	return cur, true
 }
 
 func (para *Parameters) GetOrDefault(key ParaKey, val interface{}) interface{} {
