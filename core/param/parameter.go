@@ -684,6 +684,19 @@ func (para *Parameters) Get(key ParaKey) interface{} {
 	return v
 }
 
+// Peek returns the value stored under key and whether the key exists,
+// without the error machinery of GetValue. Use it for hot-path existence
+// probes where a miss is common and expected (e.g. pipeline.CurrentRecord):
+// a GetValue miss builds an errors.Wrapf with a captured stack trace, which
+// costs microseconds and allocations per probe.
+func (para *Parameters) Peek(key ParaKey) (interface{}, bool) {
+	para.init()
+	para.l.RLock()
+	v, ok := para.Data[string(key)]
+	para.l.RUnlock()
+	return v, ok
+}
+
 func (para *Parameters) GetOrDefault(key ParaKey, val interface{}) interface{} {
 	para.init()
 	s := string(key)
