@@ -223,7 +223,7 @@ When `SkipCatchError` is `false` (the default), the pipeline catches errors from
 
 ## Conditional Processing
 
-Pipelines support `if`/`then`/`else` blocks for conditional execution. Conditions are evaluated against the pipeline context, and the matching branch is executed.
+Pipelines support `if`/`then`/`else` blocks for conditional execution. The condition is evaluated against the **current record** when the processor runs inside a per-record sub-chain (e.g. `for_each`), so field names refer to the record's own attributes (`file.path`, `log_level`, ...). Outside a record scope the condition is evaluated against the pipeline context, where fields are referenced through the `_ctx.` prefix:
 
 ```yaml
 processor:
@@ -238,13 +238,51 @@ processor:
           message: "non-POST request"
 ```
 
+The same block inside a `for_each` sub-chain routes each record by its own fields:
+
+```yaml
+processor:
+  - for_each:
+      processor:
+        - if:
+            contains:
+              file.path: "nginx"
+          then:
+            - mutate:
+                add:
+                  route: nginx-pipeline
+          else:
+            - mutate:
+                add:
+                  route: default-pipeline
+```
+
 ### Structure
 
 | Field | Description |
 |-------|-------------|
-| `if` | A condition block. Supports operators like `equals` that compare context values against expected values. |
-| `then` | A list of processors to execute when the condition is `true`. |
-| `else` | A list of processors to execute when the condition is `false`. Optional. |
+| `if` | A condition block (see the operator table below). |
+| `then` | A processor (or list of processors) to execute when the condition is `true`. |
+| `else` | A processor (or list of processors) to execute when the condition is `false`. Optional. |
+
+### Supported Condition Operators
+
+All operators from the conditions system (`core/conditions/`) are available in `if` blocks — see the Conditions reference for the complete syntax of each:
+
+| Operator | Description |
+|----------|-------------|
+| `equals` | Exact value match (string, int, float, bool) |
+| `contains` | Substring match on strings or string arrays |
+| `regexp` | Regular expression match |
+| `prefix` / `suffix` | String starts-with / ends-with check |
+| `in` | Value membership in a list |
+| `range` | Numeric range comparison (`gt`, `gte`, `lt`, `lte`) |
+| `exists` | Field existence and non-empty check |
+| `length` | Collection/string length equality |
+| `network` | IP address network membership (named networks or CIDR) |
+| `and` / `or` / `not` | Logical combination and negation |
+| `queue_has_lag` / `consumer_has_lag` | Queue or consumer group lag detection |
+| `cluster_available` | Elasticsearch cluster availability |
 
 ### Nested Conditions
 
@@ -408,7 +446,7 @@ import _ "your_app/plugins/health"
 
 ## Built-in Processors
 
-The framework ships with several built-in processors registered via `RegisterProcessorPlugin`.
+The framework ships with a growing set of built-in processors registered via `RegisterProcessorPlugin` / `RegisterDomainProcessor`. The full list can also be discovered at runtime via the `GET /pipeline/processors` API (add `?grouped=1` to group the catalog by category).
 
 ### Framework Processors (`modules/pipeline/`)
 
@@ -416,13 +454,101 @@ The framework ships with several built-in processors registered via `RegisterPro
 |-----------|-------------|
 | `echo` | Logs a configured message. Useful for debugging and verifying pipeline flow. |
 | `dag` | Executes a directed acyclic graph (DAG) of processors, enabling parallel and dependency-based execution within a pipeline. |
+| `for_each` | Splits a batch of queue messages into individual records, runs a sub-chain of processors on each record, and re-encodes the batch. Supports pluggable payload codecs, failure strategies (`ignore`/`tag`/`fail`), and drop/clone handling — see the Pipeline Record Processing reference. |
 
-### Plugin Processors (`plugins/`)
+### Queue Processors (`plugins/queue/`)
+
+| Processor | Description |
+|-----------|-------------|
+| `consumer` | Consumes messages from a queue (selected by name or label selector) and exposes the batch to the pipeline context; supports per-processor consumer config overrides. |
+| `queue_output` | Chain-tail companion of `consumer`: appends every record of the processed batch onto a target queue, enabling two-stage pipelines (process on one queue, sink from another). |
+
+### Elasticsearch Processors (`plugins/elastic/`)
+
+| Processor | Description |
+|-----------|-------------|
+| `bulk_indexing` | Indexes documents into Elasticsearch in bulk for high-throughput ingestion. |
+| `json_indexing` | Indexes JSON documents into Elasticsearch. |
+| `indexing_merge` | Merges multiple small documents into combined indexing requests before writing to Elasticsearch. |
+| `merge_to_bulk` | Merges events into Elasticsearch bulk requests. |
+
+### Output Transports (`plugins/enterprise/otlp/`)
+
+| Processor | Description |
+|-----------|-------------|
+| `otlp_export` | Ships the processed batch to any OTLP/gRPC collector (e.g. the gateway's intake on `:4317`); unacknowledged batches stay in the local queue for redelivery. |
+
+### Generic Processors (`plugins/`)
 
 | Processor | Description |
 |-----------|-------------|
 | `http` | Sends HTTP requests to external services. Supports templated URLs, custom headers, and response handling. |
 | `smtp` | Sends email notifications via SMTP. |
 | `replay` | Replays recorded events for testing or reprocessing. |
-| `bulk_indexing` | Indexes documents into Elasticsearch in bulk for high-throughput ingestion. |
-| `json_indexing` | Indexes JSON documents into Elasticsearch. |
+
+### Record Processors (`plugins/enterprise/processors/`)
+
+The record processors operate on the current record inside `for_each` sub-chains (most of them are no-ops outside a record scope). They are registered by domain category; the bare name is the YAML key and `category:name` is an explicit alias.
+
+#### Parsing
+
+| Processor | Description |
+|-----------|-------------|
+| `dissect` | Fast, regex-free delimiter-based field extraction — the preferred log parsing primitive. |
+| `grok` | Regex-based field extraction with the classic `%{PATTERN:name}` syntax and a built-in 350+ definition pattern library (logstash-patterns-core, legacy + ECS v1). |
+| `json` | Decodes a JSON string field of the current record into structured attributes. |
+| `xml` | XML → map conversion; attributes preserved under `_`-prefixed keys, repeated elements collapse to slices. |
+| `csv` | Parses a CSV line into named fields (headers from configuration, missing columns auto-named `col_N`). |
+| `kv` | Parses `key=value` pairs out of a string field — the workhorse for access logs, nginx vars and Java GC output. |
+| `url` | Splits a URL or `path?query` field into structured parts (scheme, host, port, query params as a map). |
+| `urldecode` | URL-decodes string fields (query-string style unescaping). |
+| `date` | Parses a timestamp from a field into the record's canonical `Timestamp`. |
+| `date_format` | Renders a timestamp field in any layout/timezone (the output direction of `date`). |
+| `useragent` | Dependency-free User-Agent classifier (browser, version, OS, device class) with snake_case output. |
+| `syslog_decode` | Decodes syslog numeric codes (facility, severity, priority) into names. |
+| `web_log` | Preset parsers for the classic web server log formats (Apache/nginx), emitting snake_case access-log fields. |
+| `string` | The Graylog string-function toolbox in one processor (substring, split/join/concat, tests, regex replace). |
+| `decode_base64_field` | Base64-decodes a single string field (with or without padding). |
+| `decompress_gzip_field` | Gunzips a string or bytes field in place. |
+
+#### Transform
+
+| Processor | Description |
+|-----------|-------------|
+| `mutate` | Field-level mutations on the current record, covering the Logstash mutate filter surface (rename, copy, add, convert, replace, lowercase, uppercase, strip, remove — in a fixed order). |
+| `field_standardize` | Normalizes record attribute keys to the canonical INFINI log data model naming (OTel Log Data Model, lowercase snake_case by default). |
+| `otel_normalize` | Maps well-known source fields onto the canonical OTel log structure (typed fields + Resource), filling `observed_timestamp` and the derived `severity_number` when absent. |
+| `context_enrich` | Promotes collection context — the collecting agent's identity and the envelope's stable resource attributes — into the record's Fields. |
+| `extract_array` | Pulls one element (or flattens all elements as indexed fields) out of an array field. |
+| `decode_duration` | Converts a Go duration string (`"5s"`, `"1m30s"`) into a numeric duration (milliseconds by default). |
+
+#### Enrichment
+
+| Processor | Description |
+|-----------|-------------|
+| `geoip` | Enriches the record with geography looked up from a MaxMind mmdb database (GeoLite2/GeoIP2 City, Country, ASN or ISP). |
+| `cidr` | Tests an IP field against a list of networks and records the verdict — the natural gate before `geoip` or routing. |
+| `registered_domain` | Splits a domain into its registered domain (`www.example.co.uk` → `example.co.uk`) via the Mozilla Public Suffix List. |
+| `community_id` | Computes the Community ID flow hash for network events, so flows observed by different tools can be correlated. |
+| `fingerprint` | Hashes a set of fields into a stable identity — the deduplication key for repeated events. |
+| `enrich_es` | Joins the record against an Elasticsearch/Easysearch index and merges the matched document into it. |
+| `pattern_tagger` | Tags each record with the log pattern (template cluster) it belongs to, using LogPilot's merged pattern library. |
+| `add_locale` | Stamps each event with the host's local timezone abbreviation or UTC offset. |
+
+#### Routing & Governance
+
+| Processor | Description |
+|-----------|-------------|
+| `throttle` | Per-key rate limiting over the current records (token bucket); exceeding records are tagged or dropped. |
+| `sample` | Probabilistic sampling — keeps each record with probability `ratio` (0.0–1.0), drops the rest. |
+| `clone` | Duplicates the current record N times with optional per-clone mutations. |
+| `drop_event` | Marks the current record to be dropped from the batch (`for_each` removes its payload). |
+| `drop_fields` | Removes fields from the record; with `keep: true` inverts into prune semantics. |
+| `redact` | Masks sensitive substrings (phones, national ids, cards, emails, arbitrary regexes) in the configured fields. |
+
+#### Sink & Advanced
+
+| Processor | Description |
+|-----------|-------------|
+| `pizza_bulk` | Ships the processed batch to a Pizza engine (serve mode) via its Elasticsearch-style `/_bulk` endpoint. |
+| `script` | Arbitrary record transforms in ECMAScript (goja) — the escape hatch when declarative processors cannot express the logic. |

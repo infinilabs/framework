@@ -322,6 +322,13 @@ cluster_available:
 
 Conditions power the `if`/`then`/`else` branching in pipeline processor definitions. The `if` block takes a single condition configuration. When it evaluates to `true`, the `then` processors execute; otherwise, the `else` processors run (if provided).
 
+### Evaluation Scope
+
+The condition's field lookups resolve against different sources depending on where the `if` block runs:
+
+- **Per-record sub-chains** (e.g. inside `for_each`): conditions evaluate against the **current record**, and field names refer to the record's own attributes (`file.path`, `log_level`, ...) — dot notation walks nested fields.
+- **Pipeline level** (no record bound): conditions evaluate against the **pipeline context**, where fields are referenced through the `_ctx.` prefix (e.g. `_ctx.request.method`).
+
 ### Basic Branching
 
 ```yaml
