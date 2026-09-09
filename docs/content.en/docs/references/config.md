@@ -242,7 +242,7 @@ elasticsearch:
       password: $[[keystore.es_password]]
 ```
 
-Secrets are managed with the `keystore` CLI subcommand (see [Keystore]({{< relref "keystore" >}}) for details). At load time, `$[[keystore.es_password]]` is replaced with the decrypted value of the `es_password` key from the keystore.
+Secrets are managed with the `keystore` CLI subcommand (see [Keystore](keystore/) for details). At load time, `$[[keystore.es_password]]` is replaced with the decrypted value of the `es_password` key from the keystore.
 
 Keystore references and environment variables can be used together in the same configuration file. Keystore references are resolved separately from environment variable interpolation.
 
