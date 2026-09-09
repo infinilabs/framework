@@ -413,15 +413,11 @@ func (this *KafkaQueue) Depth(q string) int64 {
 
 	so, err := this.adminClient.ListStartOffsets(ctx, q)
 	if err != nil {
-		// broker unreachable etc: degrade the stats path to 0 instead of
-		// panicking (keep /queue/stats alive).
-		log.Error(q, ", error on get start offset (depth degraded to 0):", err)
-		return 0
+		panic(err)
 	}
 	eo, err := this.adminClient.ListEndOffsets(ctx, q)
 	if err != nil {
-		log.Error(q, ", error on get end offset (depth degraded to 0):", err)
-		return 0
+		panic(err)
 	}
 	return eo.Offsets()[q][0].At - so.Offsets()[q][0].At
 }
@@ -433,8 +429,8 @@ func (this *KafkaQueue) LatestOffset(k *queue.QueueConfig) queue.Offset {
 
 	offset1, err := this.adminClient.ListEndOffsets(ctx, k.ID)
 	if err != nil {
-		log.Error(k.Name, ", error on get offset (degraded to 0):", err)
-		return queue.NewOffset(0, 0)
+		log.Error(k.Name, ", error on get offset:", offset1)
+		panic(err)
 	}
 	return queue.NewOffset(0, offset1[k.ID][0].Offset)
 }
@@ -480,10 +476,7 @@ func (this *KafkaQueue) GetOffset(k *queue.QueueConfig, consumer *queue.Consumer
 			}
 			return queue.NewOffset(0, 0), nil
 		}
-		// broker unreachable etc: degrade the stats path to 0 instead of
-		// panicking (keep /queue/stats alive).
-		log.Error(k.ID, ", error on get consumer offset (degraded to 0):", err)
-		return queue.NewOffset(0, 0), nil
+		panic(err)
 	}
 
 	var offset int64 = 0
