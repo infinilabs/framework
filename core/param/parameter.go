@@ -43,7 +43,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -708,54 +707,9 @@ func (para *Parameters) Peek(key ParaKey) (interface{}, bool) {
 			// the whole-collection read: found only when a Meta map exists
 			return para.Meta, para.Meta != nil
 		}
-		return peekValue(subKey, para.Meta)
+		return para.Meta.GetValueOK(subKey)
 	}
-	return peekValue(k, para.Data)
-}
-
-// peekValue mirrors walkMap's lookup order for gets without building the
-// stack-capturing errors of the miss path: the literal key first (which
-// also covers dotted keys stored flat), then a split on "." walking nested
-// maps; slice and array segments are addressed by numeric index.
-func peekValue(key string, data util.MapStr) (interface{}, bool) {
-	if v, ok := data[key]; ok {
-		return v, true
-	}
-	// a dot-free key can only resolve as the literal checked above — skip
-	// the split (and its allocation) on the hot miss path
-	if !strings.Contains(key, ".") {
-		return nil, false
-	}
-	var cur interface{} = data
-	for _, part := range strings.Split(key, ".") {
-		switch node := cur.(type) {
-		case util.MapStr:
-			v, ok := node[part]
-			if !ok {
-				return nil, false
-			}
-			cur = v
-		case map[string]interface{}:
-			v, ok := node[part]
-			if !ok {
-				return nil, false
-			}
-			cur = v
-		default:
-			rv := reflect.ValueOf(cur)
-			switch rv.Kind() {
-			case reflect.Slice, reflect.Array:
-				idx, err := strconv.Atoi(part)
-				if err != nil || idx < 0 || idx >= rv.Len() {
-					return nil, false
-				}
-				cur = rv.Index(idx).Interface()
-			default:
-				return nil, false
-			}
-		}
-	}
-	return cur, true
+	return para.Data.GetValueOK(k)
 }
 
 func (para *Parameters) GetOrDefault(key ParaKey, val interface{}) interface{} {

@@ -141,6 +141,58 @@ func (m MapStr) GetValue(key string) (interface{}, error) {
 	return walkMap(key, m, opGet)
 }
 
+// GetValueOK gets a value from the map and reports whether the key exists,
+// using the same resolution order as GetValue — the literal (possibly
+// dotted) key first, then dot-notation walking nested maps with slice and
+// array segments addressed by numeric index — but without constructing the
+// stack-capturing error of the miss path. Prefer it over GetValue for
+// hot-path probes where a miss is common and expected.
+func (m MapStr) GetValueOK(key string) (interface{}, bool) {
+	if v, ok := m[key]; ok {
+		return v, true
+	}
+	// a dot-free key can only resolve as the literal checked above — skip
+	// the split (and its allocation) on the hot miss path
+	if !strings.Contains(key, ".") {
+		return nil, false
+	}
+	var cur interface{} = m
+	for _, part := range strings.Split(key, ".") {
+		next, ok := walkStep(cur, part)
+		if !ok {
+			return nil, false
+		}
+		cur = next
+	}
+	return cur, true
+}
+
+// walkStep resolves one segment of a read-only walk: map lookups for
+// MapStr and map[string]interface{}, numeric indexing for slices and
+// arrays. It is the shared resolution primitive of GetValueOK; walkMap
+// cannot use it for intermediates because the mutating operations must
+// keep converting through toMapStr.
+func walkStep(node interface{}, part string) (interface{}, bool) {
+	switch t := node.(type) {
+	case MapStr:
+		v, ok := t[part]
+		return v, ok
+	case map[string]interface{}:
+		v, ok := t[part]
+		return v, ok
+	}
+	rv := reflect.ValueOf(node)
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Array:
+		idx, err := strconv.Atoi(part)
+		if err != nil || idx < 0 || idx >= rv.Len() {
+			return nil, false
+		}
+		return rv.Index(idx).Interface(), true
+	}
+	return nil, false
+}
+
 // Put associates the specified value with the specified key. If the map
 // previously contained a mapping for the key, the old value is replaced and
 // returned. The key can be expressed in dot-notation (e.g. x.y) to put a value
