@@ -106,8 +106,13 @@ func (s *tableSchema) resolver() sqliteOrm.FieldResolver {
 	}
 }
 
+// jsonExtractExpr is the resolver fallback for paths that are not promoted
+// to generated columns. It MUST go through SafeJSONPathExpr: this is the
+// boundary where request-supplied identifiers (filter=FIELD:value,
+// sort=FIELD) enter the SQL text, and only a strict whitelist keeps quotes
+// and operators out of the json_extract path string.
 func jsonExtractExpr(path string) string {
-	return fmt.Sprintf("json_extract(raw, '$.%s')", path)
+	return sqliteOrm.SafeJSONPathExpr(path)
 }
 
 // registry of flattened schemas by table name.

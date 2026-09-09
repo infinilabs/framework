@@ -61,10 +61,12 @@ func BuildWhereClause(qb *orm.QueryBuilder, resolve FieldResolver) (string, []in
 }
 
 // ExprFor resolves a JSON path to its comparison expression via the
-// resolver (generated column when promoted, json_extract otherwise).
+// resolver (generated column when promoted, json_extract otherwise). The
+// nil-resolver fallback goes through SafeJSONPathExpr so a hostile path can
+// never be spliced raw into the SQL text.
 func ExprFor(resolve FieldResolver, path string) string {
 	if resolve == nil {
-		return fmt.Sprintf("json_extract(raw, '$.%s')", path)
+		return SafeJSONPathExpr(path)
 	}
 	expr, _, _ := resolve(path)
 	return expr
@@ -72,10 +74,12 @@ func ExprFor(resolve FieldResolver, path string) string {
 
 // RangeExprFor picks the comparison expression for a range predicate: the
 // epoch shadow when one exists (the value is rewritten to integer epoch
-// seconds by the caller), else the regular expression.
+// seconds by the caller), else the regular expression. The nil-resolver
+// fallback goes through SafeJSONPathExpr so a hostile path can never be
+// spliced raw into the SQL text.
 func RangeExprFor(resolve FieldResolver, path string) (expr string, epoch bool) {
 	if resolve == nil {
-		return fmt.Sprintf("json_extract(raw, '$.%s')", path), false
+		return SafeJSONPathExpr(path), false
 	}
 	plain, epochExpr, _ := resolve(path)
 	if epochExpr != "" {
