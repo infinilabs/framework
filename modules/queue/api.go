@@ -119,8 +119,10 @@ func (module *API) DeleteQueue(w http.ResponseWriter, req *http.Request, ps http
 	module.WriteAckOKJSON(w)
 }
 
-// QueueEmptyAction — POST /queue/:id/_empty — 清空队列全部消息与已消费段
-// 文件 (释放磁盘), 保留队列注册与消费者; 位点越界的消费者自动重置到新头部。
+// QueueEmptyAction handles POST /queue/:id/_empty: drop all buffered
+// messages and consumed segment files (releases disk space) while keeping
+// the queue registration and its consumers; consumers whose offsets fall
+// out of range auto-reset to the fresh head.
 func (module *API) QueueEmptyAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.MustGetParameter("id")
 	queueConfig, ok := queue1.SmartGetConfig(id)
