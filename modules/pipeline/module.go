@@ -127,6 +127,18 @@ func (module *PipeModule) startTask(taskID string) (exists bool) {
 
 	exists = true
 
+	// A STOPPING pipeline is still winding down its processor chain (the
+	// consumer workers drain their in-flight batches before returning).
+	// Clearing the exit flag here would let keep_running resurrect the
+	// pipeline the moment Process returns — silently undoing the stop.
+	// Only an idle pipeline (STOPPED/FINISHED/FAILED) may be started.
+	if v1.GetRunningState() == pipeline.STOPPING {
+		if global.Env().IsDebug {
+			log.Debug("pipeline:", taskID, " is stopping, skip start until it settles")
+		}
+		return
+	}
+
 	// Mark exited pipeline to start again
 	if v1.IsExit() {
 		v1.Restart()
