@@ -82,6 +82,29 @@ type ConsumerAPI interface {
 	CommitOffset(offset Offset) error
 }
 
+// QueuePurgeAPI is an optional handler capability: drop all buffered
+// messages and already-consumed segment files without destroying the queue
+// registration itself. Handlers without purge support (e.g. kafka) simply
+// don't implement it.
+type QueuePurgeAPI interface {
+	Empty(k string) error
+}
+
+// EmptyQueue purges every message of a queue through its handler's purge
+// support. Consumers and offsets are kept: disk-queue consumers resume from
+// the fresh head (out-of-range offsets auto-reset).
+// NOTE: keyed by k.ID — the handlers' storage and instance maps are ID-keyed.
+func EmptyQueue(k *QueueConfig) error {
+	if k == nil || k.ID == "" {
+		return errors.New("invalid queue config")
+	}
+	handler := GetHandlerByType(k.Type)
+	if h, ok := handler.(QueuePurgeAPI); ok {
+		return h.Empty(k.ID)
+	}
+	return errors.Errorf("queue type [%v] does not support purging", k.Type)
+}
+
 var defaultHandler QueueAPI
 
 func getSimpleHandler(k *QueueConfig) SimpleQueueAPI {
