@@ -38,5 +38,5 @@ func Init() {
 	// pushing credentials); served on the web port behind login + RBAC
 	api.HandleUIMethod(api.POST, "/keystore", handler.setKeystoreValue, api.RequireLogin(), api.RequirePermission(security.PermissionSystemKeystoreUpdate))
 	api.HandleUIMethod(api.GET, "/keystore", handler.listKeystoreKeys, api.RequireLogin(), api.RequirePermission(security.PermissionSystemKeystoreRead))
-	api.HandleAPIMethod(api.DELETE, "/keystore", handler.deleteKeystoreKey)
+	api.HandleUIMethod(api.DELETE, "/keystore", handler.deleteKeystoreKey, api.RequireLogin(), api.RequirePermission(security.PermissionSystemKeystoreDelete))
 }

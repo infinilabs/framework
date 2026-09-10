@@ -23,22 +23,38 @@
 
 package security
 
-// Permission keys for the instance-level operational routes (stats, queue
-// browsing, config/keystore reads, pipeline task ops) that are served on the
-// web port behind login + RBAC. Managed clients mint their self API token
-// with InstanceOpsPermissionKeys() so manager-originated calls (reverse
-// channel loopback, direct endpoint access) pass the permission filter;
-// human users obtain these keys through role assignment.
+// Permission keys for the system-level operational routes (stats, queues,
+// configs, keystore, pipelines, tasks, local data files, cluster metadata,
+// logs) that are served on the web port behind login + RBAC. Managed clients
+// mint their self API token with InstanceOpsPermissionKeys() so
+// manager-originated calls (reverse channel loopback, direct endpoint
+// access) pass the permission filter; human users obtain these keys through
+// role assignment.
 
 var (
-	PermissionSystemStatsRead      = GetSimplePermission("generic", "system:stats", Read)
-	PermissionSystemQueueRead      = GetSimplePermission("generic", "system:queue", Read)
-	PermissionSystemConfigRead     = GetSimplePermission("generic", "system:config", Read)
-	PermissionSystemKeystoreRead   = GetSimplePermission("generic", "system:keystore", Read)
-	PermissionSystemKeystoreUpdate = GetSimplePermission("generic", "system:keystore", Update)
-	PermissionSystemPipelineRead   = GetSimplePermission("generic", "system:pipeline", Read)
-	PermissionSystemPipelineDelete = GetSimplePermission("generic", "system:pipeline", Delete)
-	PermissionSystemLogRead        = GetSimplePermission("generic", "system:log", Read)
+	PermissionSystemStatsRead         = GetSimplePermission("generic", "system:stats", Read)
+	PermissionSystemQueueRead         = GetSimplePermission("generic", "system:queue", Read)
+	PermissionSystemQueueUpdate       = GetSimplePermission("generic", "system:queue", Update)
+	PermissionSystemQueueDelete       = GetSimplePermission("generic", "system:queue", Delete)
+	PermissionSystemConfigRead        = GetSimplePermission("generic", "system:config", Read)
+	PermissionSystemConfigUpdate      = GetSimplePermission("generic", "system:config", Update)
+	PermissionSystemConfigDelete      = GetSimplePermission("generic", "system:config", Delete)
+	PermissionSystemKeystoreRead      = GetSimplePermission("generic", "system:keystore", Read)
+	PermissionSystemKeystoreUpdate    = GetSimplePermission("generic", "system:keystore", Update)
+	PermissionSystemKeystoreDelete    = GetSimplePermission("generic", "system:keystore", Delete)
+	PermissionSystemPipelineRead      = GetSimplePermission("generic", "system:pipeline", Read)
+	PermissionSystemPipelineCreate    = GetSimplePermission("generic", "system:pipeline", Create)
+	PermissionSystemPipelineUpdate    = GetSimplePermission("generic", "system:pipeline", Update)
+	PermissionSystemPipelineDelete    = GetSimplePermission("generic", "system:pipeline", Delete)
+	PermissionSystemTaskRead          = GetSimplePermission("generic", "system:task", Read)
+	PermissionSystemTaskUpdate        = GetSimplePermission("generic", "system:task", Update)
+	PermissionSystemTaskDelete        = GetSimplePermission("generic", "system:task", Delete)
+	PermissionSystemFilesRead         = GetSimplePermission("generic", "system:files", Read)
+	PermissionSystemFilesDelete       = GetSimplePermission("generic", "system:files", Delete)
+	PermissionSystemElasticsearchRead = GetSimplePermission("generic", "system:elasticsearch", Read)
+	PermissionSystemSettingRead       = GetSimplePermission("generic", "system:setting", Read)
+	PermissionSystemLogRead           = GetSimplePermission("generic", "system:log", Read)
+	PermissionSystemDebugRead         = GetSimplePermission("generic", "system:debug", Read)
 )
 
 // InstanceOpsPermissionKeys returns every permission key an instance's self
@@ -47,11 +63,26 @@ func InstanceOpsPermissionKeys() []PermissionKey {
 	return []PermissionKey{
 		PermissionSystemStatsRead,
 		PermissionSystemQueueRead,
+		PermissionSystemQueueUpdate,
+		PermissionSystemQueueDelete,
 		PermissionSystemConfigRead,
+		PermissionSystemConfigUpdate,
+		PermissionSystemConfigDelete,
 		PermissionSystemKeystoreRead,
 		PermissionSystemKeystoreUpdate,
+		PermissionSystemKeystoreDelete,
 		PermissionSystemPipelineRead,
+		PermissionSystemPipelineCreate,
+		PermissionSystemPipelineUpdate,
 		PermissionSystemPipelineDelete,
+		PermissionSystemTaskRead,
+		PermissionSystemTaskUpdate,
+		PermissionSystemTaskDelete,
+		PermissionSystemFilesRead,
+		PermissionSystemFilesDelete,
+		PermissionSystemElasticsearchRead,
+		PermissionSystemSettingRead,
 		PermissionSystemLogRead,
+		PermissionSystemDebugRead,
 	}
 }

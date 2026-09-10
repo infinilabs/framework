@@ -103,16 +103,16 @@ func (module *SimpleStatsModule) Setup() {
 	// web port behind login + RBAC (prometheus variant stays on the API port
 	// for machine scrapers)
 	api.HandleUIMethod(api.GET, "/stats", module.StatsAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemStatsRead))
-	api.HandleAPIMethod(api.GET, "/stats/prometheus", module.PrometheusStatsAction)
-	api.HandleAPIMethod(api.GET, "/debug/goroutines", module.GoroutinesAction)
+	api.HandleUIMethod(api.GET, "/stats/prometheus", module.PrometheusStatsAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemStatsRead))
+	api.HandleUIMethod(api.GET, "/debug/goroutines", module.GoroutinesAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemDebugRead))
 
 	//if global.Env().IsDebug{
-	api.HandleAPIMethod(api.GET, "/debug/pool/bytes", module.BufferItemStatsAction)
+	api.HandleUIMethod(api.GET, "/debug/pool/bytes", module.BufferItemStatsAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemDebugRead))
 	//}
 
-	api.HandleAPIMethod(api.GET, "/_local/files/_list", module.ListDirFs)
-	api.HandleAPIMethod(api.GET, "/_local/files/:file/_list", module.ListDirFs)
-	api.HandleAPIMethod(api.DELETE, "/_local/files/:file", module.DeleteDataFile)
+	api.HandleUIMethod(api.GET, "/_local/files/_list", module.ListDirFs, api.RequireLogin(), api.RequirePermission(security.PermissionSystemFilesRead))
+	api.HandleUIMethod(api.GET, "/_local/files/:file/_list", module.ListDirFs, api.RequireLogin(), api.RequirePermission(security.PermissionSystemFilesRead))
+	api.HandleUIMethod(api.DELETE, "/_local/files/:file", module.DeleteDataFile, api.RequireLogin(), api.RequirePermission(security.PermissionSystemFilesDelete))
 }
 
 func (module *SimpleStatsModule) Start() error {

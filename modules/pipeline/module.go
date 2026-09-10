@@ -90,12 +90,12 @@ func (module *PipeModule) Setup() {
 	// by managers, task delete is used for stream teardown; served on the
 	// web port behind login + RBAC
 	api.HandleUIMethod(api.GET, "/pipeline/tasks/", module.getRunningPipelineTasksHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
-	api.HandleAPIMethod(api.POST, "/pipeline/tasks/_search", module.searchPipelineTasksHandler)
-	api.HandleAPIMethod(api.POST, "/pipeline/tasks/", module.createPipelineTaskHandler)
-	api.HandleAPIMethod(api.GET, "/pipeline/task/:id", module.getPipelineTaskHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/tasks/_search", module.searchPipelineTasksHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+	api.HandleUIMethod(api.POST, "/pipeline/tasks/", module.createPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineCreate))
+	api.HandleUIMethod(api.GET, "/pipeline/task/:id", module.getPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
 	api.HandleUIMethod(api.DELETE, "/pipeline/task/:id", module.deletePipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineDelete))
-	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_start", module.startPipelineTaskHandler)
-	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopPipelineTaskHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/task/:id/_start", module.startPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	api.HandleUIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
 
 	// processor discovery: names + config schemas for pipeline designers
 	api.HandleUIMethod(api.GET, "/pipeline/processors", module.getProcessorsHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))

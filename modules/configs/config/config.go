@@ -29,11 +29,11 @@ func init() {
 	// served on the web port behind login + RBAC (write/reload stay on
 	// the API port)
 	api.HandleUIMethod(api.GET, "/config/", listConfigAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemConfigRead))
-	api.HandleAPIMethod(api.PUT, "/config/", saveConfigAction)
-	api.HandleAPIMethod(api.DELETE, "/config/", deleteConfigAction)
-	api.HandleAPIMethod(api.POST, "/config/_reload", reloadConfigAction)
+	api.HandleUIMethod(api.PUT, "/config/", saveConfigAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemConfigUpdate))
+	api.HandleUIMethod(api.DELETE, "/config/", deleteConfigAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemConfigDelete))
+	api.HandleUIMethod(api.POST, "/config/_reload", reloadConfigAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemConfigUpdate))
 	api.HandleUIMethod(api.GET, "/config/runtime", getConfigAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemConfigRead))
-	api.HandleAPIMethod(api.GET, "/environments", getEnvAction)
+	api.HandleUIMethod(api.GET, "/environments", getEnvAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemConfigRead))
 
 }
 
