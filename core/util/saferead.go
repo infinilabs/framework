@@ -75,8 +75,10 @@ func isSystemReadCanonical(c string) bool {
 	if c == "/" || c == string(filepath.Separator) {
 		return true
 	}
-	// drive-qualified path (Windows): compare the volume-relative part
-	if len(c) > 1 && c[1] == ':' {
+	// drive-qualified path (Windows): compare the volume-relative part.
+	// The separator check keeps unix paths whose second character happens
+	// to be ':' (e.g. /t:mp) on the unix branch.
+	if len(c) > 2 && c[1] == ':' && (c[2] == '/' || c[2] == '\\') {
 		c = filepath.ToSlash(c)
 		if len(c) <= 3 { // bare drive root, e.g. C:/
 			return true
@@ -156,7 +158,7 @@ func (g *ReadGuard) Roots() []string {
 }
 
 // Contains reports whether path canonicalizes to exactly one of the
-// allowed roots — the check for caller-supplied base directories.
+// allowed roots.
 func (g *ReadGuard) Contains(path string) bool {
 	if strings.TrimSpace(path) == "" {
 		return false
@@ -170,17 +172,36 @@ func (g *ReadGuard) Contains(path string) bool {
 	return false
 }
 
-// ResolveUnder resolves file against base (which must be one of the
-// allowed roots) and returns its canonical path when it lands strictly
+// ContainsUnder reports whether path canonicalizes to one of the allowed
+// roots or to a location strictly below one of them — the check for
+// caller-supplied base directories that may be a subdirectory of a
+// whitelisted root (e.g. a GC log dir configured under path.logs).
+func (g *ReadGuard) ContainsUnder(path string) bool {
+	if strings.TrimSpace(path) == "" {
+		return false
+	}
+	c := canonicalReadPath(path)
+	for _, r := range g.roots {
+		if c == r || strings.HasPrefix(c, r+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+// ResolveUnder resolves file against base (which must be an allowed root
+// or live below one) and returns its canonical path when it lands strictly
 // below an allowed root, outside every system tree, and is an existing
 // regular file (so devices, fifos and sockets can never be served).
 // file may be relative (joined to base) or absolute (accepted only when
-// it still resolves inside the roots).
+// it still resolves inside the roots); the roots — not base — remain the
+// trust boundary, so a file name escaping base but staying inside the
+// root is still served.
 func (g *ReadGuard) ResolveUnder(base, file string) (string, error) {
 	if strings.TrimSpace(file) == "" {
 		return "", fmt.Errorf("file is required")
 	}
-	if !g.Contains(base) {
+	if !g.ContainsUnder(base) {
 		return "", fmt.Errorf("path [%v] is not an allowed directory", base)
 	}
 	target := file

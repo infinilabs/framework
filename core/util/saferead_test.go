@@ -43,6 +43,17 @@ func TestIsSystemReadPath(t *testing.T) {
 	}
 }
 
+func TestIsSystemReadPathUnixPathWithColon(t *testing.T) {
+	// second-char-colon unix paths must stay on the unix branch: not
+	// system paths themselves, and real system paths still denied
+	if IsSystemReadPath("/t:mp/logs/server.log") {
+		t.Error("expected colon-containing unix path to be readable")
+	}
+	if !IsSystemReadPath("/etc/passwd") {
+		t.Error("expected /etc/passwd to stay denied")
+	}
+}
+
 func TestIsSystemReadCanonicalWindows(t *testing.T) {
 	denied := []string{
 		"C:/Windows", "C:/Windows/System32/cmd.exe", "c:/windows/system32/x.dll",
@@ -156,6 +167,43 @@ func TestReadGuardRejectsNonRegularFiles(t *testing.T) {
 	}
 	if _, err := guard.ResolveUnder(dir, "pipe.log"); err == nil {
 		t.Error("expected fifo to be rejected")
+	}
+}
+
+func TestReadGuardContainsUnder(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "gc")
+	if err := os.Mkdir(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+	guard, err := NewReadGuard(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !guard.ContainsUnder(dir) {
+		t.Error("expected root itself to match")
+	}
+	if !guard.ContainsUnder(sub) {
+		t.Error("expected subdirectory of the root to match")
+	}
+	if guard.ContainsUnder(dir + "-sibling") {
+		t.Error("expected prefix sibling to be rejected")
+	}
+	if guard.ContainsUnder("/etc") {
+		t.Error("expected outside path to be rejected")
+	}
+
+	// base may be a subdirectory; the root stays the trust boundary
+	logFile := filepath.Join(dir, "server.log")
+	if err := os.WriteFile(logFile, []byte("line"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := guard.ResolveUnder(sub, "../server.log"); err != nil || got != canonicalPath(logFile) {
+		t.Errorf("expected escape from base but not root to resolve, got %v %v", got, err)
+	}
+	if _, err := guard.ResolveUnder(sub, "../../../etc/passwd"); err == nil {
+		t.Error("expected escape out of the root to be rejected")
 	}
 }
 

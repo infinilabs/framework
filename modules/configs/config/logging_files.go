@@ -95,21 +95,28 @@ func listLogFilesAction(w http.ResponseWriter, req *http.Request, ps httprouter.
 		api.DefaultAPI.WriteError(w, err.Error(), 500)
 		return
 	}
+	if util.IsSystemReadPath(logDir) {
+		api.DefaultAPI.WriteError(w, fmt.Sprintf("log dir [%v] is a system path", logDir), 500)
+		return
+	}
 
 	files := []logFileInfo{}
-	depth := 0
 	_ = filepath.Walk(logDir, func(p string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
 		if fi.IsDir() {
-			depth++
-			if depth > logReadDirMaxDepth {
+			if p == logDir {
+				return nil
+			}
+			// depth is derived from the relative path so sibling
+			// directories are not pruned by an earlier deep subtree
+			if rel, err := filepath.Rel(logDir, p); err == nil &&
+				strings.Count(rel, string(filepath.Separator))+1 > logReadDirMaxDepth {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		depth = 0
 		if !fi.Mode().IsRegular() {
 			return nil
 		}
