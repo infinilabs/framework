@@ -89,15 +89,23 @@ func (module *PipeModule) Setup() {
 	// task list / processor discovery are consumed via the reverse channel
 	// by managers, task delete is used for stream teardown; served on the
 	// web port behind login + RBAC
+	api.HandleAPIMethod(api.GET, "/pipeline/tasks/", module.getRunningPipelineTasksHandler)
 	api.HandleUIMethod(api.GET, "/pipeline/tasks/", module.getRunningPipelineTasksHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+	api.HandleAPIMethod(api.POST, "/pipeline/tasks/_search", module.searchPipelineTasksHandler)
 	api.HandleUIMethod(api.POST, "/pipeline/tasks/_search", module.searchPipelineTasksHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+	api.HandleAPIMethod(api.POST, "/pipeline/tasks/", module.createPipelineTaskHandler)
 	api.HandleUIMethod(api.POST, "/pipeline/tasks/", module.createPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineCreate))
+	api.HandleAPIMethod(api.GET, "/pipeline/task/:id", module.getPipelineTaskHandler)
 	api.HandleUIMethod(api.GET, "/pipeline/task/:id", module.getPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+	api.HandleAPIMethod(api.DELETE, "/pipeline/task/:id", module.deletePipelineTaskHandler)
 	api.HandleUIMethod(api.DELETE, "/pipeline/task/:id", module.deletePipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineDelete))
+	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_start", module.startPipelineTaskHandler)
 	api.HandleUIMethod(api.POST, "/pipeline/task/:id/_start", module.startPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopPipelineTaskHandler)
 	api.HandleUIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
 
 	// processor discovery: names + config schemas for pipeline designers
+	api.HandleAPIMethod(api.GET, "/pipeline/processors", module.getProcessorsHandler)
 	api.HandleUIMethod(api.GET, "/pipeline/processors", module.getProcessorsHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
 
 	//use pipelines to avoid naming conflicts

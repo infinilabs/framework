@@ -65,9 +65,13 @@ func (module *TaskModule) Setup() {
 		pipeline.Release()
 	})
 
+	api.HandleAPIMethod(api.GET, "/tasks/", module.GetTaskList)
 	api.HandleUIMethod(api.GET, "/tasks/", module.GetTaskList, api.RequireLogin(), api.RequirePermission(security.PermissionSystemTaskRead))
+	api.HandleAPIMethod(api.POST, "/task/:id/_start", module.StartTask)
 	api.HandleUIMethod(api.POST, "/task/:id/_start", module.StartTask, api.RequireLogin(), api.RequirePermission(security.PermissionSystemTaskUpdate))
+	api.HandleAPIMethod(api.POST, "/task/:id/_stop", module.StopTask)
 	api.HandleUIMethod(api.POST, "/task/:id/_stop", module.StopTask, api.RequireLogin(), api.RequirePermission(security.PermissionSystemTaskUpdate))
+	api.HandleAPIMethod(api.DELETE, "/task/:id", module.DeleteTask)
 	api.HandleUIMethod(api.DELETE, "/task/:id", module.DeleteTask, api.RequireLogin(), api.RequirePermission(security.PermissionSystemTaskDelete))
 
 }

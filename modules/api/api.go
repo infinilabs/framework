@@ -61,6 +61,7 @@ func (module *APIModule) Name() string {
 func init() {
 	api.HandleAPIMethod(api.GET, "/_whoami", whoisAPIHandler)
 	api.HandleAPIMethod(api.GET, "/_version", versionAPIHandler)
+	api.HandleAPIMethod(api.GET, "/_info", infoAPIHandler)
 	api.HandleAPIMethod(api.GET, "/health", healthAPIHandler)
 
 	api.HandleUIMethod(api.GET, "/_info", infoAPIHandler, api.RequireLogin())

@@ -41,6 +41,7 @@ type AppSettings struct {
 
 func init() {
 	HandleUIMethod(GET, "/setting/application", appSettingsAPIHandler, AllowOPTIONSS(), AllowPublicAccess(), Feature(FeatureCORS))
+	HandleAPIMethod(GET, "/setting/application", appSettingsAPIHandler)
 }
 
 func appSettingsAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {

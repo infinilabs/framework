@@ -28,11 +28,17 @@ func init() {
 	// config list/runtime read are consumed via the reverse channel;
 	// served on the web port behind login + RBAC (write/reload stay on
 	// the API port)
+	api.HandleAPIMethod(api.GET, "/config/", listConfigAction)
 	api.HandleUIMethod(api.GET, "/config/", listConfigAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemConfigRead))
+	api.HandleAPIMethod(api.PUT, "/config/", saveConfigAction)
 	api.HandleUIMethod(api.PUT, "/config/", saveConfigAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemConfigUpdate))
+	api.HandleAPIMethod(api.DELETE, "/config/", deleteConfigAction)
 	api.HandleUIMethod(api.DELETE, "/config/", deleteConfigAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemConfigDelete))
+	api.HandleAPIMethod(api.POST, "/config/_reload", reloadConfigAction)
 	api.HandleUIMethod(api.POST, "/config/_reload", reloadConfigAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemConfigUpdate))
+	api.HandleAPIMethod(api.GET, "/config/runtime", getConfigAction)
 	api.HandleUIMethod(api.GET, "/config/runtime", getConfigAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemConfigRead))
+	api.HandleAPIMethod(api.GET, "/environments", getEnvAction)
 	api.HandleUIMethod(api.GET, "/environments", getEnvAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemConfigRead))
 
 }

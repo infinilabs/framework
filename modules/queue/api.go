@@ -51,27 +51,37 @@ func init() {
 	module := API{}
 	// queue overview/browsing endpoints consumed via the reverse channel;
 	// served on the web port behind login + RBAC
+	api.HandleAPIMethod(api.GET, "/queue/stats", module.QueueStatsAction)
 	api.HandleUIMethod(api.GET, "/queue/stats", module.QueueStatsAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueRead))
+	api.HandleAPIMethod(api.GET, "/queue/:id/stats", module.SingleQueueStatsAction)
 	api.HandleUIMethod(api.GET, "/queue/:id/stats", module.SingleQueueStatsAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueRead))
+	api.HandleAPIMethod(api.GET, "/queue/:id/_scroll", module.QueueExplore)
 	api.HandleUIMethod(api.GET, "/queue/:id/_scroll", module.QueueExplore, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueRead))
 
 	//purge: drop all messages and consumed segments, keep the queue registration
+	api.HandleAPIMethod(api.POST, "/queue/:id/_empty", module.QueueEmptyAction)
 	api.HandleUIMethod(api.POST, "/queue/:id/_empty", module.QueueEmptyAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueUpdate))
 
+	api.HandleAPIMethod(api.DELETE, "/queue/:id", module.DeleteQueue)
 	api.HandleUIMethod(api.DELETE, "/queue/:id", module.DeleteQueue, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueDelete))
+	api.HandleAPIMethod(api.DELETE, "/queue/_search", module.DeleteQueuesByQuery)
 	api.HandleUIMethod(api.DELETE, "/queue/_search", module.DeleteQueuesByQuery, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueDelete))
 
 	//create consumer
 	//api.HandleAPIMethod(api.POST,"/queue/:id/consumer/:consumer_id", module.QueueResetConsumerOffset)
 
 	//reset consumer offset
+	api.HandleAPIMethod(api.PUT, "/queue/:id/consumer/:consumer_id/offset", module.QueueResetConsumerOffset)
 	api.HandleUIMethod(api.PUT, "/queue/:id/consumer/:consumer_id/offset", module.QueueResetConsumerOffset, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueUpdate))
 	//get consumer offset
+	api.HandleAPIMethod(api.GET, "/queue/:id/consumer/:consumer_id/offset", module.QueueGetConsumerOffset)
 	api.HandleUIMethod(api.GET, "/queue/:id/consumer/:consumer_id/offset", module.QueueGetConsumerOffset, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueRead))
 
 	// delete consumer and it's offset
+	api.HandleAPIMethod(api.DELETE, "/queue/:id/consumer/:consumer_id", module.QueueDeleteConsumerByID)
 	api.HandleUIMethod(api.DELETE, "/queue/:id/consumer/:consumer_id", module.QueueDeleteConsumerByID, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueDelete))
 	// delete all consumers of queues specified by query
+	api.HandleAPIMethod(api.DELETE, "/queue/consumer/_search", module.DeleteConsumersByQuery)
 	api.HandleUIMethod(api.DELETE, "/queue/consumer/_search", module.DeleteConsumersByQuery, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueDelete))
 }
 

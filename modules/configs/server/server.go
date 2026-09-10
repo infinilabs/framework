@@ -175,14 +175,21 @@ func Setup() {
 	// Admission: management UI approves pending instances. The gate admits
 	// admins (static token); the handler mints the instance credential.
 
+	api.HandleAPIMethod(api.POST, common.REGISTER_API, registerGate(handler.registerInstance))
 	api.HandleUIMethod(api.POST, common.REGISTER_API, registerGate(handler.registerInstance))
+	api.HandleAPIMethod(api.POST, common.SYNC_API, gate(handler.syncConfigs))
 	api.HandleUIMethod(api.POST, common.SYNC_API, gate(handler.syncConfigs))
+	api.HandleAPIMethod(api.POST, instanceTokenExchangeAPI, gate(handler.exchangeTokenHandler))
 	api.HandleUIMethod(api.POST, instanceTokenExchangeAPI, gate(handler.exchangeTokenHandler))
+	api.HandleAPIMethod(api.POST, instanceApproveAPI, gate(handler.approveInstanceHandler))
 	api.HandleUIMethod(api.POST, instanceApproveAPI, gate(handler.approveInstanceHandler))
 
 	// Enrollment-token management (admin, token-gated).
+	api.HandleAPIMethod(api.GET, enrollmentTokensAPI, gate(handler.enrollmentTokensHandler))
 	api.HandleUIMethod(api.GET, enrollmentTokensAPI, gate(handler.enrollmentTokensHandler))
+	api.HandleAPIMethod(api.POST, enrollmentTokensAPI, gate(handler.createEnrollmentTokenHandler))
 	api.HandleUIMethod(api.POST, enrollmentTokensAPI, gate(handler.createEnrollmentTokenHandler))
+	api.HandleAPIMethod(api.DELETE, enrollmentTokensAPI+"/:id", gate(handler.revokeEnrollmentTokenHandler))
 	api.HandleUIMethod(api.DELETE, enrollmentTokensAPI+"/:id", gate(handler.revokeEnrollmentTokenHandler))
 
 	if len(cfg.Auth.Tokens) > 0 {

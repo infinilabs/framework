@@ -37,7 +37,9 @@ import (
 )
 
 func init() {
+	api.HandleAPIMethod(api.GET, "/elasticsearch/metadata", GetMetadata)
 	api.HandleUIMethod(api.GET, "/elasticsearch/metadata", GetMetadata, api.RequireLogin(), api.RequirePermission(security.PermissionSystemElasticsearchRead))
+	api.HandleAPIMethod(api.GET, "/elasticsearch/hosts", GetHosts)
 	api.HandleUIMethod(api.GET, "/elasticsearch/hosts", GetHosts, api.RequireLogin(), api.RequirePermission(security.PermissionSystemElasticsearchRead))
 }
 
