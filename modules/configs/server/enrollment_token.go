@@ -137,6 +137,18 @@ func consumeEnrollmentToken(ctx *orm.Context, t *EnrollmentToken) {
 	}
 }
 
+// CheckEnrollmentToken exposes ticket validation to sibling channels that
+// share the same admission pool (e.g. LogPilot's worker hub): same ORM
+// model, same hash scheme, same usage counters.
+func CheckEnrollmentToken(ctx *orm.Context, plaintext string) *EnrollmentToken {
+	return validateEnrollmentToken(ctx, plaintext)
+}
+
+// ConsumeEnrollmentToken exposes ticket consumption (use-counter increment).
+func ConsumeEnrollmentToken(ctx *orm.Context, t *EnrollmentToken) {
+	consumeEnrollmentToken(ctx, t)
+}
+
 func decodeEnrollmentHits(res *orm.SearchResult) ([]EnrollmentToken, int64, error) {
 	return elastic.DecodeHits[EnrollmentToken](res)
 }
