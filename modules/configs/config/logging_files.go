@@ -41,10 +41,11 @@ import (
 var logFilesRead = security.GetSimplePermission("generic", "system:log", security.Read)
 
 func init() {
-	// served on the web port behind login + RBAC: the API domain has no
-	// permission control by default, and embedded mounting additionally
-	// bypasses the web filter chain
+	// The web-port copy is the secured one (login + RBAC); the API-domain
+	// registration stays for existing API-port consumers.
+	api.HandleAPIMethod(api.GET, "/logging/files", listLogFilesAction)
 	api.HandleUIMethod(api.GET, "/logging/files", listLogFilesAction, api.RequireLogin(), api.RequirePermission(logFilesRead))
+	api.HandleAPIMethod(api.GET, "/logging/tail", tailLogFileAction)
 	api.HandleUIMethod(api.GET, "/logging/tail", tailLogFileAction, api.RequireLogin(), api.RequirePermission(logFilesRead))
 }
 
