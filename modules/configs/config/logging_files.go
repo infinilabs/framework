@@ -11,7 +11,12 @@ package config
 //	GET /logging/files                     list log files (recursive, newest first)
 //	GET /logging/tail?file=&lines=&keyword=  tail a file, optional keyword filter
 //
-// Both are strictly read-only and confined to the configured log directory.
+// Both are strictly read-only. File access goes through util.ReadGuard with
+// the app's own log directory as the only allowed root: paths are
+// symlink-resolved and confined to that directory, system paths
+// (util.IsSystemReadPath) are denied outright, and only regular files are
+// served — the endpoints can never be turned into a general-purpose file
+// reader.
 
 import (
 	"fmt"
@@ -35,20 +40,22 @@ func init() {
 }
 
 const (
-	logTailMaxBytes   = 4 * 1024 * 1024 // scan at most the last 4MB of a file
-	logTailMaxLines   = 2000
+	logTailMaxBytes    = 4 * 1024 * 1024 // scan at most the last 4MB of a file
+	logTailMaxLines    = 2000
 	logReadDirMaxDepth = 6
 )
 
 type logFileInfo struct {
 	Name    string `json:"name"`
-	Path    string `json:"path"`    // relative to the log dir; pass back to /logging/tail
+	Path    string `json:"path"` // relative to the log dir; pass back to /logging/tail
 	Size    int64  `json:"size"`
 	Updated int64  `json:"updated"` // unix seconds
 	Current bool   `json:"current"` // most recently modified file
 }
 
-func logDirAbs() (string, error) {
+// currentLogDir resolves the directory the /logging endpoints serve;
+// overridable in tests.
+var currentLogDir = func() (string, error) {
 	dir := global.Env().GetLogDir()
 	if dir == "" {
 		return "", fmt.Errorf("log dir is not configured")
@@ -60,40 +67,30 @@ func logDirAbs() (string, error) {
 	return abs, nil
 }
 
-// resolveLogFile validates that file (relative to the log dir, or absolute)
-// resolves inside the log dir, and returns its absolute path.
+// resolveLogFile validates that file (relative to the log dir, or absolute
+// inside it) resolves to a regular file strictly inside the log directory,
+// and returns its absolute path.
 func resolveLogFile(file string) (string, error) {
-	logDir, err := logDirAbs()
+	logDir, err := currentLogDir()
 	if err != nil {
 		return "", err
 	}
-	if file == "" {
-		return "", fmt.Errorf("file is required")
-	}
-	target := file
-	if !filepath.IsAbs(target) {
-		target = filepath.Join(logDir, file)
-	}
-	target, err = filepath.Abs(target)
+	guard, err := util.NewReadGuard(logDir)
 	if err != nil {
 		return "", err
 	}
-	// resolve symlinks on both sides to prevent escaping via links
-	if resolvedLogDir, err := filepath.EvalSymlinks(logDir); err == nil {
-		logDir = resolvedLogDir
-	}
-	resolved, err := filepath.EvalSymlinks(target)
-	if err != nil {
-		return "", err
-	}
-	if resolved != logDir && !strings.HasPrefix(resolved, logDir+string(filepath.Separator)) {
-		return "", fmt.Errorf("file [%v] is outside of the log directory", file)
-	}
-	return resolved, nil
+	return guard.ResolveUnder(logDir, file)
 }
 
 func listLogFilesAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	logDir, err := logDirAbs()
+	logDir, err := currentLogDir()
+	if err != nil {
+		api.DefaultAPI.WriteError(w, err.Error(), 500)
+		return
+	}
+	// the walk below reports paths as given; make sure logDir itself is
+	// canonical so relative paths handed back to /logging/tail match
+	logDir, err = filepath.Abs(logDir)
 	if err != nil {
 		api.DefaultAPI.WriteError(w, err.Error(), 500)
 		return
@@ -113,6 +110,9 @@ func listLogFilesAction(w http.ResponseWriter, req *http.Request, ps httprouter.
 			return nil
 		}
 		depth = 0
+		if !fi.Mode().IsRegular() {
+			return nil
+		}
 		if !strings.HasSuffix(fi.Name(), ".log") && !strings.HasSuffix(fi.Name(), ".json") {
 			return nil
 		}
@@ -220,12 +220,12 @@ func tailLogFileAction(w http.ResponseWriter, req *http.Request, ps httprouter.P
 	}
 
 	api.DefaultAPI.WriteJSON(w, util.MapStr{
-		"file":       fileParam,
-		"size":       fi.Size(),
-		"updated":    fi.ModTime().Unix(),
-		"keyword":    keyword,
-		"truncated":  fi.Size() > logTailMaxBytes,
-		"lines":      match,
+		"file":        fileParam,
+		"size":        fi.Size(),
+		"updated":     fi.ModTime().Unix(),
+		"keyword":     keyword,
+		"truncated":   fi.Size() > logTailMaxBytes,
+		"lines":       match,
 		"server_time": time.Now().Unix(),
 	}, 200)
 }
