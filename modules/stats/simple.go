@@ -45,6 +45,7 @@ import (
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
@@ -98,7 +99,10 @@ func (module *SimpleStatsModule) Setup() {
 	stats.Register(module.data)
 
 	//register api
-	api.HandleAPIMethod(api.GET, "/stats", module.StatsAction)
+	// instance overview feeds off this via the reverse channel; served on the
+	// web port behind login + RBAC (prometheus variant stays on the API port
+	// for machine scrapers)
+	api.HandleUIMethod(api.GET, "/stats", module.StatsAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemStatsRead))
 	api.HandleAPIMethod(api.GET, "/stats/prometheus", module.PrometheusStatsAction)
 	api.HandleAPIMethod(api.GET, "/debug/goroutines", module.GoroutinesAction)
 

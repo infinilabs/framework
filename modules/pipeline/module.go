@@ -86,16 +86,19 @@ func (module *PipeModule) Setup() {
 	pipeline.RegisterDomainProcessorWithConfigMetadata("event", "for_each", NewForEachProcessor, ForEachConfig{})
 
 	//TODO remove
-	api.HandleAPIMethod(api.GET, "/pipeline/tasks/", module.getRunningPipelineTasksHandler)
+	// task list / processor discovery are consumed via the reverse channel
+	// by managers, task delete is used for stream teardown; served on the
+	// web port behind login + RBAC
+	api.HandleUIMethod(api.GET, "/pipeline/tasks/", module.getRunningPipelineTasksHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
 	api.HandleAPIMethod(api.POST, "/pipeline/tasks/_search", module.searchPipelineTasksHandler)
 	api.HandleAPIMethod(api.POST, "/pipeline/tasks/", module.createPipelineTaskHandler)
 	api.HandleAPIMethod(api.GET, "/pipeline/task/:id", module.getPipelineTaskHandler)
-	api.HandleAPIMethod(api.DELETE, "/pipeline/task/:id", module.deletePipelineTaskHandler)
+	api.HandleUIMethod(api.DELETE, "/pipeline/task/:id", module.deletePipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineDelete))
 	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_start", module.startPipelineTaskHandler)
 	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopPipelineTaskHandler)
 
 	// processor discovery: names + config schemas for pipeline designers
-	api.HandleAPIMethod(api.GET, "/pipeline/processors", module.getProcessorsHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/processors", module.getProcessorsHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
 
 	//use pipelines to avoid naming conflicts
 	api.HandleUIMethod(api.POST, "/pipelines/_search", module.searchPipelineHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Search)))

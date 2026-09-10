@@ -7,6 +7,7 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
+	"infini.sh/framework/core/security"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
@@ -24,11 +25,14 @@ import (
 )
 
 func init() {
-	api.HandleAPIMethod(api.GET, "/config/", listConfigAction)
+	// config list/runtime read are consumed via the reverse channel;
+	// served on the web port behind login + RBAC (write/reload stay on
+	// the API port)
+	api.HandleUIMethod(api.GET, "/config/", listConfigAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemConfigRead))
 	api.HandleAPIMethod(api.PUT, "/config/", saveConfigAction)
 	api.HandleAPIMethod(api.DELETE, "/config/", deleteConfigAction)
 	api.HandleAPIMethod(api.POST, "/config/_reload", reloadConfigAction)
-	api.HandleAPIMethod(api.GET, "/config/runtime", getConfigAction)
+	api.HandleUIMethod(api.GET, "/config/runtime", getConfigAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemConfigRead))
 	api.HandleAPIMethod(api.GET, "/environments", getEnvAction)
 
 }

@@ -29,6 +29,7 @@ package queue
 import (
 	"fmt"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/security"
 	queue "infini.sh/framework/modules/queue/disk_queue"
 	"net/http"
 	"time"
@@ -48,9 +49,11 @@ type API struct {
 
 func init() {
 	module := API{}
-	api.HandleAPIMethod(api.GET, "/queue/stats", module.QueueStatsAction)
+	// queue overview/browsing endpoints consumed via the reverse channel;
+	// served on the web port behind login + RBAC
+	api.HandleUIMethod(api.GET, "/queue/stats", module.QueueStatsAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueRead))
 	api.HandleAPIMethod(api.GET, "/queue/:id/stats", module.SingleQueueStatsAction)
-	api.HandleAPIMethod(api.GET, "/queue/:id/_scroll", module.QueueExplore)
+	api.HandleUIMethod(api.GET, "/queue/:id/_scroll", module.QueueExplore, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueRead))
 
 	//purge: drop all messages and consumed segments, keep the queue registration
 	api.HandleAPIMethod(api.POST, "/queue/:id/_empty", module.QueueEmptyAction)
@@ -64,7 +67,7 @@ func init() {
 	//reset consumer offset
 	api.HandleAPIMethod(api.PUT, "/queue/:id/consumer/:consumer_id/offset", module.QueueResetConsumerOffset)
 	//get consumer offset
-	api.HandleAPIMethod(api.GET, "/queue/:id/consumer/:consumer_id/offset", module.QueueGetConsumerOffset)
+	api.HandleUIMethod(api.GET, "/queue/:id/consumer/:consumer_id/offset", module.QueueGetConsumerOffset, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueRead))
 
 	// delete consumer and it's offset
 	api.HandleAPIMethod(api.DELETE, "/queue/:id/consumer/:consumer_id", module.QueueDeleteConsumerByID)
