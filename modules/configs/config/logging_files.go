@@ -85,18 +85,18 @@ func resolveLogFile(file string) (string, error) {
 func listLogFilesAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	logDir, err := currentLogDir()
 	if err != nil {
-		api.DefaultAPI.WriteError(w, err.Error(), 500)
+		api.WriteError(w, err.Error(), 500)
 		return
 	}
 	// the walk below reports paths as given; make sure logDir itself is
 	// canonical so relative paths handed back to /logging/tail match
 	logDir, err = filepath.Abs(logDir)
 	if err != nil {
-		api.DefaultAPI.WriteError(w, err.Error(), 500)
+		api.WriteError(w, err.Error(), 500)
 		return
 	}
 	if util.IsSystemReadPath(logDir) {
-		api.DefaultAPI.WriteError(w, fmt.Sprintf("log dir [%v] is a system path", logDir), 500)
+		api.WriteError(w, fmt.Sprintf("log dir [%v] is a system path", logDir), 500)
 		return
 	}
 
@@ -145,7 +145,7 @@ func listLogFilesAction(w http.ResponseWriter, req *http.Request, ps httprouter.
 		files[0].Current = true
 	}
 
-	api.DefaultAPI.WriteJSON(w, util.MapStr{
+	api.WriteJSON(w, util.MapStr{
 		"log_dir": logDir,
 		"files":   files,
 	}, 200)
@@ -155,7 +155,7 @@ func tailLogFileAction(w http.ResponseWriter, req *http.Request, ps httprouter.P
 	fileParam := req.URL.Query().Get("file")
 	absPath, err := resolveLogFile(fileParam)
 	if err != nil {
-		api.DefaultAPI.WriteError(w, err.Error(), 400)
+		api.WriteError(w, err.Error(), 400)
 		return
 	}
 
@@ -173,13 +173,13 @@ func tailLogFileAction(w http.ResponseWriter, req *http.Request, ps httprouter.P
 
 	fi, err := os.Stat(absPath)
 	if err != nil {
-		api.DefaultAPI.WriteError(w, fmt.Sprintf("stat file failed: %v", err), 400)
+		api.WriteError(w, fmt.Sprintf("stat file failed: %v", err), 400)
 		return
 	}
 
 	f, err := os.Open(absPath)
 	if err != nil {
-		api.DefaultAPI.WriteError(w, fmt.Sprintf("open file failed: %v", err), 400)
+		api.WriteError(w, fmt.Sprintf("open file failed: %v", err), 400)
 		return
 	}
 	defer f.Close()
@@ -191,7 +191,7 @@ func tailLogFileAction(w http.ResponseWriter, req *http.Request, ps httprouter.P
 	}
 	buf := make([]byte, window)
 	if _, err = f.ReadAt(buf, fi.Size()-window); err != nil && err.Error() != "EOF" {
-		api.DefaultAPI.WriteError(w, fmt.Sprintf("read file failed: %v", err), 500)
+		api.WriteError(w, fmt.Sprintf("read file failed: %v", err), 500)
 		return
 	}
 
@@ -226,7 +226,7 @@ func tailLogFileAction(w http.ResponseWriter, req *http.Request, ps httprouter.P
 		}
 	}
 
-	api.DefaultAPI.WriteJSON(w, util.MapStr{
+	api.WriteJSON(w, util.MapStr{
 		"file":        fileParam,
 		"size":        fi.Size(),
 		"updated":     fi.ModTime().Unix(),
