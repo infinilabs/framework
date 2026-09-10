@@ -4,6 +4,7 @@
 package config
 
 import (
+	"fmt"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -64,6 +65,49 @@ func TestTailLogFileAction(t *testing.T) {
 	}
 	if w := callTail(t, "escape.log"); w.Code != 400 {
 		t.Errorf("expected 400 for symlink escape, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestListLogFilesActionRejectsSystemLogDir(t *testing.T) {
+	stubLogDir(t, "/etc")
+
+	req := httptest.NewRequest("GET", "/logging/files", nil)
+	w := httptest.NewRecorder()
+	listLogFilesAction(w, req, httprouter.Params{})
+	if w.Code != 500 {
+		t.Errorf("expected 500 for system path as log dir, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestListLogFilesActionDepthResetsBetweenSiblings(t *testing.T) {
+	dir := t.TempDir()
+	stubLogDir(t, dir)
+
+	// a deep chain first so a buggy depth counter stays high, then a
+	// shallow sibling directory that must still be listed
+	deep := dir
+	for i := 0; i < logReadDirMaxDepth+2; i++ {
+		deep = filepath.Join(deep, fmt.Sprintf("d%d", i))
+	}
+	if err := os.MkdirAll(deep, 0755); err != nil {
+		t.Fatal(err)
+	}
+	sibling := filepath.Join(dir, "shallow")
+	if err := os.Mkdir(sibling, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sibling, "server.log"), []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("GET", "/logging/files", nil)
+	w := httptest.NewRecorder()
+	listLogFilesAction(w, req, httprouter.Params{})
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "shallow/server.log") {
+		t.Errorf("expected shallow sibling file to be listed: %s", w.Body.String())
 	}
 }
 
