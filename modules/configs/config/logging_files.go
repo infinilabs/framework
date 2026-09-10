@@ -29,14 +29,23 @@ import (
 	"time"
 
 	"infini.sh/framework/core/api"
+	"infini.sh/framework/core/security"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 )
 
+// logFilesRead gates the log list/tail endpoints; managers mint the
+// instance self API token with this key (see core/security instance-ops
+// catalog) so reverse-channel loopback calls pass the permission filter.
+var logFilesRead = security.GetSimplePermission("generic", "system:log", security.Read)
+
 func init() {
-	api.HandleAPIMethod(api.GET, "/logging/files", listLogFilesAction)
-	api.HandleAPIMethod(api.GET, "/logging/tail", tailLogFileAction)
+	// served on the web port behind login + RBAC: the API domain has no
+	// permission control by default, and embedded mounting additionally
+	// bypasses the web filter chain
+	api.HandleUIMethod(api.GET, "/logging/files", listLogFilesAction, api.RequireLogin(), api.RequirePermission(logFilesRead))
+	api.HandleUIMethod(api.GET, "/logging/tail", tailLogFileAction, api.RequireLogin(), api.RequirePermission(logFilesRead))
 }
 
 const (
