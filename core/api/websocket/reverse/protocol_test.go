@@ -83,3 +83,43 @@ func TestWriteFailureResponse(t *testing.T) {
 		t.Fatalf("unexpected failure frame: %+v", msg)
 	}
 }
+
+func TestCompressionRoundTrip(t *testing.T) {
+	body := []byte(strings.Repeat(`{"message":"hello world","level":"info"}`, 500))
+	if len(body) < CompressThresholdBytes {
+		t.Fatalf("test body too small: %v", len(body))
+	}
+	compressed, ok := MaybeCompress(body)
+	if !ok {
+		t.Fatal("expected body to be compressed")
+	}
+	if len(compressed) >= len(body) {
+		t.Fatal("compressed body should be smaller")
+	}
+	back, err := MaybeDecompress(compressed, true)
+	if err != nil {
+		t.Fatalf("decompress: %v", err)
+	}
+	if string(back) != string(body) {
+		t.Fatal("round trip mismatch")
+	}
+	// small bodies stay uncompressed
+	small := []byte(`{"a":1}`)
+	if out, ok := MaybeCompress(small); ok {
+		t.Fatalf("small body should not be compressed, got %v bytes", len(out))
+	}
+}
+
+func TestResponseMessageCompressedFlag(t *testing.T) {
+	msg := ResponseMessage{RequestID: "r1", Compressed: true}
+	wire := FormatResponseCommand(msg)
+	// wire is "<command> <json>"
+	payloadIdx := strings.Index(wire, "{")
+	m2, err := ParseResponsePayload(wire[payloadIdx:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m2.Compressed {
+		t.Fatal("compressed flag lost on wire round trip")
+	}
+}
