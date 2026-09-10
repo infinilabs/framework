@@ -71,7 +71,7 @@ func connectAndServe() error {
 			lastErr = err
 			continue
 		}
-		log.Infof("agent reverse channel connected to [%s]", server)
+		log.Debugf("agent reverse channel connected to [%s]", server)
 		err = serve(conn)
 		_ = conn.Close()
 		log.Warnf("agent reverse channel disconnected from [%s]: %v", server, err)

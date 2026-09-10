@@ -146,7 +146,7 @@ func handleReverseHello(c *framework_ws.WebsocketConnection, array []string) {
 		log.Warnf("configs server: reverse hello rejected: %v", err)
 		return
 	}
-	log.Info("configs server: reverse hello accepted")
+	log.Debugf("configs server: reverse hello accepted")
 
 	// answer the peer's capability advertisement with our own, so both
 	// sides compress only when the other end supports it (old peers ignore
