@@ -52,6 +52,9 @@ func init() {
 	api.HandleAPIMethod(api.GET, "/queue/:id/stats", module.SingleQueueStatsAction)
 	api.HandleAPIMethod(api.GET, "/queue/:id/_scroll", module.QueueExplore)
 
+	//purge: drop all messages and consumed segments, keep the queue registration
+	api.HandleAPIMethod(api.POST, "/queue/:id/_empty", module.QueueEmptyAction)
+
 	api.HandleAPIMethod(api.DELETE, "/queue/:id", module.DeleteQueue)
 	api.HandleAPIMethod(api.DELETE, "/queue/_search", module.DeleteQueuesByQuery)
 
@@ -113,6 +116,26 @@ func (module *API) DeleteQueuesByQuery(w http.ResponseWriter, req *http.Request,
 func (module *API) DeleteQueue(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.MustGetParameter("id")
 	module.deleteQueueByID(id)
+	module.WriteAckOKJSON(w)
+}
+
+// QueueEmptyAction handles POST /queue/:id/_empty: drop all buffered
+// messages and consumed segment files (releases disk space) while keeping
+// the queue registration and its consumers; consumers whose offsets fall
+// out of range auto-reset to the fresh head.
+func (module *API) QueueEmptyAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	id := ps.MustGetParameter("id")
+	queueConfig, ok := queue1.SmartGetConfig(id)
+	if !ok || queueConfig == nil {
+		module.WriteError(w, fmt.Sprintf("queue [%v] not found", id), http.StatusNotFound)
+		return
+	}
+	if err := queue1.EmptyQueue(queueConfig); err != nil {
+		_ = log.Errorf("failed to empty queue [%v]: %v", id, err)
+		module.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	common.PersistQueueMetadata()
 	module.WriteAckOKJSON(w)
 }
 
@@ -272,6 +295,10 @@ func (module *API) QueueExplore(w http.ResponseWriter, req *http.Request, ps htt
 	queueID := ps.MustGetParameter("id")
 	offsetStr := module.GetParameterOrDefault(req, "offset", "0,0")
 	size := module.GetIntOrDefault(req, "size", 5)
+	// per-message response cap: dead-letter style queues can hold multi-MB
+	// bulk payloads, and unbounded sampling blows past reverse-channel and
+	// browser limits. 0 disables truncation.
+	maxMsgBytes := module.GetIntOrDefault(req, "max_msg_bytes", 256*1024)
 
 	group := module.GetParameterOrDefault(req, "group", "api")
 	name := module.GetParameterOrDefault(req, "name", "api")
@@ -299,13 +326,25 @@ func (module *API) QueueExplore(w http.ResponseWriter, req *http.Request, ps htt
 				msgs := []util.MapStr{}
 				for _, v := range messages {
 					msg := util.MapStr{}
-					msg["message"] = string(v.Data)
+					content := string(v.Data)
+					if maxMsgBytes > 0 && len(content) > maxMsgBytes {
+						content = content[:maxMsgBytes] + fmt.Sprintf("\n...[truncated %v of %v bytes]", len(v.Data)-maxMsgBytes, len(v.Data))
+						msg["truncated"] = true
+					}
+					msg["message"] = content
 					msg["offset"] = v.Offset.String()
 					msg["size"] = v.Size
 					msgs = append(msgs, msg)
 				}
 				result["messages"] = msgs
 			} else {
+				if maxMsgBytes > 0 {
+					for i := range messages {
+						if len(messages[i].Data) > maxMsgBytes {
+							messages[i].Data = messages[i].Data[:maxMsgBytes]
+						}
+					}
+				}
 				result["messages"] = messages
 			}
 

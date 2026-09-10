@@ -24,6 +24,7 @@
 package consumer
 
 import (
+	"context"
 	"fmt"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/locker"
@@ -403,6 +404,12 @@ func (processor *QueueConsumerProcessor) HandleQueueConfig(qConfig *queue.QueueC
 			if err != nil {
 				panic(err)
 			}
+			// this spawn is a retry: give back one failure credit so a
+			// slice that recovers isn't latched out forever after a single
+			// failed worker (the counter previously only ever grew)
+			if ctx.Stats(sliceStats) > 0 {
+				ctx.Increment(sliceStats, -1)
+			}
 		}
 	}
 	return nil
@@ -672,7 +679,16 @@ READ_DOCS:
 			newCtx := pipeline.Context{}
 			newCtx.ParentContext = ctx
 			newCtx.Config = ctx.Config
-			newCtx.Context = ctx.Context
+			// Derive the sub-chain context from the owning pipeline's context
+			// (worker context as fallback): pipeline cancellation must reach
+			// the per-record loop inside the sub-chain, otherwise a stop only
+			// takes effect between fetches — with slow processors and deep
+			// queues that leaves a stopped pipeline draining for minutes.
+			subCtx, cancelSub := context.WithCancel(context.Background())
+			if parentContext != nil {
+				subCtx, cancelSub = context.WithCancel(parentContext.Context)
+			}
+			newCtx.Context = subCtx
 			newCtx.Data = ctx.CloneData()
 
 			_, err := newCtx.PutValue(processor.config.QueueField, qConfig.Name)
@@ -697,11 +713,17 @@ READ_DOCS:
 
 			//log.Error("start processing message:",len(messages),",",qConfig.Name)
 			err = processor.processors.Process(&newCtx)
+			cancelSub()
 			//log.Error("end processing message:",len(messages),",",qConfig.Name,",",err)
 			if err != nil {
 				panic(err)
 			}
-			offset = ctx1.NextOffset //TODO
+			// Only consume the batch when the pipeline is not stopping: a
+			// batch interrupted mid-processing keeps the previous offset so
+			// it is re-delivered next run (at-least-once).
+			if parentContext == nil || !parentContext.IsCanceled() {
+				offset = ctx1.NextOffset //TODO
+			}
 			messages = nil
 		} else {
 			EOF = true
