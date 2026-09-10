@@ -216,6 +216,13 @@ func validateStaticToken(token string) bool {
 	return matched == 1
 }
 
+// ValidateStaticToken exposes static-token validation to sibling channels
+// that share the configs server's admission config (e.g. LogPilot's worker
+// hub accepts the same bootstrap tokens).
+func ValidateStaticToken(token string) bool {
+	return validateStaticToken(token)
+}
+
 // extractBearerToken reads the access token from the standard
 // Authorization: Bearer header, falling back to X-API-Token (the framework's
 // conventional token header).
