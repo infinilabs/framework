@@ -403,6 +403,24 @@ func (module *DiskQueue) Close(k string) error {
 	panic(errors.Errorf("queue [%v] not found", k))
 }
 
+// Empty drops all messages and consumed segment files of one queue while
+// keeping the queue registration and its consumers intact — the purge
+// behind POST /queue/:id/_empty. Not-found queues init on demand instead
+// of erroring (consistent with GetStorageSize).
+func (module *DiskQueue) Empty(k string) error {
+	q, ok := module.queues.Load(k)
+	if !ok {
+		if err := module.Init(k); err != nil {
+			return err
+		}
+		q, ok = module.queues.Load(k)
+		if !ok {
+			return errors.Errorf("queue [%v] not found", k)
+		}
+	}
+	return (q.(*DiskBasedQueue)).Empty()
+}
+
 func (module *DiskQueue) GetStorageSize(k string) uint64 {
 	q, ok := module.queues.Load(k)
 	if !ok {

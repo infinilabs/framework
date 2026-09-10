@@ -57,6 +57,8 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -127,7 +129,7 @@ func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) *DiskBase
 		writeChan:          make(chan []byte, cfg.WriteChanBuffer),
 		writeResponseChan:  make(chan WriteResponse),
 		emptyChan:          make(chan int),
-		emptyResponseChan:  make(chan error),
+		emptyResponseChan:  make(chan error, 1),
 		exitChan:           make(chan int),
 		exitSyncChan:       make(chan int, 10),
 		consumersInReading: sync.Map{},
@@ -345,10 +347,16 @@ func (d *DiskBasedQueue) exit(deleted bool) error {
 	return nil
 }
 
-// Empty destructively clears out any pending data in the queue
-// by fast forwarding read positions and removing intermediate files
+// Empty destructively clears out any pending data in the queue and drops
+// every segment file on disk (pending AND already-consumed), keeping the
+// queue registration intact. Positions reset to a fresh head; consumers
+// re-sync on their next read (missing files are handled gracefully).
+//
+// This must NOT round-trip through the ioLoop: Puts hold d.RLock() while
+// waiting for write responses, so a deleteAllFiles executing in the ioLoop
+// would deadlock against them. Taking the write lock directly here instead
+// serializes against in-flight Puts (each bounded by WriteTimeoutInMS).
 func (d *DiskBasedQueue) Empty() error {
-	d.RLock()
 	defer func() {
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
@@ -364,7 +372,6 @@ func (d *DiskBasedQueue) Empty() error {
 				log.Error("error on empty disk_queue,", v)
 			}
 		}
-		d.RUnlock()
 	}()
 
 	if d.exitFlag == 1 {
@@ -373,23 +380,90 @@ func (d *DiskBasedQueue) Empty() error {
 
 	log.Tracef("disk_queue(%s): emptying", d.name)
 
-	d.emptyChan <- 1
-	return <-d.emptyResponseChan
-}
-
-func (d *DiskBasedQueue) deleteAllFiles() error {
-	err := d.skipToNextRWFile(true)
-
-	innerErr := os.Remove(d.metaDataFileName())
-	if innerErr != nil && !os.IsNotExist(innerErr) {
-		log.Errorf("diskqueue(%s) failed to remove metadata file - %s", d.name, innerErr)
-		return innerErr
+	// Snapshot the ACTUAL segment files on disk instead of synthesizing names
+	// from the in-memory counter: after metadata loss/resets across restarts,
+	// the directory commonly holds orphaned segments from earlier eras that no
+	// counter-based cleanup will ever reach.
+	d.Lock()
+	// find the highest segment actually on disk so the fresh head jumps past
+	// every file ever written — including orphans above the in-memory counter
+	// left behind by metadata loss across restarts — so segment numbers are
+	// never reused over stale bytes
+	maxSeg := d.writeSegmentNum
+	if entries, err := os.ReadDir(d.dataPath); err == nil {
+		for _, e := range entries {
+			if seg, ok := segmentNumOf(e.Name()); ok && seg > maxSeg {
+				maxSeg = seg
+			}
+		}
 	}
+	// close open handles and jump to a fresh head with cleared positions
+	if d.readFile != nil {
+		_ = d.readFile.Close()
+		d.readFile = nil
+	}
+	if d.writeFile != nil {
+		_ = d.writeFile.Sync()
+		_ = d.writeFile.Close()
+		d.writeFile = nil
+	}
+	d.writeSegmentNum = maxSeg + 1
+	d.writePos = 0
+	d.readSegmentFileNum = d.writeSegmentNum
+	d.readPos = 0
+	d.nextReadFileNum = d.writeSegmentNum
+	d.nextReadPos = 0
+	d.depth = 0
+	d.needSync = true
+	metaFile := d.metaDataFileName()
+	dataPath := d.dataPath
+	d.Unlock()
 
-	return err
+	// every file currently on disk is stale: the fresh head is a brand-new
+	// segment number nothing points at
+	stale := make([]string, 0, 64)
+	if entries, err := os.ReadDir(dataPath); err == nil {
+		metaName := path.Base(metaFile)
+		for _, e := range entries {
+			n := e.Name()
+			if n == metaName || strings.HasPrefix(n, metaName+".") {
+				continue
+			}
+			stale = append(stale, path.Join(dataPath, n))
+		}
+	} else {
+		log.Errorf("diskqueue(%s): empty ReadDir(%v) failed: %v", d.name, dataPath, err)
+	}
+	log.Infof("diskqueue(%s): empty head=%v, %v files to unlink, dataPath=%v", d.name, d.writeSegmentNum, len(stale), dataPath)
+
+	// unlink outside the lock; writers race on the fresh head, which is kept
+	go func() {
+		for _, f := range stale {
+			if rmErr := os.Remove(f); rmErr != nil && !os.IsNotExist(rmErr) {
+				log.Errorf("diskqueue(%s) failed to remove data file [%s] - %s", d.name, f, rmErr)
+			}
+		}
+		if rmErr := os.Remove(metaFile); rmErr != nil && !os.IsNotExist(rmErr) {
+			log.Errorf("diskqueue(%s) failed to remove metadata file - %s", d.name, rmErr)
+		}
+	}()
+
+	return nil
 }
 
-// 删除中间的错误文件，跳转到最后一个可写文件
+// segmentNumOf parses "<zero-padded N>.dat[.zstd]" segment file names.
+func segmentNumOf(name string) (int64, bool) {
+	name = strings.TrimSuffix(name, compressFileSuffix)
+	if !strings.HasSuffix(name, ".dat") {
+		return 0, false
+	}
+	n, err := strconv.ParseInt(strings.TrimSuffix(name, ".dat"), 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
 func (d *DiskBasedQueue) skipToNextRWFile(delete bool) error {
 	d.Lock()
 	defer d.Unlock()
@@ -961,9 +1035,6 @@ func (d *DiskBasedQueue) ioLoop() {
 			// readMoveForward sets needSync flag if a file is removed
 			d.readMoveForward()
 		case d.depthChan <- d.depth:
-		case <-d.emptyChan:
-			d.emptyResponseChan <- d.deleteAllFiles()
-			count = 0
 		case dataWrite := <-d.writeChan:
 			count++
 			d.writeResponseChan <- d.writeOne(dataWrite)
