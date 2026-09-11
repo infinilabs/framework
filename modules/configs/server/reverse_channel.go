@@ -102,12 +102,15 @@ func onReverseConnect(sessionID string, w http.ResponseWriter, r *http.Request) 
 	inst.ID = instanceID
 	exists, err := orm.GetV2(ctx, &inst)
 	if err != nil && !isNotFound(err) {
+		log.Warnf("configs server: reverse connect [%s] instance lookup failed: %v", instanceID, err)
 		return err
 	}
 	if err != nil || !exists {
+		log.Warnf("configs server: reverse connect rejected: instance %s is not registered", instanceID)
 		return fmt.Errorf("instance %s is not registered", instanceID)
 	}
 	if loadInstanceStatus(ctx, instanceID) != StatusApproved {
+		log.Warnf("configs server: reverse connect rejected: instance %s is not approved", instanceID)
 		return fmt.Errorf("instance %s is not approved", instanceID)
 	}
 	// Credential check: the dial-out must authenticate like a sync would
@@ -120,6 +123,7 @@ func onReverseConnect(sessionID string, w http.ResponseWriter, r *http.Request) 
 	}
 	if !matchesManagerToken(ctx, instanceID, presented) &&
 		!matchesRegisteredAccessToken(ctx, instanceID, presented) {
+		log.Warnf("configs server: reverse connect rejected: instance %s credential check failed (token presented: %v)", instanceID, presented != "")
 		return fmt.Errorf("instance %s reverse channel credential rejected", instanceID)
 	}
 
@@ -137,10 +141,19 @@ func handleReverseHello(c *framework_ws.WebsocketConnection, array []string) {
 	if len(array) < 2 || reverseManager == nil {
 		return
 	}
-	if err := reverseManager.HandleHelloPayload(strings.Join(array[1:], " ")); err != nil {
+	features, err := reverseManager.HandleHelloPayload(strings.Join(array[1:], " "))
+	if err != nil {
 		log.Warnf("configs server: reverse hello rejected: %v", err)
-	} else {
-		log.Info("configs server: reverse hello accepted")
+		return
+	}
+	log.Debugf("configs server: reverse hello accepted")
+
+	// answer the peer's capability advertisement with our own, so both
+	// sides compress only when the other end supports it (old peers ignore
+	// this unknown command and stay on the uncompressed path)
+	if len(features) > 0 {
+		msg := reverse.FeatureMessage{Gzip: true}
+		_ = c.WritePrivateMessage(reverse.FormatFeatureCommand(msg))
 	}
 }
 
