@@ -25,6 +25,7 @@ package task
 
 import (
 	"infini.sh/framework/core/api"
+	"infini.sh/framework/core/security"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
@@ -65,9 +66,13 @@ func (module *TaskModule) Setup() {
 	})
 
 	api.HandleAPIMethod(api.GET, "/tasks/", module.GetTaskList)
+	api.HandleUIMethod(api.GET, "/tasks/", module.GetTaskList, api.RequireLogin(), api.RequirePermission(security.PermissionSystemTaskRead))
 	api.HandleAPIMethod(api.POST, "/task/:id/_start", module.StartTask)
+	api.HandleUIMethod(api.POST, "/task/:id/_start", module.StartTask, api.RequireLogin(), api.RequirePermission(security.PermissionSystemTaskUpdate))
 	api.HandleAPIMethod(api.POST, "/task/:id/_stop", module.StopTask)
+	api.HandleUIMethod(api.POST, "/task/:id/_stop", module.StopTask, api.RequireLogin(), api.RequirePermission(security.PermissionSystemTaskUpdate))
 	api.HandleAPIMethod(api.DELETE, "/task/:id", module.DeleteTask)
+	api.HandleUIMethod(api.DELETE, "/task/:id", module.DeleteTask, api.RequireLogin(), api.RequirePermission(security.PermissionSystemTaskDelete))
 
 }
 

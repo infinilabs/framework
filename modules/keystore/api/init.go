@@ -27,11 +27,19 @@
 
 package api
 
-import "infini.sh/framework/core/api"
+import (
+	"infini.sh/framework/core/api"
+	"infini.sh/framework/core/security"
+)
 
 func Init() {
 	handler := APIHandler{}
+	// keystore read/write consumed via the reverse channel (e.g. manager
+	// pushing credentials); served on the web port behind login + RBAC
 	api.HandleAPIMethod(api.POST, "/keystore", handler.setKeystoreValue)
+	api.HandleUIMethod(api.POST, "/keystore", handler.setKeystoreValue, api.RequireLogin(), api.RequirePermission(security.PermissionSystemKeystoreUpdate))
 	api.HandleAPIMethod(api.GET, "/keystore", handler.listKeystoreKeys)
+	api.HandleUIMethod(api.GET, "/keystore", handler.listKeystoreKeys, api.RequireLogin(), api.RequirePermission(security.PermissionSystemKeystoreRead))
 	api.HandleAPIMethod(api.DELETE, "/keystore", handler.deleteKeystoreKey)
+	api.HandleUIMethod(api.DELETE, "/keystore", handler.deleteKeystoreKey, api.RequireLogin(), api.RequirePermission(security.PermissionSystemKeystoreDelete))
 }
