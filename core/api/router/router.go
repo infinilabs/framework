@@ -289,6 +289,17 @@ func (r *Router) Handle(method, path string, handle Handle) {
 			r.hashRoute[method] = paths
 			return
 		}
+
+		// Parameterized paths cannot live in the flat override map; when the
+		// same pattern is already registered for this method, keep the first
+		// registration instead of panicking. This lets one router host the
+		// same route from two registration domains (e.g. UI routes mounted
+		// first, embedded API routes mounted afterwards).
+		if root := r.trees[method]; root != nil {
+			if existing, _, _ := root.getValue(path); existing != nil {
+				return
+			}
+		}
 	}
 	if r.trees == nil {
 		r.trees = make(map[string]*node)

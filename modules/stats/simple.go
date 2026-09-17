@@ -45,6 +45,7 @@ import (
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
@@ -98,17 +99,27 @@ func (module *SimpleStatsModule) Setup() {
 	stats.Register(module.data)
 
 	//register api
+	// instance overview feeds off this via the reverse channel; served on the
+	// web port behind login + RBAC (prometheus variant stays on the API port
+	// for machine scrapers)
 	api.HandleAPIMethod(api.GET, "/stats", module.StatsAction)
+	api.HandleUIMethod(api.GET, "/stats", module.StatsAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemStatsRead))
 	api.HandleAPIMethod(api.GET, "/stats/prometheus", module.PrometheusStatsAction)
+	api.HandleUIMethod(api.GET, "/stats/prometheus", module.PrometheusStatsAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemStatsRead))
 	api.HandleAPIMethod(api.GET, "/debug/goroutines", module.GoroutinesAction)
+	api.HandleUIMethod(api.GET, "/debug/goroutines", module.GoroutinesAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemDebugRead))
 
 	//if global.Env().IsDebug{
 	api.HandleAPIMethod(api.GET, "/debug/pool/bytes", module.BufferItemStatsAction)
+	api.HandleUIMethod(api.GET, "/debug/pool/bytes", module.BufferItemStatsAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemDebugRead))
 	//}
 
 	api.HandleAPIMethod(api.GET, "/_local/files/_list", module.ListDirFs)
+	api.HandleUIMethod(api.GET, "/_local/files/_list", module.ListDirFs, api.RequireLogin(), api.RequirePermission(security.PermissionSystemFilesRead))
 	api.HandleAPIMethod(api.GET, "/_local/files/:file/_list", module.ListDirFs)
+	api.HandleUIMethod(api.GET, "/_local/files/:file/_list", module.ListDirFs, api.RequireLogin(), api.RequirePermission(security.PermissionSystemFilesRead))
 	api.HandleAPIMethod(api.DELETE, "/_local/files/:file", module.DeleteDataFile)
+	api.HandleUIMethod(api.DELETE, "/_local/files/:file", module.DeleteDataFile, api.RequireLogin(), api.RequirePermission(security.PermissionSystemFilesDelete))
 }
 
 func (module *SimpleStatsModule) Start() error {

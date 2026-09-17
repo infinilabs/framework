@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -70,7 +71,7 @@ func connectAndServe() error {
 			lastErr = err
 			continue
 		}
-		log.Infof("agent reverse channel connected to [%s]", server)
+		log.Debugf("agent reverse channel connected to [%s]", server)
 		err = serve(conn)
 		_ = conn.Close()
 		log.Warnf("agent reverse channel disconnected from [%s]: %v", server, err)
@@ -148,11 +149,17 @@ func serve(conn *websocket.Conn) error {
 				hello := reverse.HelloMessage{
 					SessionID: sid,
 					PeerID:    global.Env().SystemConfig.NodeConfig.ID,
+					Features:  []string{reverse.CompressionGzip},
 				}
 				if err := send(conn, reverse.FormatHelloCommand(hello)); err != nil {
 					return err
 				}
 				log.Debugf("agent reverse channel hello sent for session [%s]", sid)
+			}
+		case reverse.FeaturesCommand:
+			// manager answered our capability advertisement
+			if fm, err := reverse.ParseFeaturePayload(payload1); err == nil {
+				managerGzipSupported.Store(fm.Gzip)
 			}
 		case reverse.RequestCommand:
 			go handleRequest(conn, payload1)
@@ -173,8 +180,15 @@ func send(conn *websocket.Conn, payload string) error {
 	return conn.WriteMessage(websocket.TextMessage, []byte(payload))
 }
 
+// managerGzipSupported flips true once the manager answers our HELLO
+// capability advertisement; until then responses stay uncompressed
+// (mixed-version safe: an old manager ignores the unknown feature frame).
+var managerGzipSupported atomic.Bool
+
 // handleRequest executes one proxied HTTP request against the agent's
-// own web port and streams the response back in chunks.
+// own web port and streams the response back in chunks. Bodies over the
+// compression threshold are gzipped when the manager advertised support,
+// flagged via ResponseMessage.Compressed.
 func handleRequest(conn *websocket.Conn, payload string) {
 	reqMsg, err := reverse.ParseRequestPayload(payload)
 	if err != nil {
@@ -184,9 +198,15 @@ func handleRequest(conn *websocket.Conn, payload string) {
 
 	status, body := execute(reqMsg)
 
+	compressed := false
+	if managerGzipSupported.Load() {
+		body, compressed = reverse.MaybeCompress(body)
+	}
+
 	resp := reverse.ResponseMessage{
-		RequestID: reqMsg.RequestID,
-		PeerID:    reqMsg.PeerID,
+		RequestID:  reqMsg.RequestID,
+		PeerID:     reqMsg.PeerID,
+		Compressed: compressed,
 	}
 	// chunk the body (base64) then a Done frame with the status
 	for offset := 0; offset < len(body); offset += 64 * 1024 {

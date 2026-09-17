@@ -1,8 +1,11 @@
 package reverse
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -14,12 +17,38 @@ const (
 	HelloCommand              = "reverse_hello"
 	RequestCommand            = "reverse_request"
 	ResponseCommand           = "reverse_response"
+	FeaturesCommand           = "reverse_features"
 	DefaultResponseChunkBytes = 32 * 1024
+	// CompressThresholdBytes — response bodies below this stay uncompressed:
+	// gzip overhead (~60+ bytes) isn't worth it for small payloads.
+	CompressThresholdBytes = 4 * 1024
+	// CompressionGzip is the only wire format advertised today.
+	CompressionGzip = "gzip"
 )
 
 type HelloMessage struct {
 	SessionID string `json:"session_id"`
 	PeerID    string `json:"instance_id"`
+	// Features advertises peer capabilities, e.g. ["gzip"]. The manager
+	// answers with a reverse_features frame so both sides compress only
+	// when the other end actually supports it (mixed-version safe).
+	Features []string `json:"features,omitempty"`
+}
+
+// FeatureMessage is the manager's capability answer to a HELLO that
+// advertised features.
+type FeatureMessage struct {
+	Gzip bool `json:"gzip"`
+}
+
+// SupportsCompression reports whether the peer advertised gzip support.
+func (m HelloMessage) SupportsCompression() bool {
+	for _, f := range m.Features {
+		if f == CompressionGzip {
+			return true
+		}
+	}
+	return false
 }
 
 type RequestMessage struct {
@@ -36,6 +65,10 @@ type ResponseMessage struct {
 	RequestID string `json:"request_id"`
 	PeerID    string `json:"instance_id"`
 	Chunk     string `json:"chunk,omitempty"`
+	// Compressed marks the reassembled body as gzip-encoded. Set on every
+	// chunk frame of a compressed response so the manager knows to inflate
+	// before handing the body to the caller.
+	Compressed bool `json:"compressed,omitempty"`
 	// Status is the HTTP status of the locally executed request, set on the
 	// Done frame. 0 is not a valid HTTP status (valid range is 100-599);
 	// a Done frame without Status is only legal together with Error.
@@ -64,6 +97,53 @@ func ParseResponsePayload(payload string) (ResponseMessage, error) {
 
 func FormatHelloCommand(msg HelloMessage) string {
 	return HelloCommand + " " + string(util.MustToJSONBytes(msg))
+}
+
+func FormatFeatureCommand(msg FeatureMessage) string {
+	return FeaturesCommand + " " + string(util.MustToJSONBytes(msg))
+}
+
+func ParseFeaturePayload(payload string) (FeatureMessage, error) {
+	msg := FeatureMessage{}
+	return msg, util.FromJSONBytes([]byte(payload), &msg)
+}
+
+// MaybeCompress gzips body when it is worth it (size threshold, and only
+// when compression actually shrinks it). Returns the (possibly unchanged)
+// body and whether it was compressed.
+func MaybeCompress(body []byte) ([]byte, bool) {
+	if len(body) < CompressThresholdBytes {
+		return body, false
+	}
+	var buf bytes.Buffer
+	w := gzip.NewWriter(&buf)
+	if _, err := w.Write(body); err != nil {
+		return body, false
+	}
+	if err := w.Close(); err != nil {
+		return body, false
+	}
+	if buf.Len() >= len(body) {
+		return body, false // incompressible
+	}
+	return buf.Bytes(), true
+}
+
+// MaybeDecompress inflates body when compressed is true.
+func MaybeDecompress(body []byte, compressed bool) ([]byte, error) {
+	if !compressed {
+		return body, nil
+	}
+	r, err := gzip.NewReader(bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("gzip reader: %w", err)
+	}
+	defer r.Close()
+	out, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("gzip inflate: %w", err)
+	}
+	return out, nil
 }
 
 func FormatRequestCommand(msg RequestMessage) string {

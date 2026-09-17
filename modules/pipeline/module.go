@@ -86,16 +86,27 @@ func (module *PipeModule) Setup() {
 	pipeline.RegisterDomainProcessorWithConfigMetadata("event", "for_each", NewForEachProcessor, ForEachConfig{})
 
 	//TODO remove
+	// task list / processor discovery are consumed via the reverse channel
+	// by managers, task delete is used for stream teardown; served on the
+	// web port behind login + RBAC
 	api.HandleAPIMethod(api.GET, "/pipeline/tasks/", module.getRunningPipelineTasksHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/tasks/", module.getRunningPipelineTasksHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
 	api.HandleAPIMethod(api.POST, "/pipeline/tasks/_search", module.searchPipelineTasksHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/tasks/_search", module.searchPipelineTasksHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
 	api.HandleAPIMethod(api.POST, "/pipeline/tasks/", module.createPipelineTaskHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/tasks/", module.createPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineCreate))
 	api.HandleAPIMethod(api.GET, "/pipeline/task/:id", module.getPipelineTaskHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/task/:id", module.getPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
 	api.HandleAPIMethod(api.DELETE, "/pipeline/task/:id", module.deletePipelineTaskHandler)
+	api.HandleUIMethod(api.DELETE, "/pipeline/task/:id", module.deletePipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineDelete))
 	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_start", module.startPipelineTaskHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/task/:id/_start", module.startPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
 	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopPipelineTaskHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
 
 	// processor discovery: names + config schemas for pipeline designers
 	api.HandleAPIMethod(api.GET, "/pipeline/processors", module.getProcessorsHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/processors", module.getProcessorsHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
 
 	//use pipelines to avoid naming conflicts
 	api.HandleUIMethod(api.POST, "/pipelines/_search", module.searchPipelineHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Search)))
@@ -126,6 +137,18 @@ func (module *PipeModule) startTask(taskID string) (exists bool) {
 	}
 
 	exists = true
+
+	// A STOPPING pipeline is still winding down its processor chain (the
+	// consumer workers drain their in-flight batches before returning).
+	// Clearing the exit flag here would let keep_running resurrect the
+	// pipeline the moment Process returns — silently undoing the stop.
+	// Only an idle pipeline (STOPPED/FINISHED/FAILED) may be started.
+	if v1.GetRunningState() == pipeline.STOPPING {
+		if global.Env().IsDebug {
+			log.Debug("pipeline:", taskID, " is stopping, skip start until it settles")
+		}
+		return
+	}
 
 	// Mark exited pipeline to start again
 	if v1.IsExit() {

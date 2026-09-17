@@ -33,12 +33,15 @@ type ManagerOptions struct {
 }
 
 type pendingResponse struct {
-	peerID    string
-	body      bytes.Buffer
-	status    int
-	err       error
-	done      chan struct{}
-	completed bool
+	peerID string
+	body   bytes.Buffer
+	// compressed marks the assembled body as gzip-encoded (flag comes from
+	// the peer's chunk frames); inflated before the response is delivered.
+	compressed bool
+	status     int
+	err        error
+	done       chan struct{}
+	completed  bool
 }
 
 type SessionManager struct {
@@ -97,12 +100,17 @@ func (m *SessionManager) ActivateSession(sessionID, peerID string) error {
 	return nil
 }
 
-func (m *SessionManager) HandleHelloPayload(payload string) error {
+// HandleHelloPayload activates the session and returns the features the
+// peer advertised, so the caller can answer with its own capabilities.
+func (m *SessionManager) HandleHelloPayload(payload string) ([]string, error) {
 	msg, err := ParseHelloPayload(payload)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return m.ActivateSession(msg.SessionID, msg.PeerID)
+	if err := m.ActivateSession(msg.SessionID, msg.PeerID); err != nil {
+		return nil, err
+	}
+	return msg.Features, nil
 }
 
 func (m *SessionManager) HandleResponsePayload(payload string) error {
@@ -275,9 +283,14 @@ func (m *SessionManager) acceptResponse(msg ResponseMessage) {
 			m.completePendingLocked(msg.RequestID, pending, 0, fmt.Errorf("decode reverse response chunk: %w", err))
 			return
 		}
+		// the cap applies to the wire size (compressed bytes), so large
+		// compressible payloads stay well under it in transit
 		if pending.body.Len()+len(chunk) > m.options.MaxResponseBytes {
 			m.completePendingLocked(msg.RequestID, pending, 0, fmt.Errorf("reverse response exceeds %d bytes", m.options.MaxResponseBytes))
 			return
+		}
+		if msg.Compressed {
+			pending.compressed = true
 		}
 		_, _ = pending.body.Write(chunk)
 	}
@@ -290,6 +303,15 @@ func (m *SessionManager) acceptResponse(msg ResponseMessage) {
 		if msg.Status == 0 {
 			m.completePendingLocked(msg.RequestID, pending, 0, fmt.Errorf("malformed reverse response: done frame carries neither status nor error"))
 			return
+		}
+		if pending.compressed {
+			inflated, err := MaybeDecompress(pending.body.Bytes(), true)
+			if err != nil {
+				m.completePendingLocked(msg.RequestID, pending, 0, fmt.Errorf("reverse response inflate: %w", err))
+				return
+			}
+			pending.body.Reset()
+			_, _ = pending.body.Write(inflated)
 		}
 		m.completePendingLocked(msg.RequestID, pending, msg.Status, nil)
 	}

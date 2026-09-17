@@ -29,6 +29,7 @@ package elastic
 
 import (
 	"infini.sh/framework/core/api"
+	"infini.sh/framework/core/security"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/util"
@@ -37,7 +38,9 @@ import (
 
 func init() {
 	api.HandleAPIMethod(api.GET, "/elasticsearch/metadata", GetMetadata)
+	api.HandleUIMethod(api.GET, "/elasticsearch/metadata", GetMetadata, api.RequireLogin(), api.RequirePermission(security.PermissionSystemElasticsearchRead))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/hosts", GetHosts)
+	api.HandleUIMethod(api.GET, "/elasticsearch/hosts", GetHosts, api.RequireLogin(), api.RequirePermission(security.PermissionSystemElasticsearchRead))
 }
 
 func GetMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
