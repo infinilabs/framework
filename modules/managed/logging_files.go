@@ -1,7 +1,7 @@
 /* ©INFINI, All Rights Reserved.
  * mail: contact#infini.ltd */
 
-package config
+package managed
 
 // Instance-local log viewing API, served by every framework app on its web
 // port. Lets a managing console (e.g. LogPilot) tail instance logs through

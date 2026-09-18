@@ -1,7 +1,7 @@
 /* ©INFINI, All Rights Reserved.
  * mail: contact#infini.ltd */
 
-package config
+package managed
 
 import (
 	"errors"
