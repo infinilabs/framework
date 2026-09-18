@@ -19,7 +19,10 @@ package config
 // reader.
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -29,24 +32,19 @@ import (
 	"time"
 
 	"infini.sh/framework/core/api"
-	"infini.sh/framework/core/security"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
 )
-
-// logFilesRead gates the log list/tail endpoints; managers mint the
-// instance self API token with this key (see core/security instance-ops
-// catalog) so reverse-channel loopback calls pass the permission filter.
-var logFilesRead = security.GetSimplePermission("generic", "system:log", security.Read)
 
 func init() {
 	// The web-port copy is the secured one (login + RBAC); the API-domain
 	// registration stays for existing API-port consumers.
 	api.HandleAPIMethod(api.GET, "/logging/files", listLogFilesAction)
-	api.HandleUIMethod(api.GET, "/logging/files", listLogFilesAction, api.RequireLogin(), api.RequirePermission(logFilesRead))
+	api.HandleUIMethod(api.GET, "/logging/files", listLogFilesAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemLogRead))
 	api.HandleAPIMethod(api.GET, "/logging/tail", tailLogFileAction)
-	api.HandleUIMethod(api.GET, "/logging/tail", tailLogFileAction, api.RequireLogin(), api.RequirePermission(logFilesRead))
+	api.HandleUIMethod(api.GET, "/logging/tail", tailLogFileAction, api.RequireLogin(), api.RequirePermission(security.PermissionSystemLogRead))
 }
 
 const (
@@ -77,6 +75,13 @@ var currentLogDir = func() (string, error) {
 	return abs, nil
 }
 
+// isTailableLogName gates which files both endpoints serve; /logging/files
+// only lists these, and /logging/tail rejects anything else so binary side
+// files (rotated .gz archives, index snapshots) are never served as text.
+func isTailableLogName(name string) bool {
+	return strings.HasSuffix(name, ".log") || strings.HasSuffix(name, ".json")
+}
+
 // resolveLogFile validates that file (relative to the log dir, or absolute
 // inside it) resolves to a regular file strictly inside the log directory,
 // and returns its absolute path.
@@ -89,7 +94,14 @@ func resolveLogFile(file string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return guard.ResolveUnder(logDir, file)
+	resolved, err := guard.ResolveUnder(logDir, file)
+	if err != nil {
+		return "", err
+	}
+	if !isTailableLogName(filepath.Base(resolved)) {
+		return "", fmt.Errorf("file [%v] is not a log file", file)
+	}
+	return resolved, nil
 }
 
 func listLogFilesAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -130,7 +142,7 @@ func listLogFilesAction(w http.ResponseWriter, req *http.Request, ps httprouter.
 		if !fi.Mode().IsRegular() {
 			return nil
 		}
-		if !strings.HasSuffix(fi.Name(), ".log") && !strings.HasSuffix(fi.Name(), ".json") {
+		if !isTailableLogName(fi.Name()) {
 			return nil
 		}
 		rel, err := filepath.Rel(logDir, p)
@@ -170,9 +182,6 @@ func tailLogFileAction(w http.ResponseWriter, req *http.Request, ps httprouter.P
 	}
 
 	lines, _ := strconv.Atoi(req.URL.Query().Get("lines"))
-	if lines == 0 {
-		lines = 200
-	}
 	if lines <= 0 {
 		lines = 200
 	}
@@ -194,20 +203,15 @@ func tailLogFileAction(w http.ResponseWriter, req *http.Request, ps httprouter.P
 	}
 	defer f.Close()
 
-	// read a bounded window from the end of the file
-	window := int64(logTailMaxBytes)
-	if fi.Size() < window {
-		window = fi.Size()
-	}
-	buf := make([]byte, window)
-	if _, err = f.ReadAt(buf, fi.Size()-window); err != nil && err.Error() != "EOF" {
+	buf, fullWindow, err := readTailWindow(f, fi.Size())
+	if err != nil {
 		api.WriteError(w, fmt.Sprintf("read file failed: %v", err), 500)
 		return
 	}
 
 	// drop the partial first line when we truncated mid-file
-	if window == logTailMaxBytes && len(buf) > 0 {
-		if idx := indexByte(buf, '\n'); idx >= 0 {
+	if fullWindow && len(buf) > 0 {
+		if idx := bytes.IndexByte(buf, '\n'); idx >= 0 {
 			buf = buf[idx+1:]
 		}
 	}
@@ -247,11 +251,23 @@ func tailLogFileAction(w http.ResponseWriter, req *http.Request, ps httprouter.P
 	}, 200)
 }
 
-func indexByte(b []byte, c byte) int {
-	for i, v := range b {
-		if v == c {
-			return i
-		}
+// readTailWindow reads at most logTailMaxBytes from the end of the file.
+// A short read — the file shrank between stat and read, as happens with
+// rotation or truncation — returns the bytes actually read instead of an
+// error or a zero-filled tail; fullWindow reports whether the entire
+// window was read (i.e. the window starts mid-file).
+func readTailWindow(ra io.ReaderAt, size int64) ([]byte, bool, error) {
+	window := int64(logTailMaxBytes)
+	if size < window {
+		window = size
 	}
-	return -1
+	if window <= 0 {
+		return nil, false, nil
+	}
+	buf := make([]byte, window)
+	n, err := ra.ReadAt(buf, size-window)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return nil, false, err
+	}
+	return buf[:n], n == len(buf) && window == logTailMaxBytes, nil
 }

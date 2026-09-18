@@ -4,7 +4,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -142,5 +144,62 @@ func TestListLogFilesAction(t *testing.T) {
 	}
 	if strings.Contains(body, "notes.txt") {
 		t.Errorf("expected non-log file to be excluded: %s", body)
+	}
+}
+func TestTailLogFileActionRejectsNonLogSuffix(t *testing.T) {
+	dir := t.TempDir()
+	stubLogDir(t, dir)
+
+	if err := os.WriteFile(filepath.Join(dir, "archive.log.gz"), []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if w := callTail(t, "archive.log.gz"); w.Code != 400 {
+		t.Errorf("expected 400 for non-log suffix, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// shortReaderAt simulates a file that shrank between stat and read.
+type shortReaderAt struct {
+	data []byte
+	err  error
+}
+
+func (r shortReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	copy(p, r.data)
+	return len(r.data), r.err
+}
+
+func TestReadTailWindowShortRead(t *testing.T) {
+	// partial read with ErrUnexpectedEOF: bytes read so far are kept,
+	// the zero-filled remainder is not served
+	buf, full, err := readTailWindow(shortReaderAt{data: []byte("hello"), err: io.ErrUnexpectedEOF}, 1<<20)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if full {
+		t.Error("short read must not report a full window")
+	}
+	if string(buf) != "hello" {
+		t.Errorf("expected the bytes actually read, got %q", buf)
+	}
+
+	// zero-byte read with EOF: empty result, no NUL padding
+	buf, full, err = readTailWindow(shortReaderAt{err: io.EOF}, int64(logTailMaxBytes))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if full || len(buf) != 0 {
+		t.Errorf("expected empty non-full window, got len=%d full=%v", len(buf), full)
+	}
+
+	// any other error propagates
+	if _, _, err := readTailWindow(shortReaderAt{err: os.ErrPermission}, 10); !errors.Is(err, os.ErrPermission) {
+		t.Errorf("expected the read error to propagate, got %v", err)
+	}
+
+	// empty file: no read at all
+	buf, full, err = readTailWindow(shortReaderAt{err: io.EOF}, 0)
+	if err != nil || full || len(buf) != 0 {
+		t.Errorf("expected empty result for empty file, got len=%d full=%v err=%v", len(buf), full, err)
 	}
 }
