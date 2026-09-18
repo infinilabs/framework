@@ -55,13 +55,11 @@ const (
 )
 
 type logFileInfo struct {
-	Name    string `json:"name"` // file name without directories
-	Path    string `json:"path"` // relative to the log dir; pass back to /logging/tail
-	Size    int64  `json:"size"`
-	Updated int64  `json:"updated"` // unix seconds
-	// MostRecentlyModified marks the newest file of the listing; the wire
-	// name stays "current" for the console contract.
-	MostRecentlyModified bool `json:"current"`
+	Name                 string `json:"name"` // file name without directories
+	Path                 string `json:"path"` // relative to the log dir; pass back to /logging/tail
+	Size                 int64  `json:"size"`
+	Updated              int64  `json:"updated"` // unix seconds
+	MostRecentlyModified bool   `json:"most_recently_modified"`
 }
 
 // currentLogDir resolves the directory the /logging endpoints serve;
