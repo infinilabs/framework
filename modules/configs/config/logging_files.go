@@ -3,10 +3,9 @@
 
 package config
 
-// Instance-local log viewing API, served by every framework app next to the
-// /config/ endpoints (embedded API on agents/gateways). Lets a managing
-// console (e.g. LogPilot) tail instance logs through its reverse channel for
-// pipeline troubleshooting:
+// Instance-local log viewing API, served by every framework app on its web
+// port. Lets a managing console (e.g. LogPilot) tail instance logs through
+// its reverse channel for pipeline troubleshooting:
 //
 //	GET /logging/files                     list log files (recursive, newest first)
 //	GET /logging/tail?file=&lines=&keyword=  tail a file, optional keyword filter
@@ -31,6 +30,8 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/cihub/seelog"
+
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/global"
@@ -54,11 +55,13 @@ const (
 )
 
 type logFileInfo struct {
-	Name    string `json:"name"`
+	Name    string `json:"name"` // file name without directories
 	Path    string `json:"path"` // relative to the log dir; pass back to /logging/tail
 	Size    int64  `json:"size"`
 	Updated int64  `json:"updated"` // unix seconds
-	Current bool   `json:"current"` // most recently modified file
+	// MostRecentlyModified marks the newest file of the listing; the wire
+	// name stays "current" for the console contract.
+	MostRecentlyModified bool `json:"current"`
 }
 
 // currentLogDir resolves the directory the /logging endpoints serve;
@@ -107,24 +110,25 @@ func resolveLogFile(file string) (string, error) {
 func listLogFilesAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	logDir, err := currentLogDir()
 	if err != nil {
-		api.WriteError(w, err.Error(), 500)
+		api.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	// the walk below reports paths as given; make sure logDir itself is
 	// canonical so relative paths handed back to /logging/tail match
 	logDir, err = filepath.Abs(logDir)
 	if err != nil {
-		api.WriteError(w, err.Error(), 500)
+		api.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if util.IsSystemReadPath(logDir) {
-		api.WriteError(w, fmt.Sprintf("log dir [%v] is a system path", logDir), 500)
+		api.WriteError(w, fmt.Sprintf("log dir [%v] is a system path", logDir), http.StatusInternalServerError)
 		return
 	}
 
 	files := []logFileInfo{}
-	_ = filepath.Walk(logDir, func(p string, fi os.FileInfo, err error) error {
+	if err := filepath.Walk(logDir, func(p string, fi os.FileInfo, err error) error {
 		if err != nil {
+			log.Warnf("skipping [%s] while listing log files: %v", p, err)
 			return nil
 		}
 		if fi.IsDir() {
@@ -147,16 +151,19 @@ func listLogFilesAction(w http.ResponseWriter, req *http.Request, ps httprouter.
 		}
 		rel, err := filepath.Rel(logDir, p)
 		if err != nil {
+			log.Warnf("skipping [%s] while listing log files: %v", p, err)
 			return nil
 		}
 		files = append(files, logFileInfo{
-			Name:    filepath.ToSlash(rel),
+			Name:    fi.Name(),
 			Path:    filepath.ToSlash(rel),
 			Size:    fi.Size(),
 			Updated: fi.ModTime().Unix(),
 		})
 		return nil
-	})
+	}); err != nil {
+		log.Warnf("failed to walk log dir [%s]: %v", logDir, err)
+	}
 	sort.Slice(files, func(i, j int) bool {
 		if files[i].Updated != files[j].Updated {
 			return files[i].Updated > files[j].Updated
@@ -164,20 +171,20 @@ func listLogFilesAction(w http.ResponseWriter, req *http.Request, ps httprouter.
 		return files[i].Name < files[j].Name
 	})
 	if len(files) > 0 {
-		files[0].Current = true
+		files[0].MostRecentlyModified = true
 	}
 
 	api.WriteJSON(w, util.MapStr{
 		"log_dir": logDir,
 		"files":   files,
-	}, 200)
+	}, http.StatusOK)
 }
 
 func tailLogFileAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	fileParam := req.URL.Query().Get("file")
 	absPath, err := resolveLogFile(fileParam)
 	if err != nil {
-		api.WriteError(w, err.Error(), 400)
+		api.WriteError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -192,20 +199,20 @@ func tailLogFileAction(w http.ResponseWriter, req *http.Request, ps httprouter.P
 
 	fi, err := os.Stat(absPath)
 	if err != nil {
-		api.WriteError(w, fmt.Sprintf("stat file failed: %v", err), 400)
+		api.WriteError(w, fmt.Sprintf("stat file failed: %v", err), http.StatusBadRequest)
 		return
 	}
 
 	f, err := os.Open(absPath)
 	if err != nil {
-		api.WriteError(w, fmt.Sprintf("open file failed: %v", err), 400)
+		api.WriteError(w, fmt.Sprintf("open file failed: %v", err), http.StatusBadRequest)
 		return
 	}
 	defer f.Close()
 
 	buf, fullWindow, err := readTailWindow(f, fi.Size())
 	if err != nil {
-		api.WriteError(w, fmt.Sprintf("read file failed: %v", err), 500)
+		api.WriteError(w, fmt.Sprintf("read file failed: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -248,7 +255,7 @@ func tailLogFileAction(w http.ResponseWriter, req *http.Request, ps httprouter.P
 		"truncated":   fi.Size() > logTailMaxBytes,
 		"lines":       match,
 		"server_time": time.Now().Unix(),
-	}, 200)
+	}, http.StatusOK)
 }
 
 // readTailWindow reads at most logTailMaxBytes from the end of the file.
