@@ -734,7 +734,13 @@ func CompareStringAndBytes(b []byte, s string) bool {
 }
 
 func LimitedBytesSearch(data []byte, term []byte, limit int) bool {
-	buffer := make([]byte, len(term))
+	if len(term) == 0 {
+		return false
+	}
+	//must start empty: len(buffer) is the sentinel for a completed match, so
+	//it may only ever hold matched bytes (a full preallocation made the first
+	// fully-matched needle panic on term[len(term)])
+	buffer := []byte{}
 	start := false
 	bufferOffset := 0
 	for i, v := range data {
@@ -761,7 +767,9 @@ func LimitedBytesSearch(data []byte, term []byte, limit int) bool {
 			}
 		}
 	}
-	return false
+	//a match ending exactly at the end of data never gets the in-loop
+	//sentinel check (it fires on the byte AFTER a completed match)
+	return start && len(buffer) == len(term)
 }
 
 type ByteValue struct {
