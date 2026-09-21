@@ -298,7 +298,7 @@ func NewHTTPClient(clientCfg *config.HTTPClientConfig) (*http.Client, error) {
 							return nil, err
 						}
 						if proxyURL != nil {
-							return dialHTTPProxyTunnel(ctx, dialer, proxyURL.Host, "", addr)
+							return dialHTTPProxyTunnel(ctx, dialer, proxyURL.Host, basicAuthHeader(proxyURL.User), addr)
 						}
 					}
 				}
@@ -604,10 +604,23 @@ func proxyDialAddr(proxySetting string) (dialAddr, authHeader string, err error)
 	if u.Host == "" || u.Port() == "" {
 		return "", "", fmt.Errorf("invalid HTTP proxy URL (missing host or port): %v", proxySetting)
 	}
-	if u.User != nil {
-		authHeader = "Basic " + base64.StdEncoding.EncodeToString([]byte(u.User.String()))
-	}
+	authHeader = basicAuthHeader(u.User)
 	return u.Host, authHeader, nil
+}
+
+// basicAuthHeader builds a Proxy-Authorization value from URL userinfo.
+// Username()/Password() return the decoded values; User.String() would
+// re-encode them and break credentials containing reserved characters.
+func basicAuthHeader(user *url.Userinfo) string {
+	if user == nil {
+		return ""
+	}
+	username := user.Username()
+	password, _ := user.Password()
+	if username == "" && password == "" {
+		return ""
+	}
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
 }
 
 // dialHTTPProxyTunnel dials an http proxy and establishes a CONNECT tunnel to
@@ -618,6 +631,18 @@ func dialHTTPProxyTunnel(ctx context.Context, dialer *net.Dialer, proxyAddr, aut
 	conn, err := dialer.DialContext(ctx, "tcp", proxyAddr)
 	if err != nil {
 		return nil, err
+	}
+
+	// Bound the CONNECT round trip: a proxy that accepts TCP but never
+	// answers must not hold the dial until the OS-level TCP timeout.
+	timeout := dialer.Timeout
+	if d, ok := ctx.Deadline(); ok {
+		if until := time.Until(d); until < timeout {
+			timeout = until
+		}
+	}
+	if timeout > 0 {
+		conn.SetDeadline(time.Now().Add(timeout))
 	}
 
 	req := &http.Request{
@@ -644,6 +669,8 @@ func dialHTTPProxyTunnel(ctx context.Context, dialer *net.Dialer, proxyAddr, aut
 		conn.Close()
 		return nil, fmt.Errorf("http proxy %v CONNECT %v failed: %v", proxyAddr, targetAddr, resp.Status)
 	}
+	// The tunnel is established: hand over a connection with no deadlines.
+	conn.SetDeadline(time.Time{})
 	if br.Buffered() > 0 {
 		return &bufferedTunnelConn{Conn: conn, br: br}, nil
 	}
