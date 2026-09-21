@@ -28,9 +28,11 @@
 package api
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	log "github.com/cihub/seelog"
@@ -269,41 +271,35 @@ func NewHTTPClient(clientCfg *config.HTTPClientConfig) (*http.Client, error) {
 		ReadBufferSize:  clientCfg.ReadBufferSize,
 		WriteBufferSize: clientCfg.WriteBufferSize,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			// Determine whether to use a proxy for this address
-			if ok, cfg := resolveProxy(clientCfg, addr); ok && cfg != nil {
-				log.Infof("using proxy: %v for addr: %v", util.MustToJSON(cfg), addr)
-				if cfg.HTTPProxy != "" {
-					// HTTP proxy
-					proxyURL, err := url.Parse(cfg.HTTPProxy)
-					if err != nil {
-						return nil, fmt.Errorf("invalid HTTP proxy URL: %w", err)
-					}
-					proxy := http.ProxyURL(proxyURL)
-					req := &http.Request{URL: &url.URL{Host: addr}}
-					proxyURL, err = proxy(req)
-					if err != nil {
-						return nil, err
-					}
-					if proxyURL != nil {
-						return dialer.DialContext(ctx, network, proxyURL.Host)
-					}
-				} else if cfg.Socket5Proxy != "" {
-					// SOCKS5 proxy
-					socksDialer, err := proxy.SOCKS5("tcp", cfg.Socket5Proxy, nil, dialer)
-					if err != nil {
-						return nil, fmt.Errorf("error creating SOCKS5 dialer: %w", err)
-					}
-					return socksDialer.Dial(network, addr)
-				} else if cfg.UsingEnvironmentProxySettings {
-					// Use environment proxy settings
-					envProxy := http.ProxyFromEnvironment
-					req := &http.Request{URL: &url.URL{Host: addr}}
-					proxyURL, err := envProxy(req)
-					if err != nil {
-						return nil, err
-					}
-					if proxyURL != nil {
-						return dialer.DialContext(ctx, network, proxyURL.Host)
+			//the proxy master switch comes first: a client that did not opt in
+			//always connects directly, skipping all further proxy checks
+			if clientCfg.Proxy.Enabled {
+				if ok, cfg := resolveProxy(clientCfg, addr); ok && cfg != nil {
+					log.Infof("using proxy: %v for addr: %v", util.MustToJSON(cfg), addr)
+					if cfg.HTTPProxy != "" {
+						// HTTP proxy via CONNECT tunnel
+						proxyAddr, authHeader, err := proxyDialAddr(cfg.HTTPProxy)
+						if err != nil {
+							return nil, err
+						}
+						return dialHTTPProxyTunnel(ctx, dialer, proxyAddr, authHeader, addr)
+					} else if cfg.Socket5Proxy != "" {
+						// SOCKS5 proxy
+						socksDialer, err := proxy.SOCKS5("tcp", cfg.Socket5Proxy, nil, dialer)
+						if err != nil {
+							return nil, fmt.Errorf("error creating SOCKS5 dialer: %w", err)
+						}
+						return socksDialer.Dial(network, addr)
+					} else if cfg.UsingEnvironmentProxySettings {
+						// Use environment proxy settings
+						req := &http.Request{URL: &url.URL{Host: addr}}
+						proxyURL, err := http.ProxyFromEnvironment(req)
+						if err != nil {
+							return nil, err
+						}
+						if proxyURL != nil {
+							return dialHTTPProxyTunnel(ctx, dialer, proxyURL.Host, "", addr)
+						}
 					}
 				}
 			}
@@ -472,20 +468,24 @@ func getFastHTTPClient(clientCfg *config.HTTPClientConfig) *fasthttp.Client {
 		WriteBufferSize: clientCfg.WriteBufferSize,
 		Dial: func(addr string) (net.Conn, error) {
 
-			// Determine whether to use a proxy for this address
-			if ok, cfg := resolveProxy(clientCfg, addr); ok && cfg != nil {
+			//the proxy master switch comes first: a client that did not opt in
+			//always connects directly, skipping all further proxy checks
+			if clientCfg.Proxy.Enabled {
 
-				log.Debugf("using proxy: %v for addr: %v", util.MustToJSON(cfg), addr)
+				if ok, cfg := resolveProxy(clientCfg, addr); ok && cfg != nil {
 
-				if cfg.HTTPProxy != "" {
-					dialer := fasthttpproxy.FasthttpHTTPDialer(stripProxyScheme(cfg.HTTPProxy))
-					return dialer(addr)
-				} else if cfg.Socket5Proxy != "" {
-					dialer := fasthttpproxy.FasthttpSocksDialer(cfg.Socket5Proxy)
-					return dialer(addr)
-				} else if cfg.UsingEnvironmentProxySettings {
-					proxyDialer := fasthttpproxy.FasthttpProxyHTTPDialerTimeout(util.GetDurationOrDefault(clientCfg.DialTimeout, 2*time.Second))
-					return proxyDialer(addr)
+					log.Debugf("using proxy: %v for addr: %v", util.MustToJSON(cfg), addr)
+
+					if cfg.HTTPProxy != "" {
+						dialer := fasthttpproxy.FasthttpHTTPDialer(stripProxyScheme(cfg.HTTPProxy))
+						return dialer(addr)
+					} else if cfg.Socket5Proxy != "" {
+						dialer := fasthttpproxy.FasthttpSocksDialer(cfg.Socket5Proxy)
+						return dialer(addr)
+					} else if cfg.UsingEnvironmentProxySettings {
+						proxyDialer := fasthttpproxy.FasthttpProxyHTTPDialerTimeout(util.GetDurationOrDefault(clientCfg.DialTimeout, 2*time.Second))
+						return proxyDialer(addr)
+					}
 				}
 			}
 
@@ -551,6 +551,36 @@ func UnregisterProxyResolver() {
 	dynamicProxyResolver.Store(nil)
 }
 
+// resolveProxy decides static vs dynamic proxy selection for one dial. Its
+// callers — both dial sites — gate on Proxy.Enabled first (the master
+// switch, checked standalone before this function), so a client that did
+// not opt in never reaches any of this. Inside: any static proxy content
+// (addresses, domain overrides, permitted or denied lists) decides alone;
+// only an enabled-but-addressless config is delegated to the dynamic
+// resolver, which may then supply a proxy address (e.g. the clashx
+// takeover).
+func resolveProxy(clientCfg *config.HTTPClientConfig, addr string) (bool, *config.ProxyConfig) {
+	if hasStaticProxyConfig(clientCfg) {
+		return clientCfg.ValidateProxy(addr)
+	}
+	if r := dynamicProxyResolver.Load(); r != nil {
+		return (*r)(clientCfg, addr)
+	}
+	return false, nil
+}
+
+// hasStaticProxyConfig reports whether the client carries any static proxy
+// content; if so the static rules alone decide and the dynamic resolver is
+// never consulted.
+func hasStaticProxyConfig(clientCfg *config.HTTPClientConfig) bool {
+	p := clientCfg.Proxy
+	if len(p.Domains) > 0 || len(p.Permitted) > 0 || len(p.Denied) > 0 {
+		return true
+	}
+	c := p.DefaultProxyConfig
+	return c.HTTPProxy != "" || c.Socket5Proxy != "" || c.UsingEnvironmentProxySettings
+}
+
 // stripProxyScheme removes an optional URL scheme from a proxy address:
 // fasthttpproxy dialers expect a bare host:port while proxy configs commonly
 // carry `http://`.
@@ -561,17 +591,73 @@ func stripProxyScheme(proxyAddr string) string {
 	return proxyAddr
 }
 
-// resolveProxy is the single proxy decision point for every dial: static
-// config first, then the registered dynamic resolver, otherwise direct.
-func resolveProxy(clientCfg *config.HTTPClientConfig, addr string) (bool, *config.ProxyConfig) {
-	if clientCfg.Proxy.Enabled {
-		return clientCfg.ValidateProxy(addr)
+// proxyDialAddr parses an http proxy setting into a bare host:port dial
+// address plus an optional Proxy-Authorization header value.
+func proxyDialAddr(proxySetting string) (dialAddr, authHeader string, err error) {
+	if !strings.Contains(proxySetting, "://") {
+		proxySetting = "http://" + proxySetting
 	}
-	if r := dynamicProxyResolver.Load(); r != nil {
-		return (*r)(clientCfg, addr)
+	u, err := url.Parse(proxySetting)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid HTTP proxy URL: %w", err)
 	}
-	return false, nil
+	if u.Host == "" || u.Port() == "" {
+		return "", "", fmt.Errorf("invalid HTTP proxy URL (missing host or port): %v", proxySetting)
+	}
+	if u.User != nil {
+		authHeader = "Basic " + base64.StdEncoding.EncodeToString([]byte(u.User.String()))
+	}
+	return u.Host, authHeader, nil
 }
+
+// dialHTTPProxyTunnel dials an http proxy and establishes a CONNECT tunnel to
+// the target, returning the raw end-to-end connection. Tunneling is required
+// because the transport does not know about proxies at the dial layer: it
+// would otherwise send origin-form requests that forward proxies reject.
+func dialHTTPProxyTunnel(ctx context.Context, dialer *net.Dialer, proxyAddr, authHeader, targetAddr string) (net.Conn, error) {
+	conn, err := dialer.DialContext(ctx, "tcp", proxyAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &http.Request{
+		Method: http.MethodConnect,
+		URL:    &url.URL{Opaque: targetAddr},
+		Host:   targetAddr,
+		Header: make(http.Header),
+	}
+	if authHeader != "" {
+		req.Header.Set("Proxy-Authorization", authHeader)
+	}
+	if err := req.Write(conn); err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	br := bufio.NewReader(conn)
+	resp, err := http.ReadResponse(br, req)
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		conn.Close()
+		return nil, fmt.Errorf("http proxy %v CONNECT %v failed: %v", proxyAddr, targetAddr, resp.Status)
+	}
+	if br.Buffered() > 0 {
+		return &bufferedTunnelConn{Conn: conn, br: br}, nil
+	}
+	return conn, nil
+}
+
+// bufferedTunnelConn preserves bytes the bufio reader consumed from a freshly
+// established proxy tunnel before handing the connection to the transport.
+type bufferedTunnelConn struct {
+	net.Conn
+	br *bufio.Reader
+}
+
+func (c *bufferedTunnelConn) Read(p []byte) (int, error) { return c.br.Read(p) }
 
 func init() {
 	global.RegisterInitCallback(func() {
