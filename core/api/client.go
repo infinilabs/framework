@@ -49,6 +49,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -269,44 +270,40 @@ func NewHTTPClient(clientCfg *config.HTTPClientConfig) (*http.Client, error) {
 		WriteBufferSize: clientCfg.WriteBufferSize,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			// Determine whether to use a proxy for this address
-			if clientCfg.Proxy.Enabled {
-				if ok, cfg := clientCfg.ValidateProxy(addr); ok {
-					if cfg != nil {
-						log.Infof("using proxy: %v for addr: %v", util.MustToJSON(cfg), addr)
-						if cfg.HTTPProxy != "" {
-							// HTTP proxy
-							proxyURL, err := url.Parse(cfg.HTTPProxy)
-							if err != nil {
-								return nil, fmt.Errorf("invalid HTTP proxy URL: %w", err)
-							}
-							proxy := http.ProxyURL(proxyURL)
-							req := &http.Request{URL: &url.URL{Host: addr}}
-							proxyURL, err = proxy(req)
-							if err != nil {
-								return nil, err
-							}
-							if proxyURL != nil {
-								return dialer.DialContext(ctx, network, proxyURL.Host)
-							}
-						} else if cfg.Socket5Proxy != "" {
-							// SOCKS5 proxy
-							socksDialer, err := proxy.SOCKS5("tcp", cfg.Socket5Proxy, nil, dialer)
-							if err != nil {
-								return nil, fmt.Errorf("error creating SOCKS5 dialer: %w", err)
-							}
-							return socksDialer.Dial(network, addr)
-						} else if cfg.UsingEnvironmentProxySettings {
-							// Use environment proxy settings
-							envProxy := http.ProxyFromEnvironment
-							req := &http.Request{URL: &url.URL{Host: addr}}
-							proxyURL, err := envProxy(req)
-							if err != nil {
-								return nil, err
-							}
-							if proxyURL != nil {
-								return dialer.DialContext(ctx, network, proxyURL.Host)
-							}
-						}
+			if ok, cfg := resolveProxy(clientCfg, addr); ok && cfg != nil {
+				log.Infof("using proxy: %v for addr: %v", util.MustToJSON(cfg), addr)
+				if cfg.HTTPProxy != "" {
+					// HTTP proxy
+					proxyURL, err := url.Parse(cfg.HTTPProxy)
+					if err != nil {
+						return nil, fmt.Errorf("invalid HTTP proxy URL: %w", err)
+					}
+					proxy := http.ProxyURL(proxyURL)
+					req := &http.Request{URL: &url.URL{Host: addr}}
+					proxyURL, err = proxy(req)
+					if err != nil {
+						return nil, err
+					}
+					if proxyURL != nil {
+						return dialer.DialContext(ctx, network, proxyURL.Host)
+					}
+				} else if cfg.Socket5Proxy != "" {
+					// SOCKS5 proxy
+					socksDialer, err := proxy.SOCKS5("tcp", cfg.Socket5Proxy, nil, dialer)
+					if err != nil {
+						return nil, fmt.Errorf("error creating SOCKS5 dialer: %w", err)
+					}
+					return socksDialer.Dial(network, addr)
+				} else if cfg.UsingEnvironmentProxySettings {
+					// Use environment proxy settings
+					envProxy := http.ProxyFromEnvironment
+					req := &http.Request{URL: &url.URL{Host: addr}}
+					proxyURL, err := envProxy(req)
+					if err != nil {
+						return nil, err
+					}
+					if proxyURL != nil {
+						return dialer.DialContext(ctx, network, proxyURL.Host)
 					}
 				}
 			}
@@ -476,23 +473,19 @@ func getFastHTTPClient(clientCfg *config.HTTPClientConfig) *fasthttp.Client {
 		Dial: func(addr string) (net.Conn, error) {
 
 			// Determine whether to use a proxy for this address
-			if clientCfg.Proxy.Enabled {
-				if ok, cfg := clientCfg.ValidateProxy(addr); ok {
-					if cfg != nil {
+			if ok, cfg := resolveProxy(clientCfg, addr); ok && cfg != nil {
 
-						log.Debugf("using proxy: %v for addr: %v", util.MustToJSON(cfg), addr)
+				log.Debugf("using proxy: %v for addr: %v", util.MustToJSON(cfg), addr)
 
-						if cfg.HTTPProxy != "" {
-							dialer := fasthttpproxy.FasthttpHTTPDialer(cfg.HTTPProxy)
-							return dialer(addr)
-						} else if cfg.Socket5Proxy != "" {
-							dialer := fasthttpproxy.FasthttpSocksDialer(cfg.Socket5Proxy)
-							return dialer(addr)
-						} else if cfg.UsingEnvironmentProxySettings {
-							proxyDialer := fasthttpproxy.FasthttpProxyHTTPDialerTimeout(util.GetDurationOrDefault(clientCfg.DialTimeout, 2*time.Second))
-							return proxyDialer(addr)
-						}
-					}
+				if cfg.HTTPProxy != "" {
+					dialer := fasthttpproxy.FasthttpHTTPDialer(stripProxyScheme(cfg.HTTPProxy))
+					return dialer(addr)
+				} else if cfg.Socket5Proxy != "" {
+					dialer := fasthttpproxy.FasthttpSocksDialer(cfg.Socket5Proxy)
+					return dialer(addr)
+				} else if cfg.UsingEnvironmentProxySettings {
+					proxyDialer := fasthttpproxy.FasthttpProxyHTTPDialerTimeout(util.GetDurationOrDefault(clientCfg.DialTimeout, 2*time.Second))
+					return proxyDialer(addr)
 				}
 			}
 
@@ -532,6 +525,52 @@ func UpdateProxyEnvironment(cfg *config.ProxyConfig) {
 		// Clear NO_PROXY if using manual configuration
 		_ = os.Unsetenv("NO_PROXY")
 	}
+}
+
+// ProxyResolver dynamically decides whether an outbound dial to addr should
+// go through a proxy, and with which settings. It is consulted at dial time
+// only when the client's static proxy config is disabled, so explicit
+// configuration always wins. Plugins (e.g. clashx) register one to take over
+// framework outbound traffic at runtime without rebuilding clients.
+type ProxyResolver func(clientCfg *config.HTTPClientConfig, addr string) (bool, *config.ProxyConfig)
+
+var dynamicProxyResolver atomic.Pointer[ProxyResolver]
+
+// RegisterProxyResolver installs the process-wide dynamic proxy resolver.
+// Nil is ignored.
+func RegisterProxyResolver(resolver ProxyResolver) {
+	if resolver == nil {
+		return
+	}
+	dynamicProxyResolver.Store(&resolver)
+}
+
+// UnregisterProxyResolver removes the dynamic proxy resolver; dials that have
+// no static proxy config connect directly again.
+func UnregisterProxyResolver() {
+	dynamicProxyResolver.Store(nil)
+}
+
+// stripProxyScheme removes an optional URL scheme from a proxy address:
+// fasthttpproxy dialers expect a bare host:port while proxy configs commonly
+// carry `http://`.
+func stripProxyScheme(proxyAddr string) string {
+	if i := strings.Index(proxyAddr, "://"); i >= 0 {
+		return proxyAddr[i+3:]
+	}
+	return proxyAddr
+}
+
+// resolveProxy is the single proxy decision point for every dial: static
+// config first, then the registered dynamic resolver, otherwise direct.
+func resolveProxy(clientCfg *config.HTTPClientConfig, addr string) (bool, *config.ProxyConfig) {
+	if clientCfg.Proxy.Enabled {
+		return clientCfg.ValidateProxy(addr)
+	}
+	if r := dynamicProxyResolver.Load(); r != nil {
+		return (*r)(clientCfg, addr)
+	}
+	return false, nil
 }
 
 func init() {
