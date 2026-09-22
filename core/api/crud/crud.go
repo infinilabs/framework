@@ -423,6 +423,14 @@ func (g *generator[T, P]) update(w http.ResponseWriter, req *http.Request, ps ht
 	for _, f := range g.cfg.ProtectedFields {
 		delete(delta, f)
 	}
+	if len(delta) == 0 {
+		// a body made up entirely of protected fields leaves nothing to
+		// update; ack it as a no-op instead of persisting the zero-value
+		// object (obj only carries the id at this point), which would
+		// wipe the stored record on full-replace stores
+		g.WriteUpdatedOKJSON(w, id)
+		return
+	}
 	if g.cfg.PrepareUpdate != nil {
 		if err := g.cfg.PrepareUpdate(obj, delta); err != nil {
 			g.WriteError(w, err.Error(), http.StatusBadRequest)

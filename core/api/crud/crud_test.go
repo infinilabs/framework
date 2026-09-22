@@ -96,6 +96,7 @@ func setupGizmos(t *testing.T) Handlers {
 		Prefix:             "/gizmos",
 		Resource:           "gizmo",
 		DefaultQueryFields: []string{"name"},
+		ProtectedFields:    []string{"created", "id"},
 		PrepareCreate: func(obj *gizmo) error {
 			if obj.Name == "" {
 				return errString("name is required")
@@ -200,6 +201,41 @@ func TestCRUD_FullFlow(t *testing.T) {
 	// Delete missing → 404.
 	w, _ = call(t, h.Delete, "DELETE", "/gizmos/nope", "")
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// A PUT whose body is entirely protected fields strips down to an empty
+// delta; the update must be a no-op on stored data, not a wipe of the
+// record (the ORM seeds the target from the stored state whenever partial
+// merging is on, even with nothing to overlay).
+func TestCRUD_EmptyDeltaAfterProtectionKeepsRecord(t *testing.T) {
+	h := setupGizmos(t)
+
+	w, out := call(t, h.Create, "POST", "/gizmos/", `{"name":"ed-alpha","status":"active"}`)
+	require.Equal(t, http.StatusOK, w.Code)
+	id, _ := out["_id"].(string)
+	require.NotEmpty(t, id)
+
+	// body carries only fields a config would declare protected; crud
+	// strips them before UpdatePartialFields, leaving an empty delta
+	w, out = call(t, h.Update, "PUT", "/gizmos/"+id, `{"created":"2020-01-01T00:00:00Z","id":"overridden"}`)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "updated", out["result"])
+
+	w, out = call(t, h.Get, "GET", "/gizmos/"+id, "")
+	require.Equal(t, http.StatusOK, w.Code)
+	src, _ := out["_source"].(map[string]interface{})
+	require.NotNil(t, src)
+	assert.Equal(t, "ed-alpha", src["name"])
+	assert.Equal(t, "active", src["status"])
+
+	// a literally empty body is the same no-op contract
+	w, out = call(t, h.Update, "PUT", "/gizmos/"+id, `{}`)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "updated", out["result"])
+	w, out = call(t, h.Get, "GET", "/gizmos/"+id, "")
+	src, _ = out["_source"].(map[string]interface{})
+	assert.Equal(t, "ed-alpha", src["name"])
+	assert.Equal(t, "active", src["status"])
 }
 
 func TestCRUD_SharingContext(t *testing.T) {
