@@ -697,6 +697,68 @@ func Save(ctx *Context, o interface{}) error {
 	return saveOrUpdate(ctx, o, nil, OpSave, true)
 }
 
+// BulkSaver is an optional backend extension: backends that can persist a
+// batch in a single transaction implement it. BulkSave dispatches to it when
+// available and falls back to per-row Save otherwise.
+type BulkSaver interface {
+	BulkSave(ctx *Context, batch []interface{}) error
+}
+
+// BulkSave persists a batch of objects with save semantics (insert or
+// replace by id) in a single handler call. On backends implementing
+// BulkSaver the whole batch is written in one transaction - one commit
+// instead of one per row - and a failing row aborts the batch. Timestamps
+// are normalized and the data-operation hooks run per item, like Save;
+// unlike Save no stored state is fetched or merged, rows are written as
+// passed in.
+func BulkSave(ctx *Context, batch []interface{}) error {
+	if ctx == nil {
+		ctx = NewContext()
+	}
+	if len(batch) == 0 {
+		return nil
+	}
+
+	handler := getHandler()
+	tNow := time.Now()
+	for i, o := range batch {
+		if reflect.TypeOf(o).Kind() != reflect.Ptr || reflect.ValueOf(o).IsNil() {
+			return errors.New("only non-nil pointer to object is allowed")
+		}
+		rValue := reflect.ValueOf(o)
+		if !ctx.GetBool(NoAutoUpdateUpdatedField, false) {
+			setFieldValue(rValue, "Updated", &tNow)
+		}
+		if !existsNonNullField(rValue, "Created") {
+			setFieldValue(rValue, "Created", &tNow)
+		}
+
+		var err error
+		if ctx, batch[i], err = runDataOperationPreHooks(OpSave, ctx, o); err != nil {
+			return err
+		}
+	}
+
+	if h, ok := handler.(BulkSaver); ok {
+		if err := h.BulkSave(ctx, batch); err != nil {
+			return err
+		}
+	} else {
+		for _, o := range batch {
+			if err := handler.Save(ctx, o); err != nil {
+				return err
+			}
+		}
+	}
+
+	for _, o := range batch {
+		if _, _, err := runDataOperationPostHooks(OpSave, ctx, o); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func saveOrUpdate(ctx *Context, o interface{}, delta util.MapStr, opType Operation, createIfNotExists bool) error {
 	//TODO ctx should always be there, panic after all legacy code removed
 	if ctx == nil {
