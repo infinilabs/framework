@@ -744,6 +744,19 @@ func TestLimitedBytesSearch(t *testing.T) {
 	assert.Equal(t, false, ok)
 }
 
+// Regression: a needle fully matching from the first candidate byte used to
+// panic with index out of range - the buffer was preallocated to len(term),
+// so the len(buffer)==len(term) match sentinel was never in step with the
+// matched bytes. This is exactly the shape of an Elasticsearch _bulk response
+// with "errors":true at the head of the body.
+func TestLimitedBytesSearchMatchAtStart(t *testing.T) {
+	assert.True(t, LimitedBytesSearch([]byte(`{"errors":true,"items":[]}`), []byte(`"errors":true`), 64))
+	assert.True(t, LimitedBytesSearch([]byte(`"errors":true`), []byte(`"errors":true`), 64))
+	assert.False(t, LimitedBytesSearch([]byte(`{}`), []byte(`"errors":true`), 64))
+	assert.False(t, LimitedBytesSearch([]byte(`{"errors":tru`), []byte(`"errors":true`), 64))
+	assert.False(t, LimitedBytesSearch([]byte(`{"errors":true`), []byte(`"errors":true`), 4)) //beyond the limit
+}
+
 func TestBytesSearchValue(t *testing.T) {
 	data := []byte("{\n  \"id\" : \"FnZGLWN4OXRpVGItTVZtdzZ1U2hGTEEdMWpuRkM3SDZSWWVBSTdKT1hkRDNkdzoxMTU2OTE=\",\n  \"is_partial\" : true,\n  \"is_running\" : true,\n  \"start_time_in_millis\" : 1601100879183,\n  \"expiration_time_in_millis\" : 1601100948312,\n  \"response\" :")
 	startTerm := []byte("\"is_running\"")

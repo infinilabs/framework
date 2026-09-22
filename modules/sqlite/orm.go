@@ -249,6 +249,50 @@ func (handler *SQLiteORM) Save(ctx *api.Context, o interface{}) error {
 	return err
 }
 
+// BulkSave writes the whole batch with save semantics (INSERT OR REPLACE)
+// inside one transaction: a single WAL commit instead of one per row. Any
+// invalid row (missing id) or write failure aborts the batch and rolls back
+// every row of it. The transaction pins one pooled connection for its
+// lifetime, so concurrent Save calls on other connections only contend on
+// the WAL write lock (bounded by busy_timeout) - they can never join, and
+// thus never be rolled back with, this batch.
+func (handler *SQLiteORM) BulkSave(ctx *api.Context, batch []interface{}) error {
+	if len(batch) == 0 {
+		return nil
+	}
+
+	type row struct {
+		table string
+		id    string
+		raw   []byte
+	}
+	rows := make([]row, 0, len(batch))
+	for _, o := range batch {
+		id := getObjectID(o)
+		if id == "" {
+			return errors.Errorf("id is required for bulk save: %v", o)
+		}
+		rows = append(rows, row{table: handler.GetIndexName(o), id: id, raw: util.MustToJSONBytes(o)})
+	}
+
+	tx, err := handler.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	for _, r := range rows {
+		query := fmt.Sprintf("INSERT OR REPLACE INTO [%s] (id, raw) VALUES (?, ?)", r.table)
+		if global.Env().IsDebug {
+			log.Debug("sqlite BulkSave: ", query, " id=", r.id)
+		}
+		if _, err := tx.Exec(query, r.id, r.raw); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 func (handler *SQLiteORM) Update(ctx *api.Context, o interface{}) error {
 	id := getObjectID(o)
 	if id == "" {
