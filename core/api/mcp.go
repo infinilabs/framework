@@ -104,7 +104,20 @@ func registerMCPAutoUIHandler(cfg config.WebAppConfig) {
 	opts = append(opts, mcpserver.WithHTTPContextFunc(func(ctx context.Context, r *http.Request) context.Context {
 		return context.WithValue(ctx, mcpAuthContextKey{}, r.Header.Clone())
 	}))
-	uiServeMux.Handle(path, mcpserver.NewStreamableHTTPServer(server, opts...))
+	streamable := mcpserver.NewStreamableHTTPServer(server, opts...)
+	uiServeMux.Handle(path, streamable)
+
+	// The router tree wins over the mux fallback, and a path match with a
+	// method mismatch answers 405 instead of falling through to the mux. When
+	// an explicit route occupies the same path for another method (e.g. a
+	// browser help page on GET /mcp), MCP POSTs would be shadowed — so
+	// register the protocol handler in the tree as well, unless the app
+	// registered its own POST route for this path.
+	if registeredUIMethodHandler[POST][path].Handler == nil {
+		uiRouter.Handle(string(POST), path, func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+			streamable.ServeHTTP(w, r)
+		})
+	}
 }
 
 func registerMCPAutoUIMethodTool(method Method, pattern string, handler RegisteredAPIHandler) {
