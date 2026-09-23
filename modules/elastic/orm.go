@@ -24,6 +24,7 @@
 package elastic
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -198,6 +199,56 @@ func (handler *ElasticORM) Save(ctx *api.Context, o interface{}) error {
 	}
 	_, err := handler.Client.Index(handler.GetIndexName(o), "", docID, o, refresh)
 	return err
+}
+
+type bulkIndexTarget struct {
+	Index string `json:"_index"`
+	ID    string `json:"_id"`
+}
+
+type bulkIndexAction struct {
+	Index bulkIndexTarget `json:"index"`
+}
+
+// BulkSave writes the whole batch with save semantics in one _bulk request:
+// one HTTP round trip and, when ctx.Refresh is set, one refresh per index,
+// instead of one round trip and one refresh per row. Unlike the sqlite
+// backend, Elasticsearch is not transactional: rows it accepted before a
+// failing row stay indexed. The _bulk call asks the server to filter the
+// response down to items.*.error and returns an error carrying the failed
+// items on partial failure.
+func (handler *ElasticORM) BulkSave(ctx *api.Context, batch []interface{}) error {
+	if len(batch) == 0 {
+		return nil
+	}
+
+	var buf bytes.Buffer
+	indices := map[string]struct{}{}
+	for _, o := range batch {
+		docID := getIndexID(o)
+		if docID == "" {
+			return errors.Errorf("id is required for bulk save: %v", o)
+		}
+		indexName := handler.GetIndexName(o)
+		indices[indexName] = struct{}{}
+		buf.Write(util.MustToJSONBytes(bulkIndexAction{Index: bulkIndexTarget{Index: indexName, ID: docID}}))
+		buf.WriteByte('\n')
+		buf.Write(util.MustToJSONBytes(o))
+		buf.WriteByte('\n')
+	}
+
+	if _, err := handler.Client.Bulk(buf.Bytes()); err != nil {
+		return err
+	}
+
+	if ctx != nil && ctx.Refresh != "" {
+		for indexName := range indices {
+			if err := handler.Client.Refresh(indexName); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // update operation will merge the new data into the old data
