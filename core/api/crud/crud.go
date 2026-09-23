@@ -423,6 +423,14 @@ func (g *generator[T, P]) update(w http.ResponseWriter, req *http.Request, ps ht
 	for _, f := range g.cfg.ProtectedFields {
 		delete(delta, f)
 	}
+	if len(delta) == 0 {
+		// the request only touched protected fields — there is nothing to
+		// change. orm.UpdatePartialFields skips the stored-state merge for
+		// an empty delta, so persisting would rewrite the record with the
+		// zero-value object and wipe every field.
+		g.WriteUpdatedOKJSON(w, id)
+		return
+	}
 	if g.cfg.PrepareUpdate != nil {
 		if err := g.cfg.PrepareUpdate(obj, delta); err != nil {
 			g.WriteError(w, err.Error(), http.StatusBadRequest)
