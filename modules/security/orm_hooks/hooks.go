@@ -509,6 +509,16 @@ func init() {
 
 			bq.ShouldClauses = append(bq.ShouldClauses, orm.TermQuery(orm.GetSystemFieldKey(orm.OwnerIDKey), userID))
 
+			// Include resources shared with user's teams.
+			if teamIDs, ok := sessionUser.GetStringArray(security.ParamTeamIDs); ok && len(teamIDs) > 0 {
+				bq.ShouldClauses = append(bq.ShouldClauses, orm.TermsQuery(orm.GetSystemFieldKey(orm.TeamIDKey), teamIDs))
+			}
+
+			// Include resources shared with user's projects.
+			if projectIDs, ok := sessionUser.GetStringArray(security.ParamProjectIDs); ok && len(projectIDs) > 0 {
+				bq.ShouldClauses = append(bq.ShouldClauses, orm.TermsQuery(orm.GetSystemFieldKey(orm.ProjectIDKey), projectIDs))
+			}
+
 			if len(bq.ShouldClauses) > 1 {
 				bq.Parameter("minimum_should_match", 1)
 			}

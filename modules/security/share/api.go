@@ -10,6 +10,7 @@ import (
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/security"
 )
 
@@ -69,6 +70,15 @@ func (r *BulkOpResponses[T]) AddUnchanged(item *T) {
 }
 
 func (h APIHandler) createOrUpdateShare(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	// Rate limit: 1 req/sec per user to prevent abuse
+	sessionUser := security.MustGetUserFromRequest(req)
+	userID := sessionUser.MustGetUserID()
+	limiter := rate.GetRateLimiterPerSecond("share_api", userID, 1)
+	if !limiter.Allow() {
+		h.WriteError(w, "rate limit exceeded, please try again later", http.StatusTooManyRequests)
+		return
+	}
+
 	op := ShareRequest{}
 	h.MustDecodeJSON(req, &op)
 
@@ -77,9 +87,6 @@ func (h APIHandler) createOrUpdateShare(w http.ResponseWriter, req *http.Request
 
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.Refresh = orm.WaitForRefresh
-
-	sessionUser := security.MustGetUserFromContext(ctx.Context)
-	userID := sessionUser.MustGetUserID()
 
 	newOp := ShareRequest{}
 	for _, v := range op.Shares {
@@ -104,14 +111,20 @@ func (h APIHandler) createOrUpdateShare(w http.ResponseWriter, req *http.Request
 }
 
 func (h APIHandler) batchCreateOrUpdateShare(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	// Rate limit: 1 req/sec per user to prevent abuse
+	sessionUser := security.MustGetUserFromRequest(req)
+	userID := sessionUser.MustGetUserID()
+	limiter := rate.GetRateLimiterPerSecond("share_batch_api", userID, 1)
+	if !limiter.Allow() {
+		h.WriteError(w, "rate limit exceeded, please try again later", http.StatusTooManyRequests)
+		return
+	}
+
 	op := ShareRequest{}
 	h.MustDecodeJSON(req, &op)
 
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.Refresh = orm.WaitForRefresh
-
-	sessionUser := security.MustGetUserFromContext(ctx.Context)
-	userID := sessionUser.MustGetUserID()
 
 	service := NewSharingService()
 	lists, err := service.CreateOrUpdateShares(ctx, userID, &op)
