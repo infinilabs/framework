@@ -12,7 +12,7 @@ import (
 type OrganizationPrincipal struct {
 	ID          string `json:"id,omitempty" elastic_mapping:"id:{type:keyword}"`
 	Type        string `json:"type,omitempty" elastic_mapping:"type:{type:keyword}"` //  "type": "user", // or "team"
-	Name        string `json:"name,omitempty" elastic_mapping:"name:{type:text,copy_to:combined_fulltext,fields:{keyword: {type: keyword}, pinyin: {type: text, analyzer: pinyin_analyzer}}}"`
+	Name        string `json:"name,omitempty" elastic_mapping:"name:{type:text,copy_to:combined_fulltext,fields:{keyword: {type: keyword}}}"`
 	Description string `json:"description,omitempty" elastic_mapping:"description:{type:keyword,copy_to:combined_fulltext}"`
 	Avatar      string `json:"avatar,omitempty" elastic_mapping:"avatar:{enabled:false}"`
 }
