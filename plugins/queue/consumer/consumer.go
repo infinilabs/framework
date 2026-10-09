@@ -29,6 +29,7 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/locker"
 	"runtime"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -536,7 +537,7 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 					v = r.(string)
 				}
 				if v != "empty queue" {
-					log.Errorf("worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v", workerID, qConfig.ID, sliceID, initOffset, offset, v)
+					log.Errorf("worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v\n%s", workerID, qConfig.ID, sliceID, initOffset, offset, v, debug.Stack())
 					ctx.Failed(fmt.Errorf("panic in slice worker: %+v", r))
 				}
 				if parentContext != nil {
