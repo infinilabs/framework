@@ -89,6 +89,7 @@ type Context struct {
 	exitErr        error
 	processErrs    []error
 	processHistory []string
+	stepStats      []StepStat
 	// steps tracks the count of state transition, doesn't reset within the context lifecycle
 	id    string
 	steps int64
@@ -187,6 +188,7 @@ func (ctx *Context) ResetContext() {
 	ctx.exitErr = nil
 	ctx.processErrs = []error{}
 	ctx.processHistory = []string{}
+	ctx.stepStats = nil
 	ctx.ResetParameters()
 }
 
@@ -202,6 +204,30 @@ func (ctx *Context) AddFlowProcess(str string) {
 	if str != "" {
 		ctx.processHistory = append(ctx.processHistory, str)
 	}
+}
+
+// StepStat is the per-processor outcome of one executed pipeline step:
+// which processor ran, how long it took and whether it errored. Recorded by
+// the sequential runner for document-level pipeline observability.
+type StepStat struct {
+	Name   string
+	TookUs int64
+	Error  string
+}
+
+func (ctx *Context) GetStepStats() []StepStat {
+	return ctx.stepStats
+}
+
+func (ctx *Context) AddStepStat(name string, took time.Duration, err error) {
+	if name == "" {
+		return
+	}
+	s := StepStat{Name: name, TookUs: took.Microseconds()}
+	if err != nil {
+		s.Error = err.Error()
+	}
+	ctx.stepStats = append(ctx.stepStats, s)
 }
 
 func (ctx *Context) IsFailed() bool {
