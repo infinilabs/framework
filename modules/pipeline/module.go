@@ -89,6 +89,7 @@ func (module *PipeModule) Setup() {
 	module.loadLaneConfigs()
 	installFlight()
 	installStats()
+	module.startDeploymentReconciler()
 	if global.Env().IsDebug {
 		log.Debug("pipeline framework config: ", moduleCfg)
 	}
@@ -134,6 +135,20 @@ func (module *PipeModule) Setup() {
 
 	api.HandleAPIMethod(api.GET, "/pipeline/lanes", module.getLanesHandler)
 	api.HandleUIMethod(api.GET, "/pipeline/lanes", module.getLanesHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
+	// Fleet API (deployment management, D7)
+	api.HandleAPIMethod(api.GET, "/pipeline/deployments/", module.listDeploymentsHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/deployments/", module.listDeploymentsHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+	api.HandleAPIMethod(api.POST, "/pipeline/deployments/", module.createDeploymentHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/deployments/", module.createDeploymentHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineCreate))
+	api.HandleAPIMethod(api.GET, "/pipeline/deployments/:id", module.getDeploymentHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/deployments/:id", module.getDeploymentHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+	api.HandleAPIMethod(api.PUT, "/pipeline/deployments/:id", module.updateDeploymentHandler)
+	api.HandleUIMethod(api.PUT, "/pipeline/deployments/:id", module.updateDeploymentHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	api.HandleAPIMethod(api.DELETE, "/pipeline/deployments/:id", module.deleteDeploymentHandler)
+	api.HandleUIMethod(api.DELETE, "/pipeline/deployments/:id", module.deleteDeploymentHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineDelete))
+	api.HandleAPIMethod(api.GET, "/pipeline/cluster/overview", module.getClusterOverviewHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/cluster/overview", module.getClusterOverviewHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
 
 	// pipeline version history + rollback
 	api.HandleAPIMethod(api.GET, "/pipelines/:id/versions", module.listPipelineVersionsHandler)
