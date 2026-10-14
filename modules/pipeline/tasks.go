@@ -24,11 +24,15 @@
 package pipeline
 
 import (
+	"encoding/json"
 	"net/http"
+	"strconv"
 
 	log "github.com/cihub/seelog"
 	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/lane"
 	"infini.sh/framework/core/pipeline"
+	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
 )
 
@@ -171,6 +175,137 @@ func (module *PipeModule) deletePipelineTaskHandler(w http.ResponseWriter, req *
 }
 
 // curl -XPOST http://localhost:2900/pipeline/task/echo-test/_start
+// stagesPipelineTaskHandler — GET /pipeline/task/:id/stages
+// Standard per-stage metrics: processor invocations/errors/latency plus
+// live lane carriers (depth-derived).
+func (module *PipeModule) stagesPipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	id := ps.MustGetParameter("id")
+	module.WriteJSON(w, util.MapStr{"stages": stageStats(id)}, http.StatusOK)
+}
+
+// flightPipelineTaskHandler — GET /pipeline/task/:id/flight
+// Sampled execution trace of a pipeline: ?trace_id= for one record's
+// journey, ?errors=1 for recent failures, &limit= (default 50, newest
+// first). Memory-only (ring); persistence rides the metrics exporter.
+func (module *PipeModule) flightPipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	id := ps.MustGetParameter("id")
+	q := req.URL.Query()
+	limit := 50
+	if v := q.Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			limit = n
+		}
+	}
+	events := flightQuery(id, q.Get("trace_id"), q.Get("errors") == "1", limit)
+	module.WriteJSON(w, util.MapStr{"events": events}, http.StatusOK)
+}
+
+// pausePipelineTaskHandler — POST /pipeline/task/:id/_pause
+func (module *PipeModule) pausePipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	id := ps.MustGetParameter("id")
+	if !module.pauseTask(id) {
+		module.WriteOpRecordNotFoundJSON(w, id)
+		return
+	}
+	module.WriteJSON(w, util.MapStr{"paused": true, "id": id}, http.StatusOK)
+}
+
+// resumePipelineTaskHandler — POST /pipeline/task/:id/_resume
+func (module *PipeModule) resumePipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	id := ps.MustGetParameter("id")
+	if !module.resumeTask(id) {
+		module.WriteOpRecordNotFoundJSON(w, id)
+		return
+	}
+	module.WriteJSON(w, util.MapStr{"resumed": true, "id": id}, http.StatusOK)
+}
+
+// injectPipelineTaskHandler — POST /pipeline/task/:id/_inject
+// Replays a sample into the task's input (queue or lane target).
+type injectRequest struct {
+	Queue   string         `json:"queue"`
+	Lane    string         `json:"lane"`
+	Samples []InjectSample `json:"samples"`
+}
+
+// InjectSample accepts raw as either base64 (Go json []byte default) or
+// plain text — callers should not need to pre-encode log lines.
+type InjectSample struct {
+	Raw   []byte `json:"raw"`
+	Codec string `json:"codec"`
+}
+
+func (s *InjectSample) UnmarshalJSON(b []byte) error {
+	type alias struct {
+		Raw   json.RawMessage `json:"raw"`
+		Codec string          `json:"codec"`
+	}
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	s.Codec = a.Codec
+	// try standard base64 first ([]byte json encoding); fall back to the
+	// literal string bytes (plain-text payloads)
+	if err := json.Unmarshal(a.Raw, &s.Raw); err != nil {
+		// not base64 — use the raw string content directly
+		var str string
+		if err2 := json.Unmarshal(a.Raw, &str); err2 == nil {
+			s.Raw = []byte(str)
+		} else {
+			s.Raw = a.Raw
+		}
+	}
+	return nil
+}
+
+func (module *PipeModule) injectPipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	id := ps.MustGetParameter("id")
+	if _, ok := module.contexts.Load(id); !ok {
+		module.WriteOpRecordNotFoundJSON(w, id)
+		return
+	}
+	var body injectRequest
+	if err := module.DecodeJSON(req, &body); err != nil {
+		module.WriteError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	targets := 0
+	if body.Queue != "" {
+		targets++
+	}
+	if body.Lane != "" {
+		targets++
+	}
+	if targets != 1 {
+		module.WriteError(w, "exactly one target (queue or lane) required", http.StatusBadRequest)
+		return
+	}
+	pushed := 0
+	for _, s := range body.Samples {
+		if body.Lane != "" {
+			l := lane.GetOrCreate(lane.LaneConfig{Name: body.Lane})
+			rec, err := pipeline.GetRecordCodec(s.Codec).Decode(s.Raw)
+			if err != nil {
+				module.WriteError(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if err := l.Emit(rec); err != nil {
+				module.WriteError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			pushed++
+			continue
+		}
+		if err := queue.Push(queue.SmartGetOrInitConfig(&queue.QueueConfig{Name: body.Queue}), s.Raw); err != nil {
+			module.WriteError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		pushed++
+	}
+	module.WriteJSON(w, util.MapStr{"injected": pushed, "id": id}, http.StatusOK)
+}
+
 func (module *PipeModule) startPipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 	exists := module.startTask(id)

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	log "github.com/cihub/seelog"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/orm"
@@ -103,6 +104,14 @@ func (h *PipeModule) updatePipelineHandler(w http.ResponseWriter, req *http.Requ
 	// Ensure ID is set even if the client omitted it from the request body
 	newConfig.ID = id
 
+	// auto-snapshot the PREVIOUS config before overwriting (every edit is
+	// a version — no explicit publish step; transient pipelines skip)
+	if !oldConfig.Transient {
+		if err := h.saveVersion(ctx, &oldConfig, "auto-snapshot on update"); err != nil {
+			log.Warnf("pipeline %s: version snapshot failed: %v", id, err)
+		}
+	}
+
 	ctx.Refresh = orm.WaitForRefresh
 	err = orm.Save(ctx, &newConfig)
 	if err != nil {
@@ -115,6 +124,17 @@ func (h *PipeModule) updatePipelineHandler(w http.ResponseWriter, req *http.Requ
 
 func (h *PipeModule) deletePipelineHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.MustGetParameter("id")
+
+	// archive before delete — the version history survives pipeline removal
+	// (transient pipelines skip archiving)
+	octx := orm.NewContextWithParent(req.Context()).DirectAccess()
+	old := pipeline.PipelineConfigV2{}
+	old.ID = id
+	if exists, _ := orm.GetWithSystemFields(octx, &old); exists && !old.Transient {
+		if err := h.saveVersion(octx, &old, "archived on delete"); err != nil {
+			log.Warnf("pipeline %s: delete archive failed: %v", id, err)
+		}
+	}
 
 	obj := pipeline.PipelineConfigV2{}
 	obj.ID = id

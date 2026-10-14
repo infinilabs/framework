@@ -100,6 +100,10 @@ type PipelineConfigV2 struct {
 	// processor config keyed by processor type.
 	Processors []map[string]interface{} `config:"processor" json:"processor"`
 
+	// StrictContract turns record-contract mismatches into compile errors
+	// instead of warnings. Absent = legacy warn-only (P8 flips the default).
+	StrictContract *bool `config:"strict_contract" json:"strict_contract,omitempty"`
+
 	// Labels are arbitrary metadata attached to the pipeline.
 	Labels map[string]interface{} `config:"labels" json:"labels"`
 

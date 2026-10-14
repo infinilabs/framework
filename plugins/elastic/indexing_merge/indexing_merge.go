@@ -46,6 +46,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/buger/jsonparser"
 	log "github.com/cihub/seelog"
 	"github.com/savsgio/gotils/bytes"
 	"infini.sh/framework/core/config"
@@ -58,6 +59,7 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"infini.sh/framework/modules/elastic/common"
+	"strings"
 )
 
 type IndexingMergeProcessor struct {
@@ -271,17 +273,16 @@ READ_DOCS:
 			if len(processor.config.KeyFields) > 0 {
 				id_part = fmt.Sprintf(", \"_id\":\"%v\"", processor.fingerprintID(pop))
 			} else if processor.config.KeyField != "" {
-				source := util.MapStr{}
-				err := util.FromJSONBytes(pop, &source)
+				// zero-alloc path query: extracting ONE field
+				// must not float-parse the whole document (embeddings!)
+				v, _, _, err := jsonparser.Get(pop, strings.Split(processor.config.KeyField, ".")...)
 				if err != nil {
-					panic(err)
+					log.Warnf("indexing_merge: key_field %q not found: %v", processor.config.KeyField, err)
+				} else if s, ok := trimJSONString(v); ok {
+					id_part = fmt.Sprintf(", \"_id\":\"%v\"", s)
+				} else {
+					id_part = fmt.Sprintf(", \"_id\":\"%v\"", string(v))
 				}
-
-				v, err := source.GetValue(processor.config.KeyField)
-				if err != nil {
-					panic(err)
-				}
-				id_part = fmt.Sprintf(", \"_id\":\"%v\"", v)
 			}
 			// default to index
 			writeOpType := "index"
@@ -443,24 +444,19 @@ func normalizeDataStreamDoc(doc []byte) []byte {
 func (processor *IndexingMergeProcessor) fingerprintID(pop []byte) string {
 	h := fnv.New64a()
 
-	source := util.MapStr{}
-	if err := util.FromJSONBytes(pop, &source); err != nil {
-		// undecodable message - hash the raw bytes as-is
-		h.Write(pop)
-		return fmt.Sprintf("%x", h.Sum64())
-	}
-
+	// zero-alloc path queries: fingerprinting must not
+	// float-parse the whole document (embeddings ride these messages)
 	matched := false
 	for _, f := range processor.config.KeyFields {
 		h.Write([]byte{'|'})
-		v, err := source.GetValue(f)
-		if err != nil || v == nil {
+		v, _, _, err := jsonparser.Get(pop, strings.Split(f, ".")...)
+		if err != nil {
 			// keep positional meaning for missing fields
 			h.Write([]byte("\x00"))
 			continue
 		}
 		matched = true
-		h.Write([]byte(util.ToString(v)))
+		h.Write(v) // raw JSON token: any scalar type hashes deterministically
 	}
 	if !matched {
 		// none of the key fields exist on this message: fall back to a
@@ -469,4 +465,13 @@ func (processor *IndexingMergeProcessor) fingerprintID(pop []byte) string {
 		h.Write(pop)
 	}
 	return fmt.Sprintf("%x", h.Sum64())
+}
+
+// trimJSONString strips JSON string quotes from a raw token ("" and false
+// when the token is not a quoted string).
+func trimJSONString(v []byte) (string, bool) {
+	if len(v) >= 2 && v[0] == '"' && v[len(v)-1] == '"' {
+		return string(v[1 : len(v)-1]), true
+	}
+	return "", false
 }

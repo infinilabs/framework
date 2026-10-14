@@ -37,9 +37,11 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/lane"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
+	modpipeline "infini.sh/framework/modules/pipeline"
 )
 
 type QueueConsumerProcessor struct {
@@ -61,23 +63,23 @@ type MessageHandlerAPI interface {
 }
 
 type Config struct {
-	NumOfSlices             int   `config:"num_of_slices"`
-	Slices                  []int `config:"slices"`
-	enabledSlice            map[int]int
-	IdleTimeoutInSecond     int                    `config:"idle_timeout_in_seconds"`
-	MaxConnectionPerHost    int                    `config:"max_connection_per_node"`
-	QueueLabels             map[string]interface{} `config:"queues,omitempty"`
-	Selector                queue.QueueSelector    `config:"queue_selector"`
+	NumOfSlices          int   `config:"num_of_slices"`
+	Slices               []int `config:"slices"`
+	enabledSlice         map[int]int
+	IdleTimeoutInSecond  int                    `config:"idle_timeout_in_seconds"`
+	MaxConnectionPerHost int                    `config:"max_connection_per_node"`
+	QueueLabels          map[string]interface{} `config:"queues,omitempty"`
+	Selector             queue.QueueSelector    `config:"queue_selector"`
 	// ForceQueueType enforces the backend type (e.g. kafka) of the queues
 	// consumed by this processor. Used by cross-instance transport segments:
 	// the writer (Agent) and the reader (Gateway) must land on the same
 	// queue implementation.
-	ForceQueueType string                `config:"force_queue_type"`
-	Consumer       *queue.ConsumerConfig `config:"consumer"`
-	MaxWorkers              int                    `config:"max_worker_size"`
-	DetectActiveQueue       bool                   `config:"detect_active_queue"`
-	DetectIntervalInMs      int                    `config:"detect_interval"`
-	QuitDetectAfterIdleInMs int                    `config:"quite_detect_after_idle_in_ms"`
+	ForceQueueType          string                `config:"force_queue_type"`
+	Consumer                *queue.ConsumerConfig `config:"consumer"`
+	MaxWorkers              int                   `config:"max_worker_size"`
+	DetectActiveQueue       bool                  `config:"detect_active_queue"`
+	DetectIntervalInMs      int                   `config:"detect_interval"`
+	QuitDetectAfterIdleInMs int                   `config:"quite_detect_after_idle_in_ms"`
 
 	MessageProcessors []*config.Config `config:"processor"`
 
@@ -92,6 +94,16 @@ type Config struct {
 	WaitingAfter           []string `config:"waiting_after"`
 	RetryDelayIntervalInMs int      `config:"retry_delay_interval"`
 	AutoCommitOffset       bool     `config:"auto_commit_offset"`
+	// AckTimeoutInMs bounds the commit-gate wait: lane outputs may attach
+	// receipts to the context; the offset only advances when all settle.
+	// Unsettled at timeout = sub-chain failure (redelivery, at-least-once).
+	AckTimeoutInMs int64 `config:"ack_timeout_ms"`
+
+	// Bridge sugar (disk → memory in one block): when OutputLane is set,
+	// fetched payloads decode via Codec and emit into the lane with ack
+	// receipts — replacing the consumer+for_each+lane_output sandwich.
+	OutputLane string `config:"output_lane"`
+	Codec      string `config:"codec"`
 }
 
 const name = "consumer"
@@ -111,6 +123,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		QueueField:              "queue_name",
 		MessageField:            "messages",
 		AutoCommitOffset:        true,
+		AckTimeoutInMs:          30000,
 		Selector: queue.QueueSelector{
 			Labels: map[string]interface{}{},
 		},
@@ -719,6 +732,13 @@ READ_DOCS:
 			if err != nil {
 				panic(err)
 			}
+			// commit gate: lane receipts must settle before the offset
+			// advances; a timeout is a sub-chain failure (redelivery)
+			if ackSet := pipeline.AckSetOf(&newCtx); ackSet != nil && ackSet.Pending() > 0 {
+				if werr := ackSet.Wait(context.Background(), time.Duration(processor.config.AckTimeoutInMs)*time.Millisecond); werr != nil {
+					panic(werr)
+				}
+			}
 			// Only consume the batch when the pipeline is not stopping: a
 			// batch interrupted mid-processing keeps the previous offset so
 			// it is re-delivered next run (at-least-once).
@@ -786,4 +806,27 @@ CLEAN_BUFFER:
 	if !ctx.IsCanceled() && !(parentContext != nil && (parentContext.IsFailed() || parentContext.IsCanceled())) {
 		goto READ_DOCS
 	}
+}
+
+// bridgeToLane decodes each fetched payload via the configured codec and
+// emits it into the output lane with an acknowledgment receipt attached
+// to the context's AckSet (the commit gate consumes it upstream).
+func (processor *QueueConsumerProcessor) bridgeToLane(ctx *pipeline.Context, messages []queue.Message) error {
+	l := lane.GetOrCreate(lane.LaneConfig{Name: processor.config.OutputLane})
+	codec := modpipeline.GetRecordCodec(processor.config.Codec)
+	as := pipeline.AttachAckSet(ctx)
+	for i := range messages {
+		if len(messages[i].Data) == 0 {
+			continue
+		}
+		rec, err := codec.Decode(messages[i].Data)
+		if err != nil {
+			return fmt.Errorf("bridge decode failed at offset %v: %w", messages[i].Offset, err)
+		}
+		if pipeline.TraceID(rec) == "" {
+			pipeline.SetTraceID(rec, fmt.Sprintf("tr-%v-%v", messages[i].Offset.Position, time.Now().UnixNano()))
+		}
+		as.AddReceipt(l.EmitAck(rec))
+	}
+	return nil
 }

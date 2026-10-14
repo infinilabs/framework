@@ -145,6 +145,13 @@ type IfThenElseProcessor struct {
 
 // NewIfElseThenProcessor construct a new IfThenElseProcessor.
 func NewIfElseThenProcessor(cfg *config.Config) (*IfThenElseProcessor, error) {
+	return NewIfElseThenProcessorWithScope(cfg, ScopeInfo{Kind: ScopeBatch})
+}
+
+// NewIfElseThenProcessorWithScope compiles the branches under the
+// ENCLOSING scope (kind+namespace inherited) but non-direct: batch_only
+// processors are rejected inside branches regardless of the outer host.
+func NewIfElseThenProcessorWithScope(cfg *config.Config, scope ScopeInfo) (*IfThenElseProcessor, error) {
 	var tempConfig ifThenElseConfig
 	if err := cfg.Unpack(&tempConfig); err != nil {
 		return nil, err
@@ -160,14 +167,14 @@ func NewIfElseThenProcessor(cfg *config.Config) (*IfThenElseProcessor, error) {
 			return nil, nil
 		}
 		if !c.IsArray() {
-			return NewPipeline([]*config.Config{c})
+			return newPipelineWithScope([]*config.Config{c}, scope, false)
 		}
 
 		var pc []*config.Config
 		if err := c.Unpack(&pc); err != nil {
 			return nil, err
 		}
-		return NewPipeline(pc)
+		return newPipelineWithScope(pc, scope, false)
 	}
 
 	var ifProcessors, elseProcessors *Processors

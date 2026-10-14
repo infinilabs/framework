@@ -42,6 +42,7 @@ import (
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/lane"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
@@ -67,7 +68,27 @@ var moduleCfg = struct {
 	PipelineEnabledByDefault bool `config:"pipeline_enabled_by_default"`
 }{PipelineEnabledByDefault: true}
 
+// loadLaneConfigs reads the top-level `lane:` stanzas (the static plane;
+// dynamic lanes come via lane.Create at runtime).
+func (module *PipeModule) loadLaneConfigs() {
+	cfgs := []lane.LaneConfig{}
+	if exist, err := env.ParseConfig("lane", &cfgs); !exist || err != nil {
+		log.Debugf("no lane config section (exist=%v err=%v)", exist, err)
+	}
+	for _, c := range cfgs {
+		if c.Name == "" {
+			continue
+		}
+		if _, err := lane.Create(c); err != nil {
+			log.Warnf("lane %s: %v", c.Name, err)
+		}
+	}
+}
+
 func (module *PipeModule) Setup() {
+	module.loadLaneConfigs()
+	installFlight()
+	installStats()
 	if global.Env().IsDebug {
 		log.Debug("pipeline framework config: ", moduleCfg)
 	}
@@ -108,6 +129,36 @@ func (module *PipeModule) Setup() {
 	api.HandleAPIMethod(api.GET, "/pipeline/processors", module.getProcessorsHandler)
 	api.HandleUIMethod(api.GET, "/pipeline/processors", module.getProcessorsHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
 
+	api.HandleAPIMethod(api.GET, "/pipeline/codecs", module.getCodecsHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/codecs", module.getCodecsHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
+	api.HandleAPIMethod(api.GET, "/pipeline/lanes", module.getLanesHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/lanes", module.getLanesHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
+	// pipeline version history + rollback
+	api.HandleAPIMethod(api.GET, "/pipelines/:id/versions", module.listPipelineVersionsHandler)
+	api.HandleUIMethod(api.GET, "/pipelines/:id/versions", module.listPipelineVersionsHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+	api.HandleAPIMethod(api.GET, "/pipelines/:id/versions/:version", module.getPipelineVersionHandler)
+	api.HandleUIMethod(api.GET, "/pipelines/:id/versions/:version", module.getPipelineVersionHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+	api.HandleAPIMethod(api.POST, "/pipelines/:id/versions/:version/rollback", module.rollbackPipelineHandler)
+	api.HandleUIMethod(api.POST, "/pipelines/:id/versions/:version/rollback", module.rollbackPipelineHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+
+	api.HandleAPIMethod(api.POST, "/pipeline/dry-run", module.postDryRunHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/dry-run", module.postDryRunHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+
+	api.HandleAPIMethod(api.GET, "/pipeline/task/:id/stages", module.stagesPipelineTaskHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/task/:id/stages", module.stagesPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
+	api.HandleAPIMethod(api.GET, "/pipeline/task/:id/flight", module.flightPipelineTaskHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/task/:id/flight", module.flightPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
+	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_pause", module.pausePipelineTaskHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/task/:id/_pause", module.pausePipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_resume", module.resumePipelineTaskHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/task/:id/_resume", module.resumePipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_inject", module.injectPipelineTaskHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/task/:id/_inject", module.injectPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+
 	//use pipelines to avoid naming conflicts
 	api.HandleUIMethod(api.POST, "/pipelines/_search", module.searchPipelineHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Search)))
 	api.HandleUIMethod(api.POST, "/pipelines/", module.createPipelineHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Create)))
@@ -120,6 +171,23 @@ func (module *PipeModule) Setup() {
 	api.HandleUIMethod(api.POST, "/pipelines/:id/_stop", module.stopPipelineTaskHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Admin)))
 	//api.HandleUIMethod(api.POST, "/pipeline/task/:id/logging/_search", module.getPipelineLoggingsHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Admin)))
 	//api.HandleUIMethod(api.POST, "/pipeline/task/:id/metrics/_search", module.getPipelineMetricsHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Admin)))
+}
+
+// pauseTask parks a running pipeline after its CURRENT batch: flow
+// stops between fetches, in-flight records finish (no mid-batch abort).
+func (module *PipeModule) pauseTask(taskID string) (exists bool) {
+	ctx, ok := module.contexts.Load(taskID)
+	if !ok {
+		return
+	}
+	if v1, ok := ctx.(*pipeline.Context); ok {
+		v1.Pause()
+	}
+	return true
+}
+
+func (module *PipeModule) resumeTask(taskID string) (exists bool) {
+	return module.startTask(taskID)
 }
 
 func (module *PipeModule) startTask(taskID string) (exists bool) {
@@ -256,6 +324,7 @@ func getPipelineConfig() ([]pipeline.PipelineConfigV2, error) {
 }
 
 func (module *PipeModule) Start() error {
+	module.startMetricsPersist()
 	var (
 		pipelines []pipeline.PipelineConfigV2
 		err       error
