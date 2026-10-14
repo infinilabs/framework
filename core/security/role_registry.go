@@ -235,8 +235,7 @@ func MustGetPermissionKeysByRole(roles []string) []PermissionKey {
 
 func GetPermissionKeysByRole(roles []string) ([]PermissionKey, error) {
 
-	//for admin only (exact equality — substring matching here would let a
-	// role like "min" escalate to the "admin" permission set)
+	//for admin only
 	if util.AnyInArrayEquals(roles, RoleAdmin) {
 		permissions := GetAllPermissionKeys()
 		return permissions, nil

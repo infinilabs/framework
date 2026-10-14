@@ -6,10 +6,9 @@ package security
 
 import "testing"
 
-// Regression (PR #426 review): IsAdminUser must match roles by EXACT
-// equality. The historical substring implementation let a caller holding
-// a role named "min" (or any substring of "admin") pass the admin guard
-// and assign arbitrary roles — a privilege-escalation bypass.
+// IsAdminUser must match roles by exact equality: substring matching
+// would let a caller holding a role named "min" pass the admin guard
+// and assign arbitrary roles (privilege escalation).
 func TestIsAdminUser_ExactMatchNotSubstring(t *testing.T) {
 	// exact match passes
 	if !IsAdminUser([]string{"admin"}) {
