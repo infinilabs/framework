@@ -60,9 +60,7 @@ func RegisterAdminRole(role string) {
 	adminRoles = append(adminRoles, role)
 }
 
-// IsAdminUser returns true if any of the user's roles is an admin role,
-// by exact string equality (substring matching would let unrelated role
-// names like "min" match "admin").
+// IsAdminUser returns true if any of the user's roles is an admin role.
 func IsAdminUser(roles []string) bool {
 	adminRolesMu.Lock()
 	defer adminRolesMu.Unlock()
