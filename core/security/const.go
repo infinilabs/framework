@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"infini.sh/framework/core/api"
+	"infini.sh/framework/core/util"
 )
 
 // PermissionID is re-exported from api package for backward compatibility
@@ -67,18 +68,7 @@ func IsAdminUser(roles []string) bool {
 	adminRolesMu.Lock()
 	defer adminRolesMu.Unlock()
 	for _, ar := range adminRoles {
-		if HasExactRole(ar, roles) {
-			return true
-		}
-	}
-	return false
-}
-
-// HasExactRole reports whether roles contains role by exact equality
-// (case-sensitive). It is the only sanctioned role-membership check.
-func HasExactRole(role string, roles []string) bool {
-	for _, r := range roles {
-		if r == role {
+		if util.AnyInArrayEquals(roles, ar) {
 			return true
 		}
 	}

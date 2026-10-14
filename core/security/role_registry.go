@@ -30,7 +30,7 @@ import (
 
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/orm"
-
+	"infini.sh/framework/core/util"
 	//log "github.com/cihub/seelog"
 )
 
@@ -237,7 +237,7 @@ func GetPermissionKeysByRole(roles []string) ([]PermissionKey, error) {
 
 	//for admin only (exact equality — substring matching here would let a
 	// role like "min" escalate to the "admin" permission set)
-	if HasExactRole(RoleAdmin, roles) {
+	if util.AnyInArrayEquals(roles, RoleAdmin) {
 		permissions := GetAllPermissionKeys()
 		return permissions, nil
 	}
