@@ -53,6 +53,12 @@ import (
 	"infini.sh/framework/modules/configs/config"
 )
 
+// SetPipelineRuntimeSnapshotProvider wires the pipeline module's snapshot
+// into the sync client (called from PipeModule.Setup).
+func SetPipelineRuntimeSnapshotProvider(fn func() map[string]interface{}) {
+	getPipelineRuntimeSnapshot = fn
+}
+
 const bucketName = "instance_registered"
 const configRegisterEnvKey = "CONFIG_MANAGED_SUCCESS"
 const legacyManagedRegisterCompatMaxVersion = "1.30.4"
@@ -429,6 +435,12 @@ func ListenConfigChanges() error {
 				req.Configs = cfgs
 				req.Hash = util.MD5digestString(util.MustToJSONBytes(cfgs))
 
+				// runtime pipeline state: report which tasks are running
+				// so the deployment reconciler can compute health status
+				if snapshot := runtimePipelineSnapshot(); snapshot != nil {
+					req.Runtime = snapshot
+				}
+
 				//fetch configs from manager
 				request := util.Request{Method: util.Verb_POST}
 				request.ContentType = "application/json"
@@ -576,3 +588,26 @@ func saveKeystore(k string, v string) error {
 	err = ks.Save()
 	return err
 }
+
+// runtimePipelineSnapshot builds the RuntimeReport for the sync request.
+// It delegates to the PipeModule if loaded; nil when not (agent-only etc).
+func runtimePipelineSnapshot() *common.RuntimeReport {
+	snapshot := getPipelineRuntimeSnapshot()
+	if snapshot == nil {
+		return nil
+	}
+	report := &common.RuntimeReport{Pipelines: map[string]common.PipelineRuntimeState{}}
+	for name, state := range snapshot {
+		stateStr, _ := state.(map[string]interface{})["state"].(string)
+		source, _ := state.(map[string]interface{})["config_source"].(string)
+		report.Pipelines[name] = common.PipelineRuntimeState{
+			State:        stateStr,
+			ConfigSource: source,
+		}
+	}
+	return report
+}
+
+// getPipelineRuntimeSnapshot is set by the pipeline module on startup;
+// nil when the pipeline module is not loaded.
+var getPipelineRuntimeSnapshot func() map[string]interface{}

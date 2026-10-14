@@ -47,6 +47,7 @@ import (
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
+	configs_client "infini.sh/framework/modules/configs/client"
 )
 
 type PipeModule struct {
@@ -117,6 +118,9 @@ func (module *PipeModule) loadLaneConfigs() {
 }
 
 func (module *PipeModule) Setup() {
+	// provide the runtime snapshot for the configs _sync client
+	// (deployment reconciler reads it for health status)
+	configs_client.SetPipelineRuntimeSnapshotProvider(module.RuntimeSnapshot)
 	// ORM schema registration (table/index auto-creation on startup)
 	orm.MustRegisterSchemaWithIndexName(pipeline.PipelineConfigV2{}, "pipeline-configs")
 	orm.MustRegisterSchemaWithIndexName(PipelineVersion{}, "pipeline-versions")
