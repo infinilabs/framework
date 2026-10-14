@@ -15,6 +15,7 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/util"
+	configs_server "infini.sh/framework/modules/configs/server"
 )
 
 // PipelineDeployment is the DESIRED state: which pipeline runs where and
@@ -146,14 +147,34 @@ func (module *PipeModule) reconcileDeployment(dep *PipelineDeployment) error {
 		}},
 	})
 
-	log.Debugf("reconciler: deployment %s → managed config %s (%d bytes, strategy=%s)",
-		dep.Name, configName, len(cfgJSON), dep.Placement.Strategy)
+	// upsert the ManagedConfig row (instances pull on next _sync)
+	orm.WithModel(octx, &configs_server.ManagedConfig{})
+	existing := configs_server.ManagedConfig{}
+	foundQ := orm.NewQuery().
+		Filter(orm.TermQuery("name", configName)).
+		Filter(orm.TermQuery("instance_id", "*")).Size(1)
+	foundRes, ferr := orm.SearchV2(octx, foundQ)
+	if ferr == nil && foundRes != nil {
+		if rows, _, derr := elastic.DecodeHits[configs_server.ManagedConfig](foundRes); derr == nil && len(rows) > 0 {
+			existing = rows[0]
+		}
+	}
 
-	// the managed-config write happens through the configs-center module;
-	// for now the reconciler only logs — the actual push requires the
-	// configs server module to be active (logpilot/console hosts it)
-	// TODO: call configs_server.UpsertManagedConfig()
+	existing.Name = configName
+	existing.InstanceID = "*" // v1: broadcast; selector targeting next
+	existing.Content = string(cfgJSON)
+	existing.Version++
+	existing.Readonly = true // deployment-owned
 
+	if existing.ID == "" {
+		existing.ID = fmt.Sprintf("deploy-%s", dep.PipelineID)
+	}
+	if serr := orm.Save(octx, &existing); serr != nil {
+		return fmt.Errorf("push managed config: %w", serr)
+	}
+
+	log.Debugf("reconciler: deployment %s → config %s v%d (%d bytes, strategy=%s)",
+		dep.Name, configName, existing.Version, len(cfgJSON), dep.Placement.Strategy)
 	return nil
 }
 
