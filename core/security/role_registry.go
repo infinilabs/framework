@@ -30,9 +30,8 @@ import (
 
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/orm"
-
-	//log "github.com/cihub/seelog"
 	"infini.sh/framework/core/util"
+	//log "github.com/cihub/seelog"
 )
 
 // RoleRegistry manages roles and their associated permissions
@@ -237,7 +236,7 @@ func MustGetPermissionKeysByRole(roles []string) []PermissionKey {
 func GetPermissionKeysByRole(roles []string) ([]PermissionKey, error) {
 
 	//for admin only
-	if util.ContainsAnyInArray(RoleAdmin, roles) {
+	if util.AnyInArrayEquals(roles, RoleAdmin) {
 		permissions := GetAllPermissionKeys()
 		return permissions, nil
 	}
