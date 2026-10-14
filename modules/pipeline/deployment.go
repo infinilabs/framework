@@ -47,6 +47,10 @@ type PlacementSpec struct {
 	// Selector picks the target instance set (label match).
 	Selector map[string]string `json:"selector,omitempty" config:"selector"`
 
+	// Instances lists explicit target instance IDs. When non-empty, the
+	// reconciler creates per-instance managed configs; empty = broadcast.
+	Instances []string `json:"instances,omitempty" config:"instances"`
+
 	// Strategy: "singleton" (one active runner, lock-contested) |
 	// "all" (every instance runs a copy)
 	// "sharded" requires kafka queue backend (deferred, D-12)
