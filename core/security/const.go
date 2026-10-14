@@ -65,7 +65,7 @@ func IsAdminUser(roles []string) bool {
 	adminRolesMu.Lock()
 	defer adminRolesMu.Unlock()
 	for _, ar := range adminRoles {
-		if util.ContainsAnyInArray(ar, roles) {
+		if util.AnyInArrayEquals(roles, ar) {
 			return true
 		}
 	}
