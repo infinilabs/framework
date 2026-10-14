@@ -118,6 +118,7 @@ func (module *PipeModule) loadLaneConfigs() {
 
 func (module *PipeModule) Setup() {
 	// ORM schema registration (table/index auto-creation on startup)
+	orm.MustRegisterSchemaWithIndexName(pipeline.PipelineConfigV2{}, "pipeline-configs")
 	orm.MustRegisterSchemaWithIndexName(PipelineVersion{}, "pipeline-versions")
 	orm.MustRegisterSchemaWithIndexName(PipelineDeployment{}, "pipeline-deployments")
 	orm.MustRegisterSchemaWithIndexName(PipelineStageStat{}, "pipeline-stage-stats")
