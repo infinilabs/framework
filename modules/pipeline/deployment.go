@@ -249,6 +249,7 @@ func (h *PipeModule) createDeploymentHandler(w http.ResponseWriter, req *http.Re
 		dep.Placement.Strategy = "all" // v1 default (D-12: no sharded)
 	}
 	dep.Version = 1
+	dep.ID = util.GetUUID()
 
 	octx := orm.NewContextWithParent(req.Context())
 	if err := orm.Save(octx, &dep); err != nil {
