@@ -27,7 +27,6 @@ import (
 	"sync"
 
 	"infini.sh/framework/core/api"
-	"infini.sh/framework/core/util"
 )
 
 // PermissionID is re-exported from api package for backward compatibility
@@ -60,12 +59,26 @@ func RegisterAdminRole(role string) {
 	adminRoles = append(adminRoles, role)
 }
 
-// IsAdminUser returns true if any of the user's roles is an admin role.
+// IsAdminUser returns true if any of the user's roles IS an admin role,
+// by exact string equality. Role authorization must never fall back to
+// substring matching: a role named "min" would otherwise match the admin
+// role "admin" and escalate privileges.
 func IsAdminUser(roles []string) bool {
 	adminRolesMu.Lock()
 	defer adminRolesMu.Unlock()
 	for _, ar := range adminRoles {
-		if util.ContainsAnyInArray(ar, roles) {
+		if HasExactRole(ar, roles) {
+			return true
+		}
+	}
+	return false
+}
+
+// HasExactRole reports whether roles contains role by exact equality
+// (case-sensitive). It is the only sanctioned role-membership check.
+func HasExactRole(role string, roles []string) bool {
+	for _, r := range roles {
+		if r == role {
 			return true
 		}
 	}
