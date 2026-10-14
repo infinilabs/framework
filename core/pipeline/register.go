@@ -268,6 +268,35 @@ func RegisterProcessorPlugin(name string, constructor ProcessorConstructor) {
 	}
 }
 
+// processorContracts carries declared record contracts per processor name
+// (populated via RegisterProcessorContract, or auto-cached when a
+// ContractProvider instance is first constructed by the compiler). It
+// feeds the catalog's scope/record_contract/granularity fields.
+var processorContracts = map[string]RecordContract{}
+
+// RegisterProcessorContract declares (or refreshes) the record contract
+// of an already-registered processor — call it from package init next to
+// the plugin registration. Deterministic and side-effect-free, unlike
+// probing a constructed instance.
+func RegisterProcessorContract(name string, c RecordContract) {
+	processorContracts[name] = c
+}
+
+// RecordContractOf returns the declared contract for a processor name
+// (zero value = unconstrained).
+func RecordContractOf(name string) RecordContract {
+	return processorContracts[name]
+}
+
+// cacheProcessorContract auto-captures contracts from constructed
+// instances so adopters without explicit registration still surface in
+// the catalog after first compile.
+func cacheProcessorContract(p Processor) {
+	if cp, ok := p.(ContractProvider); ok {
+		processorContracts[p.Name()] = cp.RecordContract()
+	}
+}
+
 // processorMetadata carries the extracted config schema of processors
 // registered via RegisterProcessorPluginWithConfigMetadata, so that the
 // discovery API (see modules/pipeline) can render configuration forms.
@@ -283,6 +312,9 @@ var processorCategories = map[string]string{}
 // records the schema of its config struct for discovery.
 func RegisterProcessorPluginWithConfigMetadata(name string, constructor ProcessorConstructor, configStruct interface{}) {
 	RegisterProcessorPlugin(name, constructor)
+	if configStruct == nil {
+		return // no schema declared; the processor still registers and runs
+	}
 	processorMetadata[name] = ExtractFilterMetadata(configStruct)
 }
 
@@ -353,12 +385,34 @@ func GetProcessorCatalog() util.MapStr {
 		}
 		catMap := grouped[cat].(util.MapStr)
 		x, _ := processorMetadata[name]
-		catMap[name] = util.MapStr{
+		entry := util.MapStr{
 			"properties": x,
 			"category":   cat,
 		}
+		if c, ok := processorContracts[name]; ok {
+			entry["scope"] = scopeString(c.Scope)
+			entry["record_contract"] = util.MapStr{
+				"namespace":       c.Namespace,
+				"required_fields": c.RequiredFields,
+				"granularity":     c.Granularity.String(),
+			}
+		} else {
+			entry["scope"] = "unconstrained"
+		}
+		catMap[name] = entry
 	}
 	return grouped
+}
+
+func scopeString(k ScopeKind) string {
+	switch k {
+	case ScopeRecord:
+		return "record"
+	case ScopeBatch:
+		return "batch"
+	default:
+		return "any"
+	}
 }
 
 func RegisterFilterPlugin(name string, constructor FilterConstructor) {

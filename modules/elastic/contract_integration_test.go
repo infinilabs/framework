@@ -29,10 +29,10 @@ func TestContract_Elastic(t *testing.T) {
 	if err := client.CreateIndex("contractmodel", map[string]interface{}{
 		"mappings": map[string]interface{}{
 			"properties": map[string]interface{}{
-				"name":   map[string]interface{}{"type": "keyword"},
-				"status": map[string]interface{}{"type": "keyword"},
-				"body":   map[string]interface{}{"type": "text"},
-				"age":    map[string]interface{}{"type": "integer"},
+				"name":    map[string]interface{}{"type": "keyword"},
+				"status":  map[string]interface{}{"type": "keyword"},
+				"body":    map[string]interface{}{"type": "text"},
+				"age":     map[string]interface{}{"type": "integer"},
 				"created": map[string]interface{}{"type": "date"},
 			},
 		},

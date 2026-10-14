@@ -4,9 +4,9 @@ package elastic
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"time"
-	"fmt"
 
 	"infini.sh/framework/core/aggregate"
 	api "infini.sh/framework/core/orm"
@@ -178,7 +178,6 @@ func parseESAggNode(m map[string]interface{}) *api.AggNode {
 	}
 	return node
 }
-
 
 // normalizeESBucketKey renders ES date_histogram key_as_string values in the
 // canonical second-precision layout (2006-01-02T15:04:05, UTC, no millis)

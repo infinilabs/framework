@@ -200,10 +200,22 @@ func (ctx *Context) GetRequestProcess() []string {
 	return ctx.processHistory
 }
 
+// maxProcessHistory bounds the flow trace: long-lived contexts run
+// unbounded record batches and the history feeds log.Trace — an uncapped
+// slice makes per-step logging cost grow linearly with total steps (and
+// the whole loop quadratic).
+const maxProcessHistory = 32
+
 func (ctx *Context) AddFlowProcess(str string) {
-	if str != "" {
-		ctx.processHistory = append(ctx.processHistory, str)
+	if str == "" {
+		return
 	}
+	if len(ctx.processHistory) >= maxProcessHistory {
+		// keep the MOST RECENT entries (drop from the head)
+		n := copy(ctx.processHistory, ctx.processHistory[len(ctx.processHistory)-maxProcessHistory+1:])
+		ctx.processHistory = ctx.processHistory[:n]
+	}
+	ctx.processHistory = append(ctx.processHistory, str)
 }
 
 // StepStat is the per-processor outcome of one executed pipeline step:

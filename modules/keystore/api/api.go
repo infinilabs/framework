@@ -80,7 +80,6 @@ func (h *APIHandler) setKeystoreValue(w http.ResponseWriter, req *http.Request, 
 	}, http.StatusOK)
 }
 
-
 // listKeystoreKeys — GET /keystore — key names only. Values are secrets:
 // the API is write-only for them by design (nothing can read them back).
 func (h *APIHandler) listKeystoreKeys(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
