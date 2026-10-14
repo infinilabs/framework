@@ -531,6 +531,16 @@ func (h *APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, _ htt
 		log.Debugf("configs server: heartbeat upsert failed for %s: %v", obj.Client.ID, err)
 	}
 
+	// Runtime report: persist the instance's pipeline state for the
+	// deployment reconciler (desired-vs-reported comparison).
+	if obj.Runtime != nil && len(obj.Runtime.Pipelines) > 0 {
+		rtJSON, rerr := json.Marshal(obj.Runtime.Pipelines)
+		if rerr == nil {
+			obj.Client.RuntimePipelines = string(rtJSON)
+			_, _ = upsertInstance(&obj.Client) // second upsert with runtime
+		}
+	}
+
 	assigned, aerr := loadAssignedConfigs(obj.Client.ID)
 	if aerr != nil {
 		// Transient backend failure — defer to the next sync instead of

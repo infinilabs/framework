@@ -5,6 +5,7 @@
 package pipeline
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -12,6 +13,7 @@ import (
 	log "github.com/cihub/seelog"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/util"
@@ -178,6 +180,58 @@ func (module *PipeModule) reconcileDeployment(dep *PipelineDeployment) error {
 	return nil
 }
 
+// getDeploymentStatus builds the REPORTED state from instance runtime
+// data (desired vs reported comparison for the cluster overview).
+func (h *PipeModule) getDeploymentStatus(dep *PipelineDeployment) DeploymentStatus {
+	status := DeploymentStatus{
+		DeploymentID: dep.ID,
+		Version:      dep.Version,
+	}
+
+	// query instances that have runtime pipeline data
+	octx := orm.NewContext().DirectAccess()
+	orm.WithModel(octx, &model.Instance{})
+	q := orm.NewQuery().Size(200)
+	res, err := orm.SearchV2(octx, q)
+	if err != nil {
+		return status
+	}
+	instances, _, _ := elastic.DecodeHits[model.Instance](res)
+
+	for _, inst := range instances {
+		if inst.RuntimePipelines == "" {
+			continue
+		}
+		var pipelines map[string]struct {
+			State string `json:"state"`
+		}
+		if json.Unmarshal([]byte(inst.RuntimePipelines), &pipelines) != nil {
+			continue
+		}
+		// check if this instance runs the deployment's pipeline
+		taskName := dep.PipelineID
+		if st, ok := pipelines[taskName]; ok {
+			status.Instances = append(status.Instances, InstanceReport{
+				InstanceID: inst.ID,
+				State:      st.State,
+				Version:    dep.Version,
+				LastSeen:   time.Now().UTC(),
+			})
+		}
+	}
+	status.DesiredCount = 1 // v1: all strategy = every instance; singleton = 1
+	if dep.Placement.Strategy == "singleton" {
+		status.DesiredCount = 1
+	}
+	status.ReadyCount = 0
+	for _, ir := range status.Instances {
+		if ir.State == "STARTED" {
+			status.ReadyCount++
+		}
+	}
+	return status
+}
+
 // ─── Fleet API ───────────────────────────────────────────────────────────
 
 // createDeploymentHandler — POST /pipeline/deployments/
@@ -275,6 +329,21 @@ func (h *PipeModule) deleteDeploymentHandler(w http.ResponseWriter, req *http.Re
 	h.WriteJSON(w, util.MapStr{"deleted": true, "id": id}, http.StatusOK)
 }
 
+// getDeploymentStatusHandler — GET /pipeline/deployments/:id/status
+func (h *PipeModule) getDeploymentStatusHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	id := ps.MustGetParameter("id")
+	octx := orm.NewContextWithParent(req.Context()).DirectAccess()
+	dep := PipelineDeployment{}
+	dep.ID = id
+	exists, err := orm.GetV2(octx, &dep)
+	if err != nil || !exists {
+		h.WriteOpRecordNotFoundJSON(w, id)
+		return
+	}
+	status := h.getDeploymentStatus(&dep)
+	h.WriteJSON(w, status, http.StatusOK)
+}
+
 // getClusterOverviewHandler — GET /pipeline/cluster/overview
 // Matrix of deployments × instances (who runs what, what version).
 func (h *PipeModule) getClusterOverviewHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -305,5 +374,22 @@ func (h *PipeModule) getClusterOverviewHandler(w http.ResponseWriter, req *http.
 			Selector:   dep.Placement.Selector,
 		})
 	}
-	h.WriteJSON(w, util.MapStr{"deployments": out}, http.StatusOK)
+	// enrich with reported status
+	type overviewWithStatus struct {
+		overviewEntry
+		Status *DeploymentStatus `json:"status,omitempty"`
+	}
+	outWithStatus := make([]overviewWithStatus, 0, len(deployments))
+	for _, dep := range deployments {
+		entry := overviewEntry{
+			Deployment: dep.Name,
+			Pipeline:   dep.PipelineID,
+			Strategy:   dep.Placement.Strategy,
+			Version:    dep.Version,
+			Selector:   dep.Placement.Selector,
+		}
+		st := h.getDeploymentStatus(&dep)
+		outWithStatus = append(outWithStatus, overviewWithStatus{entry, &st})
+	}
+	h.WriteJSON(w, util.MapStr{"deployments": outWithStatus}, http.StatusOK)
 }

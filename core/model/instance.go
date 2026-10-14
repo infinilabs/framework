@@ -81,6 +81,11 @@ type Instance struct {
 	Services []ServiceInfo `json:"services,omitempty" elastic_mapping:"services: { type: object }"`
 	Status   string        `json:"status,omitempty" elastic_mapping:"status: { type: keyword, copy_to:search_text }"`
 
+	// RuntimePipelines is the instance's live pipeline state, reported via
+	// configs _sync and consumed by the deployment reconciler. Stored as
+	// a JSON string (map[string]PipelineRuntimeState).
+	RuntimePipelines string `json:"runtime_pipelines,omitempty" elastic_mapping:"runtime_pipelines:{type:text}"`
+
 	//SearchText string   `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 }
 

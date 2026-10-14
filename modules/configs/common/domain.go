@@ -83,6 +83,25 @@ type ConfigSyncRequest struct {
 	Hash      string         `json:"hash"`
 	Client    model.Instance `json:"client"`
 	Configs   ConfigList     `json:"configs"`
+
+	// Runtime reports the instance's live pipeline state (which tasks are
+	// running, what config version they loaded). The deployment reconciler
+	// reads this to compute DeploymentStatus (desired vs reported).
+	Runtime *RuntimeReport `json:"runtime,omitempty"`
+}
+
+// RuntimeReport is the pipeline execution state an instance reports on
+// every sync — the "reported" half of the reconcile loop.
+type RuntimeReport struct {
+	// Pipelines maps task name → state + the managed-config version the
+	// instance last loaded (0 = unknown/not from managed config).
+	Pipelines map[string]PipelineRuntimeState `json:"pipelines,omitempty"`
+}
+
+type PipelineRuntimeState struct {
+	State         string `json:"state"`                    // STARTED|STOPPED|FAILED|...
+	ConfigSource  string `json:"config_source,omitempty"`  // managed config name
+	ConfigVersion int64  `json:"config_version,omitempty"` // managed config version loaded
 }
 
 type ConfigSyncResponse struct {

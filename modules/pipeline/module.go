@@ -60,6 +60,36 @@ type PipeModule struct {
 	contexts  sync.Map
 }
 
+// RuntimeSnapshot returns the current pipeline task states for the
+// configs _sync runtime report (consumed by the deployment reconciler).
+func (module *PipeModule) RuntimeSnapshot() map[string]interface{} {
+	out := map[string]interface{}{}
+	module.contexts.Range(func(k, v interface{}) bool {
+		name, ok := k.(string)
+		if !ok {
+			return true
+		}
+		ctx, ok := v.(*pipeline.Context)
+		if !ok {
+			return true
+		}
+		state := "UNKNOWN"
+		switch ctx.GetRunningState() {
+		case pipeline.STARTED, pipeline.STARTING:
+			state = "STARTED"
+		case pipeline.FAILED:
+			state = "FAILED"
+		case pipeline.STOPPED, pipeline.FINISHED:
+			state = "STOPPED"
+		}
+		out[name] = map[string]interface{}{
+			"state": state,
+		}
+		return true
+	})
+	return out
+}
+
 func (module *PipeModule) Name() string {
 	return "pipeline"
 }
@@ -147,6 +177,9 @@ func (module *PipeModule) Setup() {
 	api.HandleUIMethod(api.PUT, "/pipeline/deployments/:id", module.updateDeploymentHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
 	api.HandleAPIMethod(api.DELETE, "/pipeline/deployments/:id", module.deleteDeploymentHandler)
 	api.HandleUIMethod(api.DELETE, "/pipeline/deployments/:id", module.deleteDeploymentHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineDelete))
+	api.HandleAPIMethod(api.GET, "/pipeline/deployments/:id/status", module.getDeploymentStatusHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/deployments/:id/status", module.getDeploymentStatusHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
 	api.HandleAPIMethod(api.GET, "/pipeline/cluster/overview", module.getClusterOverviewHandler)
 	api.HandleUIMethod(api.GET, "/pipeline/cluster/overview", module.getClusterOverviewHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
 
