@@ -43,6 +43,7 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/lane"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
@@ -116,6 +117,11 @@ func (module *PipeModule) loadLaneConfigs() {
 }
 
 func (module *PipeModule) Setup() {
+	// ORM schema registration (table/index auto-creation on startup)
+	orm.MustRegisterSchemaWithIndexName(PipelineVersion{}, "pipeline-versions")
+	orm.MustRegisterSchemaWithIndexName(PipelineDeployment{}, "pipeline-deployments")
+	orm.MustRegisterSchemaWithIndexName(PipelineStageStat{}, "pipeline-stage-stats")
+
 	module.loadLaneConfigs()
 	installFlight()
 	installStats()
