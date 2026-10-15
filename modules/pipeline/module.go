@@ -67,13 +67,18 @@ type PipeModule struct {
 func (module *PipeModule) RuntimeSnapshot() map[string]interface{} {
 	out := map[string]interface{}{}
 	module.contexts.Range(func(k, v interface{}) bool {
-		name, ok := k.(string)
-		if !ok {
-			return true
-		}
 		ctx, ok := v.(*pipeline.Context)
 		if !ok {
 			return true
+		}
+		// report under the pipeline NAME — consumers (deployment status)
+		// match by name; the map key is the config ID which only equals
+		// the name for id-less YAML configs
+		name := ctx.Config.Name
+		if name == "" {
+			if s, ok := k.(string); ok {
+				name = s
+			}
 		}
 		state := "UNKNOWN"
 		switch ctx.GetRunningState() {

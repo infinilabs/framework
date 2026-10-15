@@ -171,6 +171,12 @@ func (module *PipeModule) reconcileDeployment(dep *PipelineDeployment) error {
 		}
 	}
 
+	// converged: the pushed content already matches — skip the version
+	// bump and re-push so instances don't rewrite files every cycle
+	if existing.ID != "" && existing.Content == string(cfgJSON) {
+		return nil
+	}
+
 	existing.Name = configName
 	existing.InstanceID = "*" // v1: broadcast; selector targeting next
 	existing.Content = string(cfgJSON)
@@ -207,6 +213,15 @@ func (h *PipeModule) getDeploymentStatus(dep *PipelineDeployment) DeploymentStat
 	}
 	instances, _, _ := elastic.DecodeHits[model.Instance](res)
 
+	// resolve the pipeline NAME — instances run pipelines under their
+	// config name (YAML configs default ID = Name), not the config row ID
+	taskCtx := orm.NewContext().DirectAccess()
+	cfg := pipeline.PipelineConfigV2{}
+	cfg.ID = dep.PipelineID
+	if found, gerr := orm.GetV2(taskCtx, &cfg); gerr != nil || !found {
+		return status
+	}
+
 	for _, inst := range instances {
 		if inst.RuntimePipelines == "" {
 			continue
@@ -218,8 +233,7 @@ func (h *PipeModule) getDeploymentStatus(dep *PipelineDeployment) DeploymentStat
 			continue
 		}
 		// check if this instance runs the deployment's pipeline
-		taskName := dep.PipelineID
-		if st, ok := pipelines[taskName]; ok {
+		if st, ok := pipelines[cfg.Name]; ok {
 			status.Instances = append(status.Instances, InstanceReport{
 				InstanceID: inst.ID,
 				State:      st.State,
