@@ -124,6 +124,40 @@ A sub-chain may itself contain another splitter bound to a different message fie
 5. Record pass → set `RecordContextKey` (+ `FailureTagsKey` when tagging), run plain processors, apply `on_failure`.
 6. Encode pass → honor `IsDropped`, persist failure tags (`Fields["tags"]`), re-encode, write back to the batch.
 
+## Record Contracts
+
+Processors may declare a `RecordContract` (`core/pipeline/contract.go`) — where they may run and what they need. The declaration is **compile-time**: placement is validated when the chain is built, never detected at runtime. Unconstrained processors (the entire historical inventory) implement nothing and pass every placement.
+
+```go
+type RecordContract struct {
+    Scope          ScopeKind   // ScopeRecord demands a record host; ScopeBatch demands the chain root
+    Namespace      string      // record family ("document", "attachment"); "" accepts any
+    RequiredFields []string    // hard assertions on record paths ("document.content")
+    Granularity    Granularity // execution granularity (see below)
+}
+
+// implement ContractProvider on the processor:
+func (p *MyProcessor) RecordContract() RecordContract {
+    return RecordContract{Scope: ScopeRecord, ...}
+}
+```
+
+### Granularity
+
+`Granularity` declares which execution channels a processor supports — the compiler routes by it and the catalog surfaces it for canvas UIs:
+
+| Value | Meaning |
+|-------|---------|
+| `record` (default) | Only the per-record path is meaningful (`grok`, `mutate`, ...). |
+| `batch_capable` | Batch and single-record paths are both valid; batch preferred when the host provides one. Implementing `BatchProcessor` implies the single-record fallback contract. |
+| `batch_only` | Only the batch channel is meaningful (cross-record aggregation). Must be a **direct** member of a record host's sub-chain — nesting under `if`/`then` is a compile error there, because the batch channel cannot reach it. |
+
+### Enforcement
+
+- **Placement** (`Scope`, `Granularity`) is checked by `NewPipelineWithScope` at compile time. By default a mismatch is a warning; the pipeline config's `strict_contract: true` turns it into a compile error, and the `POST /pipeline/_validate` gate reports it accordingly.
+- **`RequiredFields`** are data assertions — enforced by the runtime guard `CheckContract(ctx, contract)` (defense in depth for chains that bypass compile-time validation) and by dry-run sample validation, never by placement (data does not exist at compile time).
+- Record hosts (`for_each`, `lane_consumer`) pass their codec/lane namespace into the compile scope, so a processor requiring `Namespace: "document"` fails to compile inside a `codec: otel` chain.
+
 ## Compatibility Notes
 
 - Sub-processors written against the original for_each (pre-convention) work unchanged: per-record `Process`, drop markers, and `ignore`-on-error semantics (error skips the rest of the sub-chain for that record) are preserved exactly.

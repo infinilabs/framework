@@ -451,3 +451,139 @@ The framework ships with a growing set of built-in processors registered via `Re
 Every processor has its own reference page — description, configuration parameters with types and defaults, and an example — under the **Processor Reference** section. Record processors operate on the current record inside `for_each` sub-chains (most are no-ops outside a record scope); they are registered by domain category, the bare name is the YAML key, and `category:name` is an explicit alias.
 
 The same catalog is discoverable at runtime via the `GET /pipeline/processors` API (`?grouped=1` groups the catalog by category).
+
+## Configuration Validation
+
+Invalid pipeline configs — unknown processors, missing required parameters, malformed DSL — are rejected **before** they are persisted or distributed, not discovered on the instance after deployment. `ValidatePipelineConfig` (`modules/pipeline/validate.go`) compiles the chain without running it and returns structured findings:
+
+```go
+type ConfigError struct {
+    Stage     int    `json:"stage"`               // 0-based processor index; -1 = chain/config level
+    Processor string `json:"processor,omitempty"` // offending processor key
+    Field     string `json:"field,omitempty"`
+    Message   string `json:"message"`
+}
+```
+
+The compile pass covers:
+
+- **DSL shape** — exactly one action per step, well-formed `if`/`then`/`else` blocks, nested sub-chains (`for_each`, `lane_consumer` inner chains compile recursively);
+- **Registry existence** — unknown processor names fail with the list of valid names;
+- **Parameter legality** — each constructor's own validation runs (missing required fields, bad enum values, out-of-range numbers);
+- **Record contracts** — placement mismatches surface as warnings, or as errors when the config opts in with `strict_contract: true`.
+
+Constructor panics are recovered per step and reported as validation errors — a broken plugin can never crash the gate.
+
+### Where the gate is enforced
+
+| Entry point | Behavior on invalid config |
+|-------------|---------------------------|
+| `POST /pipelines/` (create) | `400` with the findings; nothing persisted |
+| `PUT /pipelines/:id` (update) | `400`; the working config and its version history stay untouched |
+| `POST /pipeline/tasks/` (start task) | `400` — including disabled pipelines, which would otherwise defer the failure to enable-time |
+| `POST /pipelines/:id/versions/:version/rollback` | `400`; a version referencing a processor that was renamed or removed since must not be restored |
+| `POST /pipeline/deployments/` (Fleet) | `400`; the referenced pipeline must exist **and** compile (read failures reject too — fail-closed) |
+| Deployment reconciler | Refuses to distribute a config that stopped compiling (e.g. a plugin removed after an upgrade) |
+
+Rejection bodies carry both a standard error wrapper (UIs toast `error.reason`) and the structured detail:
+
+```json
+{
+  "error": { "reason": "invalid pipeline config: http processor requires at least one host (hosts) (+1 more)" },
+  "status": 400,
+  "errors": [
+    { "stage": 1, "processor": "http", "message": "http processor requires at least one host (hosts)" }
+  ],
+  "warnings": []
+}
+```
+
+### Pre-flight endpoint
+
+`POST /pipeline/_validate` compiles a submitted config without persisting anything. Always `200`; the `valid` flag carries the verdict:
+
+```bash
+curl -X POST /pipeline/_validate -H 'Content-Type: application/json' -d '{
+  "name": "my-pipeline",
+  "processor": [{ "dissect": { "pattern": "%{a} %{b}" } }]
+}'
+```
+
+```json
+{ "valid": true, "errors": null, "warnings": null }
+```
+
+### Constructor contract for processor authors
+
+The gate is only as strong as constructor validation. Two rules, enforced by the `TestEmptyConfigAudit` test:
+
+1. **Return errors, never panic** — a config problem is not a runtime fault; `panic` in a constructor crashes the host that compiles the chain.
+2. **Either require your inputs or default them safely** — every processor is constructed with an empty config in CI; one that succeeds must land in the audit's documented allowlist (44 entries, each annotated with why empty-accept is legitimate), otherwise it must fail with a clear required-field error. Variable templates such as `$[[env.HOSTS]]` remain non-empty strings at validation time and do not conflict with required-field checks.
+
+## Pipeline Configuration API
+
+Beyond YAML files, pipelines are managed as first-class resources (`PipelineConfigV2`) over HTTP:
+
+| Method & Path | Description |
+|---------------|-------------|
+| `POST /pipelines/` | Create a config (validated, versioned). |
+| `GET /pipelines/:id` / `PUT /pipelines/:id` / `DELETE /pipelines/:id` | Read / update (validated) / delete (archives the last version first). |
+| `POST /pipelines/_search` | Search configs. |
+| `POST /pipelines/:id/_start` / `_stop` | Start / stop the pipeline task. |
+| `GET /pipelines/:id/versions` | List versions. |
+| `GET /pipelines/:id/versions/:version` | Read one version snapshot. |
+| `POST /pipelines/:id/versions/:version/rollback` | Restore a version (validated; snapshots the current config first so rollbacks are themselves revertible). |
+
+Every update auto-snapshots the previous config as a `PipelineVersion` — there is no explicit publish step; each edit is a version.
+
+## Pipeline Deployment (Fleet)
+
+`PipelineDeployment` is the control-plane desired state: which pipeline runs on which instances. A reconciler (15s interval) converges desired → reported:
+
+1. Loads the pipeline config, re-validates it compiles, and renders it as a **managed config** row targeted at the selected instances (strategy `all` broadcasts; `singleton` marks the config for instance-side lock resolution).
+2. Instances pull the managed config on their next `_sync`, write it to their config directory, and hot-reload the pipeline.
+3. Pushes are **converged**: when the rendered content is unchanged, the reconciler skips the version bump — instances don't rewrite files every cycle.
+
+| Method & Path | Description |
+|---------------|-------------|
+| `POST /pipeline/deployments/` | Create (requires pipeline exists + compiles). |
+| `GET /pipeline/deployments/` | List. |
+| `GET/PUT/DELETE /pipeline/deployments/:id` | Read / update (enable, placement) / delete. |
+| `GET /pipeline/deployments/:id/status` | Desired-vs-reported status. |
+
+### Runtime report and failure visibility
+
+Every managed instance reports its live pipeline states with each config sync (keyed by **pipeline name**). The report persists on the instance record and feeds the deployment status:
+
+```json
+{
+  "instances": [
+    {
+      "instance_id": "agent-1",
+      "state": "FAILED",
+      "reason": "the processor nope does not exist. valid processors: ...",
+      "last_seen": "2026-10-15T04:50:54Z"
+    }
+  ],
+  "desired_count": 1,
+  "ready_count": 0
+}
+```
+
+A pipeline whose config fails to compile **on the instance** (e.g. the instance's processor catalog differs from the control plane's — a plugin missing from that binary) is reported as `FAILED` with the compile error as `reason`, instead of silently disappearing from the report. Instances without an ORM backend (lightweight agents) skip the reconciler side but still report runtime state.
+
+## Runtime APIs
+
+| Method & Path | Description |
+|---------------|-------------|
+| `GET /pipeline/tasks/` | Running pipeline tasks and states. |
+| `GET /pipeline/task/:id/stages` | Per-stage metrics: invocations, errors, latency. |
+| `GET /pipeline/task/:id/flight` | Sampled execution trace (`?trace_id=`, `?errors=1`, `&limit=`). |
+| `POST /pipeline/task/:id/_inject` | Inject a test sample (raw record or batch) into a running pipeline. |
+| `POST /pipeline/task/:id/_pause` / `_resume` | Pause / resume a task. |
+| `POST /pipeline/dry-run` | Unified dry-run: execute a processor chain against sample input with side-effect capture, field diffs, and scope/contract checks. |
+| `GET /pipeline/processors` | Processor catalog (`?grouped=1`). |
+| `GET /pipeline/codecs` | Registered record codecs. |
+| `GET /pipeline/lanes` | In-process lane channels and their depth. |
+
+`GET /pipeline/cluster/overview` aggregates fleet-wide pipeline health for control-plane dashboards.
