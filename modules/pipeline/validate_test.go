@@ -5,6 +5,8 @@
 package pipeline
 
 import (
+	_ "infini.sh/framework/plugins/http"
+	_ "infini.sh/framework/plugins/smtp"
 	"strings"
 	"testing"
 
@@ -120,5 +122,25 @@ func TestValidateRejectsMalformedStep(t *testing.T) {
 	}))
 	if len(errs) == 0 {
 		t.Fatal("expected rejection for multi-action step")
+	}
+}
+
+// TestValidateHttpRequiresHosts and TestValidateSmtpRequiresServer pin
+// the required-field checks added by the empty-config audit.
+func TestValidateHttpRequiresHosts(t *testing.T) {
+	errs, _ := ValidatePipelineConfig(cfgOf(map[string]interface{}{
+		"http": map[string]interface{}{"path": "/x"},
+	}))
+	if len(errs) == 0 || !strings.Contains(errs[0].Message, "requires at least one host") {
+		t.Fatalf("expected hosts requirement, got %+v", errs)
+	}
+}
+
+func TestValidateSmtpRequiresServer(t *testing.T) {
+	errs, _ := ValidatePipelineConfig(cfgOf(map[string]interface{}{
+		"smtp": map[string]interface{}{},
+	}))
+	if len(errs) == 0 || !strings.Contains(errs[0].Message, "requires at least one server") {
+		t.Fatalf("expected server requirement, got %+v", errs)
 	}
 }

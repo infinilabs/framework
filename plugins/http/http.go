@@ -119,6 +119,11 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	if err := c.Unpack(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unpack the configuration of http_replicator processor: %s", err)
 	}
+	// no hosts = the send loop never executes and every record fails;
+	// templates like $[[env.HOSTS]] stay non-empty strings here
+	if len(cfg.Hosts) == 0 {
+		return nil, fmt.Errorf("http processor requires at least one host (hosts)")
+	}
 
 	processor := &HTTPProcessor{
 		config:   &cfg,

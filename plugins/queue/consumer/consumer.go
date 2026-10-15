@@ -183,7 +183,9 @@ func New(c *config.Config) (pipeline.Processor, error) {
 
 	processor, err := pipeline.NewPipeline(runner.config.MessageProcessors)
 	if err != nil {
-		panic(err)
+		// config error, not a runtime fault — surface it so the compile
+		// gate rejects the pipeline instead of the host panicking
+		return nil, fmt.Errorf("%s processor requires a non-empty inner processor chain: %w", name, err)
 	}
 
 	processor.SkipCatchError = true //skip catch internal error
@@ -191,7 +193,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 
 	pool, err := pipeline.NewPoolWithTag(name, runner.config.MaxWorkers)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("%s processor failed to create worker pool: %w", name, err)
 	}
 
 	runner.pool = pool

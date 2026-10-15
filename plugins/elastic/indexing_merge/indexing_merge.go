@@ -121,14 +121,14 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	}
 
 	if cfg.InputQueue == "" {
-		panic(errors.New("input_queue can't be nil"))
+		return nil, errors.New("indexing_merge processor requires input_queue")
 	}
 	if cfg.OutputQueue.Name == "" {
-		panic(errors.New("name of output_queue can't be nil"))
+		return nil, errors.New("indexing_merge processor requires output_queue.name")
 	}
 
 	if cfg.IndexName == "" {
-		panic(errors.New("index name can't be nil"))
+		return nil, errors.New("indexing_merge processor requires index_name")
 	}
 
 	if cfg.FailureQueue == "" {

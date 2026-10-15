@@ -52,15 +52,28 @@ func ValidatePipelineConfig(cfg *pipeline.PipelineConfigV2) (errs []ConfigError,
 		return
 	}
 
-	// per-stage compile so errors carry the offending step index
+	// per-stage compile so errors carry the offending step index; a
+	// panicking constructor becomes a validation error instead of
+	// crashing the gate (compile must never take the control plane down)
 	for i, step := range procCfgs {
-		if _, err := pipeline.NewPipeline([]*config.Config{step}); err != nil {
-			errs = append(errs, ConfigError{
-				Stage:     i,
-				Processor: stepKey(step),
-				Message:   err.Error(),
-			})
-		}
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					errs = append(errs, ConfigError{
+						Stage:     i,
+						Processor: stepKey(step),
+						Message:   fmt.Sprintf("constructor panicked: %v", r),
+					})
+				}
+			}()
+			if _, err := pipeline.NewPipeline([]*config.Config{step}); err != nil {
+				errs = append(errs, ConfigError{
+					Stage:     i,
+					Processor: stepKey(step),
+					Message:   err.Error(),
+				})
+			}
+		}()
 	}
 	// whole-chain compile catches issues the standalone steps cannot see
 	if _, err := pipeline.NewPipeline(procCfgs); err != nil && len(errs) == 0 {

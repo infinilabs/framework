@@ -251,6 +251,12 @@ type Constructor func(config *config.Config) (ProcessorBase, error)
 
 var registry = NewNamespace()
 
+// ProcessorConstructors returns every registered constructor keyed by
+// bare name (catalog enumeration for editors and audit tooling).
+func ProcessorConstructors() map[string]ProcessorConstructor {
+	return registry.ProcessorConstructors()
+}
+
 // LookupProcessorConstructor resolves a processor constructor by its
 // registered (bare) name — nil when unknown. Hosts use this to build
 // ad-hoc chains (e.g. dry-run replay of a spec's processor list).
