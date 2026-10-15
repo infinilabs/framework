@@ -28,6 +28,12 @@ func (h *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
+	// compile gate: reject configs that reference unknown processors or
+	// carry invalid parameters BEFORE they are persisted and distributed
+	if !h.validateAndReject(w, obj) {
+		return
+	}
+
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.Refresh = orm.WaitForRefresh
 
@@ -103,6 +109,12 @@ func (h *PipeModule) updatePipelineHandler(w http.ResponseWriter, req *http.Requ
 
 	// Ensure ID is set even if the client omitted it from the request body
 	newConfig.ID = id
+
+	// compile gate: an update that breaks the chain must not overwrite a
+	// working config (nor trigger a version snapshot of a rejected edit)
+	if !h.validateAndReject(w, &newConfig) {
+		return
+	}
 
 	// auto-snapshot the PREVIOUS config before overwriting (every edit is
 	// a version — no explicit publish step; transient pipelines skip)

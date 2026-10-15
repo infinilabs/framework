@@ -151,6 +151,12 @@ func (module *PipeModule) createPipelineTaskHandler(w http.ResponseWriter, req *
 	if obj.ID == "" {
 		obj.ID = obj.Name
 	}
+	// compile gate BEFORE creating the task — createPipelineTask skips
+	// disabled pipelines entirely, which would otherwise defer the
+	// discovery of a broken chain to the moment it gets enabled
+	if !module.validateAndReject(w, &obj) {
+		return
+	}
 	err = module.createPipelineTask(obj, true)
 	if err != nil {
 		module.WriteError(w, err.Error(), http.StatusBadRequest)

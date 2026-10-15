@@ -176,6 +176,10 @@ func (module *PipeModule) Setup() {
 	api.HandleAPIMethod(api.GET, "/pipeline/processors", module.getProcessorsHandler)
 	api.HandleUIMethod(api.GET, "/pipeline/processors", module.getProcessorsHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
 
+	// config pre-flight: compile check without persisting (editor save hint)
+	api.HandleAPIMethod(api.POST, "/pipeline/_validate", module.validatePipelineHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/_validate", module.validatePipelineHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
 	api.HandleAPIMethod(api.GET, "/pipeline/codecs", module.getCodecsHandler)
 	api.HandleUIMethod(api.GET, "/pipeline/codecs", module.getCodecsHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
 

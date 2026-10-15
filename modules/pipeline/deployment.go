@@ -142,6 +142,13 @@ func (module *PipeModule) reconcileDeployment(dep *PipelineDeployment) error {
 		return fmt.Errorf("pipeline %s not found", dep.PipelineID)
 	}
 
+	// defensive gate: never distribute a config that no longer compiles
+	// (e.g. a processor plugin went missing after an upgrade)
+	if errs, _ := ValidatePipelineConfig(&cfg); len(errs) > 0 {
+		return fmt.Errorf("pipeline %s failed validation, refusing to distribute: %s",
+			cfg.Name, errs[0].Message)
+	}
+
 	// translate to a managed-config row (the same channel stream publish
 	// uses — instances pull and hot-reload)
 	// v1: broadcast to all instances (strategy "all")
@@ -271,10 +278,28 @@ func (h *PipeModule) createDeploymentHandler(w http.ResponseWriter, req *http.Re
 	if dep.Placement.Strategy == "" {
 		dep.Placement.Strategy = "all" // v1 default (D-12: no sharded)
 	}
+
+	// the referenced pipeline must exist AND compile — a deployment is a
+	// distribution promise; accepting one that ships a broken config to
+	// every instance just moves the failure to the far end
+	octx := orm.NewContextWithParent(req.Context()).DirectAccess()
+	cfg := pipeline.PipelineConfigV2{}
+	cfg.ID = dep.PipelineID
+	// GetV2 reports a missing row as an error ("record not found"); both
+	// that and a genuine backend failure fail CLOSED here — a control
+	// plane that cannot read the pipeline must not accept deployments
+	exists, err := orm.GetV2(octx, &cfg)
+	if err != nil || !exists {
+		h.WriteError(w, fmt.Sprintf("pipeline %s not found", dep.PipelineID), http.StatusBadRequest)
+		return
+	}
+	if !h.validateAndReject(w, &cfg) {
+		return
+	}
+
 	dep.Version = 1
 	dep.ID = util.GetUUID()
 
-	octx := orm.NewContextWithParent(req.Context())
 	if err := orm.Save(octx, &dep); err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
