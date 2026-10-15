@@ -540,16 +540,43 @@ Every update auto-snapshots the previous config as a `PipelineVersion` — there
 
 `PipelineDeployment` is the control-plane desired state: which pipeline runs on which instances. A reconciler (15s interval) converges desired → reported:
 
-1. Loads the pipeline config, re-validates it compiles, and renders it as a **managed config** row targeted at the selected instances (strategy `all` broadcasts; `singleton` marks the config for instance-side lock resolution).
+1. Loads the pipeline config, re-validates it compiles, and renders it as **managed config** rows — one per target instance (`singleton` marks the config for instance-side lock resolution).
 2. Instances pull the managed config on their next `_sync`, write it to their config directory, and hot-reload the pipeline.
 3. Pushes are **converged**: when the rendered content is unchanged, the reconciler skips the version bump — instances don't rewrite files every cycle.
 
+### Placement scope (targeting)
+
+`placement` decides **where** the pipeline runs — resolved against the registered instance fleet on every cycle:
+
+```json
+{
+  "placement": {
+    "strategy": "all",
+    "selector": { "env": "prod" },
+    "instances": ["gw-2"]
+  }
+}
+```
+
+| Field | Semantics |
+|-------|-----------|
+| `selector` | Label match (AND across entries) — an instance is in scope when its labels carry every key=value. |
+| `instances` | Explicit instance IDs (union with the selector match; unknown IDs are ignored until they register). |
+| *(neither set)* | Broadcast: a single `*` row every instance pulls. |
+
+Convergence is **exact** — the row set always equals the desired set:
+
+- Instances that fall out of every scope get their row **deleted**; their next sync reports the file `Deleted`, the config watcher removes it and stops the task. No duplicate deployments linger after a scope change A→B.
+- Label membership is re-evaluated every cycle: an instance that gains/loses a matching label is added/removed automatically.
+- Several deployments may share one pipeline; their target sets merge (an enabled deployment outranks a disabled one on the same instance, `singleton` wins over `all`). Any broadcast deployment subsumes targeting for that pipeline.
+- Row versions are monotonic **per config name** — the instance sync applies updates strictly by version (`newest wins`), so a migrated row always lands above what clients previously pulled.
+
 | Method & Path | Description |
 |---------------|-------------|
-| `POST /pipeline/deployments/` | Create (requires pipeline exists + compiles). |
+| `POST /pipeline/deployments/` | Create (requires pipeline exists + compiles; strategy limited to `all`\|`singleton`). |
 | `GET /pipeline/deployments/` | List. |
-| `GET/PUT/DELETE /pipeline/deployments/:id` | Read / update (enable, placement) / delete. |
-| `GET /pipeline/deployments/:id/status` | Desired-vs-reported status. |
+| `GET/PUT/DELETE /pipeline/deployments/:id` | Read / update (name, pipeline rebind, placement, enable — re-validated) / delete (cascades managed-config recall when no other deployment references the pipeline). |
+| `GET /pipeline/deployments/:id/status` | Desired-vs-reported status (`desired_count` is the resolved scope size). |
 
 ### Runtime report and failure visibility
 
@@ -570,7 +597,7 @@ Every managed instance reports its live pipeline states with each config sync (k
 }
 ```
 
-A pipeline whose config fails to compile **on the instance** (e.g. the instance's processor catalog differs from the control plane's — a plugin missing from that binary) is reported as `FAILED` with the compile error as `reason`, instead of silently disappearing from the report. Instances without an ORM backend (lightweight agents) skip the reconciler side but still report runtime state.
+A pipeline whose config fails to compile **on the instance** (e.g. the instance's processor catalog differs from the control plane's — a plugin missing from that binary) is reported as `FAILED` with the compile error as `reason`, instead of silently disappearing from the report. Reports carry `"stale": true` when the instance still runs the pipeline but the placement scope no longer includes it (recall in flight, or a recall that failed). Instances without an ORM backend (lightweight agents) skip the reconciler side but still report runtime state.
 
 ## Runtime APIs
 
