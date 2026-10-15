@@ -102,6 +102,10 @@ type PipelineRuntimeState struct {
 	State         string `json:"state"`                    // STARTED|STOPPED|FAILED|...
 	ConfigSource  string `json:"config_source,omitempty"`  // managed config name
 	ConfigVersion int64  `json:"config_version,omitempty"` // managed config version loaded
+	// Reason explains a FAILED state (e.g. the config references a
+	// processor missing from this instance's catalog) — surfaced in the
+	// deployment status so operators see why without instance shell access
+	Reason string `json:"reason,omitempty"`
 }
 
 type ConfigSyncResponse struct {

@@ -144,3 +144,30 @@ func TestValidateSmtpRequiresServer(t *testing.T) {
 		t.Fatalf("expected server requirement, got %+v", errs)
 	}
 }
+
+// TestRuntimeSnapshotReportsFailures pins instance-side failure
+// visibility: a config that fails to compile shows up as FAILED with
+// the reason instead of silently disappearing from the runtime report.
+func TestRuntimeSnapshotReportsFailures(t *testing.T) {
+	m := &PipeModule{}
+	m.recordFailure("ghost-pipeline", errNew("the processor nope does not exist"))
+
+	snap := m.RuntimeSnapshot()
+	got, ok := snap["ghost-pipeline"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected failure entry, got %v", snap)
+	}
+	if got["state"] != "FAILED" {
+		t.Fatalf("expected FAILED, got %v", got["state"])
+	}
+	if got["reason"] != "the processor nope does not exist" {
+		t.Fatalf("expected reason, got %v", got["reason"])
+	}
+
+	// a pipeline that starts clears its stale failure entry
+	m.recordSuccess("ghost-pipeline")
+	snap = m.RuntimeSnapshot()
+	if _, still := snap["ghost-pipeline"]; still {
+		t.Fatal("failure entry should clear after success")
+	}
+}

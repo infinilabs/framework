@@ -60,6 +60,23 @@ type PipeModule struct {
 	pipelines sync.Map
 	configs   sync.Map
 	contexts  sync.Map
+	// failures records pipelines whose config failed to compile on THIS
+	// instance (e.g. a processor missing from the local catalog) — the
+	// deployment status needs to see WHY, not just that it is absent
+	failures sync.Map // name -> string (compile/load error)
+}
+
+// recordFailure stores a pipeline compile/load failure for the runtime
+// report; recordSuccess clears a stale entry after the pipeline runs.
+func (module *PipeModule) recordFailure(name string, err error) {
+	if name == "" || err == nil {
+		return
+	}
+	module.failures.Store(name, err.Error())
+}
+
+func (module *PipeModule) recordSuccess(name string) {
+	module.failures.Delete(name)
 }
 
 // RuntimeSnapshot returns the current pipeline task states for the
@@ -91,6 +108,25 @@ func (module *PipeModule) RuntimeSnapshot() map[string]interface{} {
 		}
 		out[name] = map[string]interface{}{
 			"state": state,
+		}
+		return true
+	})
+	// pipelines that never made it into contexts (config rejected or
+	// processor missing locally) are reported as FAILED with the reason —
+	// absent entries hide breakage from the deployment status
+	module.failures.Range(func(k, v interface{}) bool {
+		name, ok := k.(string)
+		if !ok {
+			return true
+		}
+		if _, running := out[name]; running {
+			return true
+		}
+		if msg, ok := v.(string); ok {
+			out[name] = map[string]interface{}{
+				"state":  "FAILED",
+				"reason": msg,
+			}
 		}
 		return true
 	})
@@ -628,12 +664,14 @@ func (module *PipeModule) createPipelineTask(v pipeline.PipelineConfigV2, transi
 		}
 		processorConfigs, err := cfg.GetProcessorsConfig()
 		if err != nil {
+			module.recordFailure(v.Name, err)
 			ready <- err
 			return errors.Errorf("failed to get processor config, %v", err)
 		}
 
 		processors, err := pipeline.NewPipeline(processorConfigs)
 		if err != nil {
+			module.recordFailure(v.Name, err)
 			ready <- err
 			return err
 		}
@@ -641,6 +679,7 @@ func (module *PipeModule) createPipelineTask(v pipeline.PipelineConfigV2, transi
 		ctx := pipeline.AcquireContext(v)
 		module.pipelines.Store(v.ID, processors)
 		module.contexts.Store(v.ID, ctx)
+		module.recordSuccess(v.Name)
 
 		defer func() {
 			if !global.Env().IsDebug {

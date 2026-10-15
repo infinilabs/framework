@@ -82,6 +82,9 @@ type InstanceReport struct {
 	State      string    `json:"state"` // running | stopped | failed | unknown
 	Version    int       `json:"version"`
 	LastSeen   time.Time `json:"last_seen"`
+	// Reason carries the instance-reported failure explanation (compile
+	// error, missing processor on that instance)
+	Reason string `json:"reason,omitempty"`
 }
 
 // ─── reconciler ──────────────────────────────────────────────────────────
@@ -234,7 +237,8 @@ func (h *PipeModule) getDeploymentStatus(dep *PipelineDeployment) DeploymentStat
 			continue
 		}
 		var pipelines map[string]struct {
-			State string `json:"state"`
+			State  string `json:"state"`
+			Reason string `json:"reason"`
 		}
 		if json.Unmarshal([]byte(inst.RuntimePipelines), &pipelines) != nil {
 			continue
@@ -246,6 +250,7 @@ func (h *PipeModule) getDeploymentStatus(dep *PipelineDeployment) DeploymentStat
 				State:      st.State,
 				Version:    dep.Version,
 				LastSeen:   time.Now().UTC(),
+				Reason:     st.Reason,
 			})
 		}
 	}

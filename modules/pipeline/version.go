@@ -194,6 +194,12 @@ func (h *PipeModule) rollbackPipelineHandler(w http.ResponseWriter, req *http.Re
 		return
 	}
 	restored.ID = id // preserve identity
+
+	// compile gate: an old version may reference processors that were
+	// renamed or removed since — restoring it must not break the pipeline
+	if !h.validateAndReject(w, &restored) {
+		return
+	}
 	octx2 := orm.NewContextWithParent(req.Context())
 	octx2.Refresh = orm.WaitForRefresh
 	if err := orm.Save(octx2, &restored); err != nil {

@@ -598,11 +598,14 @@ func runtimePipelineSnapshot() *common.RuntimeReport {
 	}
 	report := &common.RuntimeReport{Pipelines: map[string]common.PipelineRuntimeState{}}
 	for name, state := range snapshot {
-		stateStr, _ := state.(map[string]interface{})["state"].(string)
-		source, _ := state.(map[string]interface{})["config_source"].(string)
+		m, _ := state.(map[string]interface{})
+		stateStr, _ := m["state"].(string)
+		source, _ := m["config_source"].(string)
+		reason, _ := m["reason"].(string)
 		report.Pipelines[name] = common.PipelineRuntimeState{
 			State:        stateStr,
 			ConfigSource: source,
+			Reason:       reason,
 		}
 	}
 	return report
