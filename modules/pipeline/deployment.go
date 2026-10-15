@@ -107,6 +107,11 @@ func (module *PipeModule) startDeploymentReconciler() {
 }
 
 func (module *PipeModule) reconcileOnce() {
+	// reconcile is a control-plane operation — skip on instances without
+	// an ORM backend (lightweight agents that only run pushed configs)
+	if !orm.IsHandlerRegistered() {
+		return
+	}
 	octx := orm.NewContext().DirectAccess()
 	orm.WithModel(octx, &PipelineDeployment{})
 
