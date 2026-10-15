@@ -19,14 +19,29 @@ import (
 // OutputConfig declares the unified output step: exactly ONE target
 // field (queue or lane) — config unpacking rejects zero or multiple.
 type OutputConfig struct {
-	Queue *queue.QueueConfig `config:"queue"`
-	Lane  string             `config:"lane"`
+	Queue *QueueRef `config:"queue"`
+	Lane  string    `config:"lane"`
 	// Ack (lane target only): emit with an acknowledgment receipt attached
 	// to the context's AckSet — the emitting consumer's commit gate waits
 	// for settlement (cross-lane at-least-once).
 	Ack          *bool         `config:"ack"`
 	Codec        string        `config:"codec"`         // queue target: override codec resolution
 	MessageField param.ParaKey `config:"message_field"` // batch scope queue target
+}
+
+// QueueRef accepts both a bare queue name (string) and a full QueueConfig
+// object — pipelines written by hand use the short form.
+type QueueRef struct {
+	queue.QueueConfig
+}
+
+func (q *QueueRef) UnpackConfig(c *config.Config) error {
+	var name string
+	if err := c.Unpack(&name); err == nil {
+		q.Name = name
+		return nil
+	}
+	return c.Unpack(&q.QueueConfig)
 }
 
 type OutputProcessor struct {
@@ -51,7 +66,7 @@ func NewOutputProcessor(c *config.Config) (pipeline.Processor, error) {
 		return nil, fmt.Errorf("failed to unpack the configuration of %s processor: %s", outputName, err)
 	}
 	targets := 0
-	if cfg.Queue != nil {
+	if cfg.Queue != nil && cfg.Queue.Name != "" {
 		targets++
 	}
 	if cfg.Lane != "" {
@@ -61,8 +76,8 @@ func NewOutputProcessor(c *config.Config) (pipeline.Processor, error) {
 		return nil, fmt.Errorf("%s requires exactly one target field (queue: <name> or lane: <name>), found %d", outputName, targets)
 	}
 	p := &OutputProcessor{cfg: cfg, laneName: cfg.Lane}
-	if cfg.Queue != nil {
-		p.outQ = queue.SmartGetOrInitConfig(cfg.Queue)
+	if cfg.Queue != nil && cfg.Queue.Name != "" {
+		p.outQ = queue.SmartGetOrInitConfig(&cfg.Queue.QueueConfig)
 	}
 	if cfg.Ack != nil {
 		p.ack = *cfg.Ack
