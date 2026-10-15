@@ -118,7 +118,11 @@ func (module *PipeModule) reconcileOnce() {
 	octx := orm.NewContext().DirectAccess()
 	orm.WithModel(octx, &PipelineDeployment{})
 
-	q := orm.NewQuery().Filter(orm.TermQuery("enabled", true)).Size(100)
+	// ALL deployments, disabled included: a disabled deployment keeps
+	// converging with enabled:false in the rendered config, so instances
+	// STOP the task while KEEPING the config (instant re-enable). Skipping
+	// disabled ones would leave the pipeline running on every instance.
+	q := orm.NewQuery().Size(200)
 	res, err := orm.SearchV2(octx, q)
 	if err != nil {
 		return
@@ -156,12 +160,25 @@ func (module *PipeModule) reconcileDeployment(dep *PipelineDeployment) error {
 	// uses — instances pull and hot-reload)
 	// v1: broadcast to all instances (strategy "all")
 	// TODO: selector-based targeting, singleton lock, staged rollout
+	// disabled deployment renders the pipeline disabled: the instance's
+	// config watcher stops (and cleans) the running task on the
+	// enabled→disabled transition while keeping the file for instant
+	// re-enable
+	pipelineEnabled := cfg.Enabled
+	pipelineAutoStart := cfg.AutoStart
+	if !dep.Enabled {
+		// explicit false pointer (nil would mean "default enabled" at
+		// the instance's isPipelineEnabled check)
+		f := false
+		pipelineEnabled = &f
+		pipelineAutoStart = false
+	}
 	configName := fmt.Sprintf("pipeline-deploy-%s.yml", dep.PipelineID)
 	cfgJSON := util.MustToJSONBytes(map[string]interface{}{
 		"pipeline": []interface{}{map[string]interface{}{
 			"name":         cfg.Name,
-			"enabled":      cfg.Enabled,
-			"auto_start":   cfg.AutoStart,
+			"enabled":      pipelineEnabled,
+			"auto_start":   pipelineAutoStart,
 			"keep_running": cfg.KeepRunning,
 			"singleton":    dep.Placement.Strategy == "singleton",
 			"processor":    cfg.Processors,
@@ -373,13 +390,41 @@ func (h *PipeModule) updateDeploymentHandler(w http.ResponseWriter, req *http.Re
 func (h *PipeModule) deleteDeploymentHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.MustGetParameter("id")
 	octx := orm.NewContextWithParent(req.Context()).DirectAccess()
+	orm.WithModel(octx, &PipelineDeployment{})
 	dep := PipelineDeployment{}
 	dep.ID = id
+	if exists, gerr := orm.GetV2(octx, &dep); gerr != nil || !exists {
+		h.WriteOpRecordNotFoundJSON(w, id)
+		return
+	}
 	if err := orm.Delete(octx, &dep); err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// TODO: remove the managed config row (cascade)
+	// cascade: drop the pushed managed config when no OTHER deployment
+	// still references the same pipeline — instances see the file Deleted
+	// on their next sync and the config watcher removes + stops the task
+	others := orm.NewQuery().
+		Filter(orm.TermQuery("pipeline_id", dep.PipelineID)).Size(10)
+	if res, qerr := orm.SearchV2(octx, others); qerr == nil && res != nil {
+		if rows, _, derr := elastic.DecodeHits[PipelineDeployment](res); derr == nil && len(rows) == 0 {
+			configName := fmt.Sprintf("pipeline-deploy-%s.yml", dep.PipelineID)
+			// switch the ORM context to the managed-config model — the
+			// queries above ran against PipelineDeployment
+			orm.WithModel(octx, &configs_server.ManagedConfig{})
+			mcQ := orm.NewQuery().
+				Filter(orm.TermQuery("name", configName)).
+				Filter(orm.TermQuery("instance_id", "*")).Size(5)
+			if mcRes, merr := orm.SearchV2(octx, mcQ); merr == nil && mcRes != nil {
+				if mcRows, _, mderr := elastic.DecodeHits[configs_server.ManagedConfig](mcRes); mderr == nil {
+					for _, row := range mcRows {
+						_ = orm.Delete(octx, &row)
+					}
+					log.Infof("deployment %s deleted; cascaded managed config %s removal (instances will recall the file)", dep.Name, configName)
+				}
+			}
+		}
+	}
 	h.WriteJSON(w, util.MapStr{"deleted": true, "id": id}, http.StatusOK)
 }
 
