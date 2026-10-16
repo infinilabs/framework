@@ -1,0 +1,26 @@
+version: "3.8"
+
+services:
+  easysearch:
+    image: infinilabs/easysearch:2.2.0-2776
+    container_name: sharing-test-easysearch
+    environment:
+      - EASYSEARCH_INITIAL_ADMIN_PASSWORD=ShareTest_2026!
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "19200:9200"
+    healthcheck:
+      test: ["CMD", "curl", "-sku", "admin:ShareTest_2026!", "https://localhost:9200/_cluster/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    volumes:
+      - ./easysearch.yml:/app/easysearch/config/easysearch.yml
+      - esdata:/app/easysearch/data
+
+volumes:
+  esdata:
