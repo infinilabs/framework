@@ -160,8 +160,9 @@ func checkCapacity(cfg *DiskQueueConfig) error {
 		}()
 
 		if cfg.WarningFreeBytes > 0 || cfg.MaxUsedBytes > 0 || cfg.ReservedFreeBytes > 0 {
-			pathUsed, err := status.DirSize(global.Env().GetDataDir())
-			if err != nil {
+			// Limit queue storage without counting other application data. New installations may not have a queue directory yet.
+			pathUsed, err := status.DirSize(GetDataPath(""))
+			if err != nil && !os.IsNotExist(err) {
 				panic(err)
 			}
 
@@ -215,6 +216,7 @@ func (module *DiskQueue) Init(name string) error {
 	return nil
 }
 
+// Helper function to resolve a queue directory, or the shared queue root when queueID is empty.
 func GetDataPath(queueID string) string {
 	return path.Join(global.Env().GetDataDir(), "queue", strings.ToLower(queueID))
 }
