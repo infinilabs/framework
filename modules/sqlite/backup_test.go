@@ -173,13 +173,14 @@ func TestPruneBackupsKeepAllWhenDisabled(t *testing.T) {
 func TestBackupConfigParsing(t *testing.T) {
 	yaml := `
 sqlite:
+  enabled: true
+  db_path: /tmp/x/data.db
   orm:
     enabled: true
-    db_path: /tmp/x/data.db
-    backup:
-      interval: 6h
-      dir: /tmp/x/backups
-      retention: 30
+  backup:
+    interval: 6h
+    dir: /tmp/x/backups
+    retention: 30
 `
 	cfg, err := config.NewConfigWithYAML([]byte(yaml), "test")
 	require.NoError(t, err)
@@ -189,25 +190,69 @@ sqlite:
 	require.NoError(t, err)
 	require.True(t, exists)
 
+	assert.Equal(t, "/tmp/x/data.db", parsed.DBPath)
+	assert.True(t, parsed.ORM.Enabled)
 	// Absent `enabled` must stay nil so the module default (on) applies.
-	assert.Nil(t, parsed.ORM.Backup.Enabled)
-	assert.Equal(t, 6*time.Hour, parsed.ORM.Backup.Interval)
-	assert.Equal(t, "/tmp/x/backups", parsed.ORM.Backup.Dir)
-	assert.Equal(t, 30, parsed.ORM.Backup.Retention)
+	assert.Nil(t, parsed.Backup.Enabled)
+	assert.Equal(t, 6*time.Hour, parsed.Backup.Interval)
+	assert.Equal(t, "/tmp/x/backups", parsed.Backup.Dir)
+	assert.Equal(t, 30, parsed.Backup.Retention)
+
+	parsed.applyConfigDefaults()
+	require.NotNil(t, parsed.Backup.Enabled)
+	assert.True(t, *parsed.Backup.Enabled)
+	assert.Equal(t, 6*time.Hour, parsed.Backup.Interval, "explicit interval should survive defaults")
+	assert.Equal(t, 30, parsed.Backup.Retention, "explicit retention should survive defaults")
 
 	disabled := `
 sqlite:
-  orm:
-    backup:
-      enabled: false
+  backup:
+    enabled: false
 `
 	cfg2, err := config.NewConfigWithYAML([]byte(disabled), "test")
 	require.NoError(t, err)
 	var parsed2 SQLiteModuleConfig
 	_, err = env.ParseConfigSection(cfg2, "sqlite", &parsed2)
 	require.NoError(t, err)
-	require.NotNil(t, parsed2.ORM.Backup.Enabled)
-	assert.False(t, *parsed2.ORM.Backup.Enabled)
+	parsed2.applyConfigDefaults()
+	require.NotNil(t, parsed2.Backup.Enabled)
+	assert.False(t, *parsed2.Backup.Enabled)
+	assert.Equal(t, 12*time.Hour, parsed2.Backup.Interval, "unset interval should default")
+	assert.Equal(t, 14, parsed2.Backup.Retention, "unset retention should default")
+}
+
+// orm.db_path is the pre-backup location; it must keep working as a
+// fallback while the new module-level db_path wins when both are set.
+func TestBackupConfigLegacyDBPathFallback(t *testing.T) {
+	legacy := `
+sqlite:
+  orm:
+    enabled: true
+    db_path: /legacy/data.db
+`
+	cfg, err := config.NewConfigWithYAML([]byte(legacy), "test")
+	require.NoError(t, err)
+	var parsed SQLiteModuleConfig
+	_, err = env.ParseConfigSection(cfg, "sqlite", &parsed)
+	require.NoError(t, err)
+
+	assert.Equal(t, "/legacy/data.db", parsed.ORM.DBPath)
+	parsed.applyConfigDefaults()
+	assert.Equal(t, "/legacy/data.db", parsed.DBPath, "legacy orm.db_path should be honored")
+
+	both := `
+sqlite:
+  db_path: /new/data.db
+  orm:
+    db_path: /legacy/data.db
+`
+	cfg2, err := config.NewConfigWithYAML([]byte(both), "test")
+	require.NoError(t, err)
+	var parsed2 SQLiteModuleConfig
+	_, err = env.ParseConfigSection(cfg2, "sqlite", &parsed2)
+	require.NoError(t, err)
+	parsed2.applyConfigDefaults()
+	assert.Equal(t, "/new/data.db", parsed2.DBPath, "module-level db_path should win")
 }
 
 func TestBackupStatsTracked(t *testing.T) {

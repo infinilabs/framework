@@ -23,14 +23,11 @@
 
 package sqlite
 
-import "time"
+import (
+	"time"
 
-// SQLiteConfig holds configuration for the SQLite ORM backend.
-type SQLiteConfig struct {
-	Enabled bool         `config:"enabled"`
-	DBPath  string       `config:"db_path"`
-	Backup  BackupConfig `config:"backup"`
-}
+	log "github.com/cihub/seelog"
+)
 
 // BackupConfig controls periodic online backup of the SQLite database.
 //
@@ -46,8 +43,48 @@ type BackupConfig struct {
 	Retention int           `config:"retention"` // max archives to keep, default 14
 }
 
-// SQLiteModuleConfig is the top-level module configuration.
+// SQLiteConfig is the runtime configuration of a SQLiteORM handler; the
+// module assembles it from the parsed YAML sections (see SQLiteModuleConfig).
+type SQLiteConfig struct {
+	Enabled bool
+	DBPath  string
+	Backup  BackupConfig
+}
+
+// ORMSectionConfig is the `sqlite.orm` section, which only controls whether
+// the SQLite backend is registered with the ORM registry. DBPath here is
+// the deprecated pre-backup location, honored as a fallback so existing
+// configurations keep working.
+type ORMSectionConfig struct {
+	Enabled bool   `config:"enabled"`
+	DBPath  string `config:"db_path"` // deprecated: use sqlite.db_path
+}
+
+// SQLiteModuleConfig is the top-level `sqlite` module configuration. The
+// database file (db_path) and its operations (backup) are module-level
+// concerns and sit beside `orm`, not under it.
 type SQLiteModuleConfig struct {
-	Enabled bool         `config:"enabled"`
-	ORM     SQLiteConfig `config:"orm"`
+	Enabled bool             `config:"enabled"`
+	DBPath  string           `config:"db_path"`
+	Backup  BackupConfig     `config:"backup"`
+	ORM     ORMSectionConfig `config:"orm"`
+}
+
+// applyConfigDefaults resolves the deprecated orm.db_path fallback and
+// applies backup defaults; Setup adds the data-dir default for DBPath.
+func (c *SQLiteModuleConfig) applyConfigDefaults() {
+	if c.DBPath == "" && c.ORM.DBPath != "" {
+		log.Warn("sqlite: orm.db_path is deprecated, use sqlite.db_path")
+		c.DBPath = c.ORM.DBPath
+	}
+	if c.Backup.Enabled == nil {
+		enabled := true
+		c.Backup.Enabled = &enabled
+	}
+	if c.Backup.Interval <= 0 {
+		c.Backup.Interval = 12 * time.Hour
+	}
+	if c.Backup.Retention <= 0 {
+		c.Backup.Retention = 14
+	}
 }

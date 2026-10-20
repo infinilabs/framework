@@ -50,21 +50,11 @@ func (module *SQLiteModule) Setup() {
 		panic(err)
 	}
 
-	// Default DB path
-	if moduleConfig.ORM.DBPath == "" {
-		moduleConfig.ORM.DBPath = filepath.Join(global.Env().GetDataDir(), "sqlite", "data.db")
-	}
+	moduleConfig.applyConfigDefaults()
 
-	// Backup defaults: periodic backup is on unless explicitly disabled.
-	if moduleConfig.ORM.Backup.Enabled == nil {
-		enabled := true
-		moduleConfig.ORM.Backup.Enabled = &enabled
-	}
-	if moduleConfig.ORM.Backup.Interval <= 0 {
-		moduleConfig.ORM.Backup.Interval = 12 * time.Hour
-	}
-	if moduleConfig.ORM.Backup.Retention <= 0 {
-		moduleConfig.ORM.Backup.Retention = 14
+	// Default DB path
+	if moduleConfig.DBPath == "" {
+		moduleConfig.DBPath = filepath.Join(global.Env().GetDataDir(), "sqlite", "data.db")
 	}
 }
 
@@ -75,7 +65,11 @@ func (module *SQLiteModule) Start() error {
 	}
 
 	if moduleConfig.ORM.Enabled {
-		handler := &SQLiteORM{Config: moduleConfig.ORM}
+		handler := &SQLiteORM{Config: SQLiteConfig{
+			Enabled: true,
+			DBPath:  moduleConfig.DBPath,
+			Backup:  moduleConfig.Backup,
+		}}
 		if err := handler.Open(); err != nil {
 			return err
 		}
@@ -110,7 +104,7 @@ func (module *SQLiteModule) Start() error {
 		// Periodic compressed backup. First run shortly after start so a
 		// restart always yields a fresh baseline snapshot, then every
 		// Backup.Interval (default 12h).
-		if moduleConfig.ORM.Backup.Enabled != nil && *moduleConfig.ORM.Backup.Enabled && moduleConfig.ORM.Backup.Interval > 0 {
+		if moduleConfig.Backup.Enabled != nil && *moduleConfig.Backup.Enabled && moduleConfig.Backup.Interval > 0 {
 			backupTask := global.BackgroundTask{}
 			backupTask.Tag = "sqlite_backup"
 			backupTask.Func = func() {
@@ -118,7 +112,7 @@ func (module *SQLiteModule) Start() error {
 					log.Errorf("sqlite periodic backup: %v", err)
 				}
 			}
-			backupTask.Interval = moduleConfig.ORM.Backup.Interval
+			backupTask.Interval = moduleConfig.Backup.Interval
 			backupTask.InitialDelay = 1 * time.Minute
 			global.RegisterBackgroundCallback(&backupTask)
 			// Show when the first backup is due before it has ever run;
@@ -126,7 +120,7 @@ func (module *SQLiteModule) Start() error {
 			handler.markBackupScheduled(backupTask.InitialDelay)
 			activeORM = handler
 			log.Infof("sqlite periodic backup enabled, interval: %v, dir: %s, retention: %d",
-				moduleConfig.ORM.Backup.Interval, moduleConfig.ORM.Backup.Dir, moduleConfig.ORM.Backup.Retention)
+				moduleConfig.Backup.Interval, moduleConfig.Backup.Dir, moduleConfig.Backup.Retention)
 		}
 	}
 

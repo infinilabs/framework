@@ -8,22 +8,25 @@ The framework ships an embedded SQLite ORM backend (see [ORM](orm/)) for applica
 
 ## Module Configuration
 
+The database file and its operations are module-level concerns and sit beside `orm`, which only controls whether the SQLite backend is registered with the ORM registry:
+
 ```yaml
 sqlite:
   enabled: true
+  db_path: data/sqlite/data.db   # default: <data_dir>/sqlite/data.db
   orm:
     enabled: true
-    db_path: data/sqlite/data.db   # default: <data_dir>/sqlite/data.db
-    backup:
-      enabled: true                # default: true; set false to disable backups
-      interval: 12h                # default: 12h
-      dir: ""                      # default: <db_path dir>/backup
-      retention: 14                # max archives to keep, default: 14
+  backup:
+    enabled: true                # default: true; set false to disable backups
+    interval: 12h                # default: 12h
+    dir: ""                      # default: <db_path dir>/backup
+    retention: 14                # max archives to keep, default: 14
 ```
 
 | Field              | Description                                                              |
 |--------------------|--------------------------------------------------------------------------|
-| `orm.db_path`      | Database file path. Defaults to `<data_dir>/sqlite/data.db`.             |
+| `db_path`          | Database file path. Defaults to `<data_dir>/sqlite/data.db`. The deprecated `orm.db_path` location is still honored as a fallback. |
+| `orm.enabled`      | Whether the SQLite backend is registered with the ORM registry.          |
 | `backup.enabled`   | Whether periodic backup runs. Defaults to `true`; explicit `false` opts out. |
 | `backup.interval`  | Time between backups (Go duration string, e.g. `30m`, `12h`). Default `12h`. |
 | `backup.dir`       | Directory for backup archives. Defaults to a `backup` folder next to the database file. |
