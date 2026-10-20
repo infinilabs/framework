@@ -185,7 +185,8 @@ sqlite:
 	cfg, err := config.NewConfigWithYAML([]byte(yaml), "test")
 	require.NoError(t, err)
 
-	var parsed SQLiteModuleConfig
+	// Same chain as Setup: defaults seeded before parsing, then overrides.
+	parsed := defaultModuleConfig()
 	exists, err := env.ParseConfigSection(cfg, "sqlite", &parsed)
 	require.NoError(t, err)
 	require.True(t, exists)
@@ -211,7 +212,7 @@ sqlite:
 `
 	cfg2, err := config.NewConfigWithYAML([]byte(disabled), "test")
 	require.NoError(t, err)
-	var parsed2 SQLiteModuleConfig
+	parsed2 := defaultModuleConfig()
 	_, err = env.ParseConfigSection(cfg2, "sqlite", &parsed2)
 	require.NoError(t, err)
 	parsed2.applyConfigDefaults()
@@ -219,6 +220,21 @@ sqlite:
 	assert.False(t, *parsed2.Backup.Enabled)
 	assert.Equal(t, 12*time.Hour, parsed2.Backup.Interval, "unset interval should default")
 	assert.Equal(t, 14, parsed2.Backup.Retention, "unset retention should default")
+
+	// An explicit retention: 0 means keep-all and must survive the
+	// pre-seeded default (a post-parse <=0 -> 14 rule would break it).
+	keepAll := `
+sqlite:
+  backup:
+    retention: 0
+`
+	cfg3, err := config.NewConfigWithYAML([]byte(keepAll), "test")
+	require.NoError(t, err)
+	parsed3 := defaultModuleConfig()
+	_, err = env.ParseConfigSection(cfg3, "sqlite", &parsed3)
+	require.NoError(t, err)
+	parsed3.applyConfigDefaults()
+	assert.Equal(t, 0, parsed3.Backup.Retention, "explicit retention: 0 (keep all) must survive defaults")
 }
 
 // orm.db_path is the pre-backup location; it must keep working as a
@@ -348,4 +364,81 @@ func TestBackupStatsAction(t *testing.T) {
 func TestBackupStatsPermissionRegistered(t *testing.T) {
 	assert.Equal(t, "generic#system:sqlite-backup/read", string(security.PermissionSystemSqliteBackupRead))
 	assert.Contains(t, security.InstanceOpsPermissionKeys(), security.PermissionSystemSqliteBackupRead)
+}
+
+// Databases sharing a backup directory (both defaulting to <dir>/backup)
+// must never prune each other's archives, and malformed names are ignored.
+func TestPruneBackupIgnoresOtherDatabasesAndMalformed(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"data-20260101-000000-000.db.gz":     "x", // ours, oldest
+		"data-20260102-000000-000.db.gz":     "x", // ours, newest
+		"data-20260103-000000-000.db.gz":     "x", // ours, beyond retention
+		"data-old-20260101-000000-000.db.gz": "x", // other database
+		"data-2026garbage.db.gz":             "x", // malformed
+		"data-20260101-000000-99x.db.gz":     "x", // bad ms digits
+		"data-20260101-000000-000-x9.db.gz":  "x", // bad counter
+		"data-20260101-000000.db.gz":         "x", // missing ms
+	}
+	for name, content := range files {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0644))
+	}
+
+	require.NoError(t, pruneBackups(dir, "data", 2))
+
+	for _, name := range []string{
+		"data-old-20260101-000000-000.db.gz",
+		"data-2026garbage.db.gz",
+		"data-20260101-000000-99x.db.gz",
+		"data-20260101-000000-000-x9.db.gz",
+		"data-20260101-000000.db.gz",
+	} {
+		assert.FileExists(t, filepath.Join(dir, name), "must not be pruned or matched")
+	}
+	assert.NoFileExists(t, filepath.Join(dir, "data-20260101-000000-000.db.gz"), "oldest of ours should be pruned")
+	assert.FileExists(t, filepath.Join(dir, "data-20260102-000000-000.db.gz"))
+}
+
+// A same-millisecond collision appends a counter; the counter file is NEWER
+// than the plain one, so retention must keep it and the backup must return
+// an archive that still exists.
+func TestBackupCollisionRetentionKeepsNewest(t *testing.T) {
+	handler, cleanup := setupBackupDB(t, BackupConfig{Retention: 1})
+	defer cleanup()
+
+	// Seed an archive with the exact stamp Backup() is about to use by
+	// making the directory non-empty for that millisecond: run once, then
+	// force a second run inside the same millisecond by rewriting time is
+	// not possible — so create the collision via a second immediate call;
+	// if it lands in a different millisecond the test degrades to a normal
+	// prune check. Force determinism instead: pre-create the exact target.
+	now := time.Now()
+	stamp := now.Format("20060102-150405") + fmt.Sprintf("-%03d", now.Nanosecond()/int(time.Millisecond))
+	dir := handler.backupDir()
+	require.NoError(t, os.MkdirAll(dir, 0755))
+	seed := filepath.Join(dir, fmt.Sprintf("data-%s.db.gz", stamp))
+	require.NoError(t, os.WriteFile(seed, []byte("old"), 0600))
+
+	archive, err := handler.Backup()
+	require.NoError(t, err)
+
+	// Backup either collided (counter file) or landed in a later ms; in
+	// both cases the returned archive must exist and the seeded older
+	// archive of the same millisecond must be the one pruned.
+	assert.FileExists(t, archive, "returned path must exist after pruning")
+	if filepath.Base(archive) == fmt.Sprintf("data-%s-1.db.gz", stamp) {
+		assert.NoFileExists(t, seed, "collision: older same-ms archive should be pruned")
+	}
+}
+
+func TestBackupArchivePermissions(t *testing.T) {
+	handler, cleanup := setupBackupDB(t, BackupConfig{})
+	defer cleanup()
+
+	archive, err := handler.Backup()
+	require.NoError(t, err)
+
+	info, err := os.Stat(archive)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0600), info.Mode().Perm(), "archives must be owner-only")
 }

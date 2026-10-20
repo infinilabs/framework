@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -40,9 +41,11 @@ import (
 	"infini.sh/framework/core/util"
 )
 
-// backupTimeLayout zero-pads to milliseconds so names stay unique within one
-// second and still sort lexicographically in chronological order.
-const backupTimeLayout = "20060102-150405-000"
+// backupStampLayout is the lex-sortable timestamp part of archive names.
+// The millisecond part is appended separately with %03d: Go layouts express
+// fractional seconds only as ".000" (dot-prefixed), so "-000" inside a
+// layout would be literal text and every name would carry a constant 000.
+const backupStampLayout = "20060102-150405"
 
 // BackupHealthService is the name this module reports under in
 // /health services: green after a successful backup, red after a failed one.
@@ -156,11 +159,13 @@ func (handler *SQLiteORM) snapshot() (string, int64, error) {
 		return "", 0, fmt.Errorf("sqlite backup: create backup dir %s: %w", dir, err)
 	}
 
-	stamp := time.Now().Format(backupTimeLayout)
+	now := time.Now()
+	stamp := now.Format(backupStampLayout) + fmt.Sprintf("-%03d", now.Nanosecond()/int(time.Millisecond))
 	base := strings.TrimSuffix(filepath.Base(handler.Config.DBPath), filepath.Ext(handler.Config.DBPath))
 	finalPath := filepath.Join(dir, fmt.Sprintf("%s-%s.db.gz", base, stamp))
 	// Two backups inside one millisecond (manual runs, tests) bump a counter;
-	// the "-N" suffix still sorts right after the original timestamp.
+	// pruneBackups orders by parsed timestamp+counter, so the counter suffix
+	// must follow the format validated by parseArchiveName.
 	for i := 1; util.FileExists(finalPath); i++ {
 		finalPath = filepath.Join(dir, fmt.Sprintf("%s-%s-%d.db.gz", base, stamp, i))
 	}
@@ -177,6 +182,11 @@ func (handler *SQLiteORM) snapshot() (string, int64, error) {
 		return "", 0, fmt.Errorf("sqlite backup: VACUUM INTO: %w", err)
 	}
 	defer os.Remove(tmpPath)
+	// SQLite creates the snapshot umask-dependent (0644 under 022); the raw
+	// database copy must not be more readable than the live file.
+	if err := os.Chmod(tmpPath, 0600); err != nil {
+		log.Warnf("sqlite backup: chmod %s: %v", tmpPath, err)
+	}
 
 	if err := gzipFile(tmpPath, finalPath); err != nil {
 		os.Remove(finalPath)
@@ -206,7 +216,9 @@ func gzipFile(src, dst string) error {
 	}
 	defer in.Close()
 
-	out, err := os.Create(dst)
+	// 0600, not os.Create's 0666: archives are full copies of the database
+	// and must not widen access to it for other local users.
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
@@ -224,8 +236,49 @@ func gzipFile(src, dst string) error {
 	return out.Close()
 }
 
-// pruneBackups keeps the newest retention archives named <base>-*.db.gz and
-// deletes the rest. retention <= 0 keeps everything.
+// parseArchiveName reports whether name is an archive of the database base
+// with the exact form <base>-<YYYYMMDD-HHMMSS>-<mmm>[-<n>].db.gz, returning
+// its millisecond-resolution timestamp key and sequence counter. A plain
+// prefix test is not enough: with /dir/data.db and /dir/data-old.db both
+// defaulting to /dir/backup, pruning for "data" must not touch
+// data-old-*.db.gz, and unrelated or malformed files must be ignored.
+func parseArchiveName(name, base string) (key string, counter int, ok bool) {
+	rest := strings.TrimPrefix(name, base+"-")
+	if len(rest) == len(name) || !strings.HasSuffix(rest, ".db.gz") {
+		return "", 0, false
+	}
+	rest = strings.TrimSuffix(rest, ".db.gz")
+
+	// rest = <YYYYMMDD>-<HHMMSS>-<mmm>[-<n>]; the stamp itself contains a
+	// dash, so split fields are date, time, millis, optional counter.
+	parts := strings.Split(rest, "-")
+	if len(parts) != 3 && len(parts) != 4 {
+		return "", 0, false
+	}
+	if _, err := time.Parse(backupStampLayout, parts[0]+"-"+parts[1]); err != nil {
+		return "", 0, false
+	}
+	// milliseconds: exactly three digits
+	if len(parts[2]) != 3 || strings.Trim(parts[2], "0123456789") != "" {
+		return "", 0, false
+	}
+	if len(parts) == 4 {
+		// same-millisecond collision counter: non-empty digits, >= 1
+		if parts[3] == "" || strings.Trim(parts[3], "0123456789") != "" {
+			return "", 0, false
+		}
+		c, err := strconv.Atoi(parts[3])
+		if err != nil || c < 1 {
+			return "", 0, false
+		}
+		return parts[0] + parts[1] + parts[2], c, true
+	}
+	return parts[0] + parts[1] + parts[2], 0, true
+}
+
+// pruneBackups keeps the newest retention archives of this database and
+// deletes the rest, newest-first by timestamp then collision counter.
+// retention <= 0 keeps everything.
 func pruneBackups(dir, base string, retention int) error {
 	if retention <= 0 {
 		return nil
@@ -236,25 +289,38 @@ func pruneBackups(dir, base string, retention int) error {
 		return err
 	}
 
-	var archives []string
-	pattern := base + "-"
+	type archiveRef struct {
+		key     string // YYYYMMDD-HHMMSSmmm, fixed width, lex == chronological
+		counter int
+		name    string
+	}
+	var archives []archiveRef
 	for _, e := range entries {
-		name := e.Name()
-		if !e.IsDir() && strings.HasPrefix(name, pattern) && strings.HasSuffix(name, ".db.gz") {
-			archives = append(archives, name)
+		if e.IsDir() {
+			continue
+		}
+		if key, counter, ok := parseArchiveName(e.Name(), base); ok {
+			archives = append(archives, archiveRef{key: key, counter: counter, name: e.Name()})
 		}
 	}
-	// Names embed backupTimeLayout, so lexicographic == chronological.
-	sort.Sort(sort.Reverse(sort.StringSlice(archives)))
+	// Sort newest-first by timestamp, then by collision counter: for the same
+	// millisecond, data-...-000-1.db.gz was created AFTER data-...-000.db.gz
+	// and must be kept ahead of it under retention.
+	sort.Slice(archives, func(i, j int) bool {
+		if archives[i].key != archives[j].key {
+			return archives[i].key > archives[j].key
+		}
+		return archives[i].counter > archives[j].counter
+	})
 
 	if retention >= len(archives) {
 		return nil
 	}
-	for _, name := range archives[retention:] {
-		if err := os.Remove(filepath.Join(dir, name)); err != nil {
-			log.Warnf("sqlite backup: remove old archive %s: %v", name, err)
+	for _, a := range archives[retention:] {
+		if err := os.Remove(filepath.Join(dir, a.name)); err != nil {
+			log.Warnf("sqlite backup: remove old archive %s: %v", a.name, err)
 		} else {
-			log.Debugf("sqlite backup: pruned old archive %s", name)
+			log.Debugf("sqlite backup: pruned old archive %s", a.name)
 		}
 	}
 	return nil

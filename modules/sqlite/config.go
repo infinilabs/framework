@@ -70,8 +70,19 @@ type SQLiteModuleConfig struct {
 	ORM     ORMSectionConfig `config:"orm"`
 }
 
+// defaultModuleConfig returns the pre-parse defaults. Retention is seeded
+// BEFORE parsing rather than defaulted after: an explicit `retention: 0`
+// means keep-all (see BackupConfig), and a post-parse `<= 0 -> 14` rule
+// would silently override it.
+func defaultModuleConfig() SQLiteModuleConfig {
+	c := SQLiteModuleConfig{}
+	c.Backup.Retention = 14
+	return c
+}
+
 // applyConfigDefaults resolves the deprecated orm.db_path fallback and
-// applies backup defaults; Setup adds the data-dir default for DBPath.
+// applies post-parse backup defaults; Setup adds the data-dir default for
+// DBPath.
 func (c *SQLiteModuleConfig) applyConfigDefaults() {
 	if c.DBPath == "" && c.ORM.DBPath != "" {
 		log.Warn("sqlite: orm.db_path is deprecated, use sqlite.db_path")
@@ -83,8 +94,5 @@ func (c *SQLiteModuleConfig) applyConfigDefaults() {
 	}
 	if c.Backup.Interval <= 0 {
 		c.Backup.Interval = 12 * time.Hour
-	}
-	if c.Backup.Retention <= 0 {
-		c.Backup.Retention = 14
 	}
 }

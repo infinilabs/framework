@@ -36,15 +36,23 @@ import (
 // SQLiteModule implements the framework module interface for the SQLite ORM backend.
 type SQLiteModule struct {
 	ormHandler *SQLiteORM
+
+	// backupStop signals the backup worker to exit; backupDone is closed by
+	// the worker once the in-flight backup (if any) has finished.
+	backupStop chan struct{}
+	backupDone chan struct{}
 }
 
-var moduleConfig = SQLiteModuleConfig{}
+var moduleConfig = defaultModuleConfig()
 
 func (module *SQLiteModule) Name() string {
 	return "sqlite"
 }
 
 func (module *SQLiteModule) Setup() {
+	// Start from defaults so an explicit `retention: 0` (keep all) survives
+	// parsing instead of being re-defaulted to 14.
+	moduleConfig = defaultModuleConfig()
 	exists, err := env.ParseConfig("sqlite", &moduleConfig)
 	if exists && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
@@ -104,23 +112,41 @@ func (module *SQLiteModule) Start() error {
 		// Periodic compressed backup. First run shortly after start so a
 		// restart always yields a fresh baseline snapshot, then every
 		// Backup.Interval (default 12h).
+		//
+		// The backup runs on a dedicated worker instead of the shared
+		// background-callback loop: that loop executes tasks serially and
+		// cannot interrupt one, so a long VACUUM+gzip would stall unrelated
+		// callbacks (config polling, PRAGMA optimize) for the whole backup.
 		if moduleConfig.Backup.Enabled != nil && *moduleConfig.Backup.Enabled && moduleConfig.Backup.Interval > 0 {
-			backupTask := global.BackgroundTask{}
-			backupTask.Tag = "sqlite_backup"
-			backupTask.Func = func() {
-				if _, err := handler.Backup(); err != nil {
-					log.Errorf("sqlite periodic backup: %v", err)
+			interval := moduleConfig.Backup.Interval
+			initialDelay := 1 * time.Minute
+			module.backupStop = make(chan struct{})
+			module.backupDone = make(chan struct{})
+			stop, done := module.backupStop, module.backupDone
+			go func() {
+				defer close(done)
+				select {
+				case <-time.After(initialDelay):
+				case <-stop:
+					return
 				}
-			}
-			backupTask.Interval = moduleConfig.Backup.Interval
-			backupTask.InitialDelay = 1 * time.Minute
-			global.RegisterBackgroundCallback(&backupTask)
+				for {
+					if _, err := handler.Backup(); err != nil {
+						log.Errorf("sqlite periodic backup: %v", err)
+					}
+					select {
+					case <-time.After(interval):
+					case <-stop:
+						return
+					}
+				}
+			}()
 			// Show when the first backup is due before it has ever run;
 			// every attempt overwrites this in recordBackupResult.
-			handler.markBackupScheduled(backupTask.InitialDelay)
+			handler.markBackupScheduled(initialDelay)
 			activeORM = handler
 			log.Infof("sqlite periodic backup enabled, interval: %v, dir: %s, retention: %d",
-				moduleConfig.Backup.Interval, moduleConfig.Backup.Dir, moduleConfig.Backup.Retention)
+				interval, moduleConfig.Backup.Dir, moduleConfig.Backup.Retention)
 		}
 	}
 
@@ -128,6 +154,12 @@ func (module *SQLiteModule) Start() error {
 }
 
 func (module *SQLiteModule) Stop() error {
+	// Signal the backup worker and wait out any in-flight backup before
+	// closing the database underneath it.
+	if module.backupStop != nil {
+		close(module.backupStop)
+		<-module.backupDone
+	}
 	if module.ormHandler != nil {
 		return module.ormHandler.Close()
 	}

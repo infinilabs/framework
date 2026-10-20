@@ -38,20 +38,22 @@ The first backup runs about one minute after startup — a restart always yields
 
 Each backup uses SQLite's `VACUUM INTO`, which writes a compact, always-consistent snapshot of the database (including all committed WAL content) without blocking readers or writers. The snapshot is then gzip-compressed in place; the database is never held in memory as a whole.
 
-Archives are named `<db_name>-<timestamp>.db.gz`, e.g.:
+Archives are named `<db_name>-<timestamp>.db.gz` with millisecond resolution, e.g.:
 
 ```
-data-20261016-150405-000.db.gz
+data-20261016-150405-123.db.gz
 ```
+
+Archives are written with owner-only permissions (`0600`): they are full copies of the database and must not widen access to it for other local users, even when the backup directory itself is traversable. Pruning matches only this database's exact archive naming, so databases sharing a backup directory (e.g. `data.db` and `data-old.db` both defaulting to `<dir>/backup`) never delete each other's archives.
 
 The timestamp is zero-padded to milliseconds, so names sort lexicographically in chronological order; two backups inside the same millisecond append a counter. After each run, archives beyond `retention` are deleted, oldest first.
 
 ## Restoring a Backup
 
-Backups are plain SQLite database files wrapped in gzip. To restore:
+Backups are plain SQLite database files wrapped in gzip. Decompress to stdout and redirect to the destination (`gunzip` has no `-o` flag on GNU systems, and this form preserves the archive):
 
 ```bash
-gunzip data-20261016-150405-000.db.gz -o restored.db
+gunzip -c data-20261016-150405-000.db.gz > restored.db
 ```
 
 Point `orm.db_path` at the restored file (or replace the live database file while the process is stopped), then start the application.
