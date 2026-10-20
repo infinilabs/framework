@@ -25,9 +25,9 @@ package security
 
 // Permission keys for the system-level operational routes (stats, queues,
 // configs, keystore, pipelines, tasks, local data files, cluster metadata,
-// logs) that are served on the web port behind login + RBAC. Managed clients
-// mint their self API token with InstanceOpsPermissionKeys() so
-// manager-originated calls (reverse channel loopback, direct endpoint
+// logs, sqlite backup) that are served on the web port behind login + RBAC.
+// Managed clients mint their self API token with InstanceOpsPermissionKeys()
+// so manager-originated calls (reverse channel loopback, direct endpoint
 // access) pass the permission filter; human users obtain these keys through
 // role assignment.
 
@@ -36,6 +36,7 @@ var (
 	PermissionSystemQueueRead         = GetSimplePermission("generic", "system:queue", Read)
 	PermissionSystemQueueUpdate       = GetSimplePermission("generic", "system:queue", Update)
 	PermissionSystemQueueDelete       = GetSimplePermission("generic", "system:queue", Delete)
+	PermissionSystemSqliteBackupRead  = GetSimplePermission("generic", "system:sqlite-backup", Read)
 	PermissionSystemConfigRead        = GetSimplePermission("generic", "system:config", Read)
 	PermissionSystemConfigUpdate      = GetSimplePermission("generic", "system:config", Update)
 	PermissionSystemConfigDelete      = GetSimplePermission("generic", "system:config", Delete)
@@ -65,6 +66,7 @@ func InstanceOpsPermissionKeys() []PermissionKey {
 		PermissionSystemQueueRead,
 		PermissionSystemQueueUpdate,
 		PermissionSystemQueueDelete,
+		PermissionSystemSqliteBackupRead,
 		PermissionSystemConfigRead,
 		PermissionSystemConfigUpdate,
 		PermissionSystemConfigDelete,

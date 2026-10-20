@@ -23,10 +23,27 @@
 
 package sqlite
 
+import "time"
+
 // SQLiteConfig holds configuration for the SQLite ORM backend.
 type SQLiteConfig struct {
-	Enabled bool   `config:"enabled"`
-	DBPath  string `config:"db_path"`
+	Enabled bool         `config:"enabled"`
+	DBPath  string       `config:"db_path"`
+	Backup  BackupConfig `config:"backup"`
+}
+
+// BackupConfig controls periodic online backup of the SQLite database.
+//
+// The backup uses `VACUUM INTO`, which writes a compact, always-consistent
+// snapshot without blocking readers, then gzips it in place. Old archives
+// beyond Retention are pruned after each run.
+type BackupConfig struct {
+	// Enabled defaults to true; the pointer distinguishes "not configured"
+	// (nil -> default on) from an explicit `enabled: false`.
+	Enabled   *bool         `config:"enabled"`
+	Interval  time.Duration `config:"interval"`  // default 12h
+	Dir       string        `config:"dir"`       // default: <db dir>/backup
+	Retention int           `config:"retention"` // max archives to keep, default 14
 }
 
 // SQLiteModuleConfig is the top-level module configuration.

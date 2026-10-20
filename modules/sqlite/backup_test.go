@@ -1,0 +1,306 @@
+package sqlite
+
+import (
+	"compress/gzip"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/env"
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/security"
+)
+
+func setupBackupDB(t *testing.T, backupCfg BackupConfig) (*SQLiteORM, func()) {
+	t.Helper()
+	tmpDir := t.TempDir()
+
+	handler := &SQLiteORM{
+		Config: SQLiteConfig{
+			Enabled: true,
+			DBPath:  filepath.Join(tmpDir, "data.db"),
+			Backup:  backupCfg,
+		},
+	}
+	require.NoError(t, handler.Open())
+	// A dedicated type/table: TestItem's global table-name registration is
+	// order-sensitive across the suite (indexes_test re-registers it as
+	// legacy_items), so touching it here breaks orm_test expectations.
+	require.NoError(t, handler.RegisterSchemaWithName(backupDoc{}, "backup_items"))
+
+	for i, item := range []backupDoc{
+		{Name: "alpha", Age: 1},
+		{Name: "beta", Age: 2},
+	} {
+		item.ID = fmt.Sprintf("backup-%d", i)
+		require.NoError(t, handler.Save(nil, item))
+	}
+
+	cleanup := func() {
+		handler.Close()
+		os.RemoveAll(tmpDir)
+	}
+	return handler, cleanup
+}
+
+// backupDoc is a schema local to backup tests; see setupBackupDB for why the
+// shared TestItem must not be used here.
+type backupDoc struct {
+	orm.ORMObjectBase
+	Name string `json:"name,omitempty" elastic_mapping:"name: { type: keyword }"`
+	Age  int    `json:"age,omitempty" elastic_mapping:"age: { type: integer }"`
+}
+
+func gunzipTo(t *testing.T, src, dst string) {
+	t.Helper()
+	in, err := os.Open(src)
+	require.NoError(t, err)
+	defer in.Close()
+
+	gz, err := gzip.NewReader(in)
+	require.NoError(t, err)
+	defer gz.Close()
+
+	out, err := os.Create(dst)
+	require.NoError(t, err)
+	defer out.Close()
+	_, err = io.Copy(out, gz)
+	require.NoError(t, err)
+}
+
+func TestBackupCreatesRestorableSnapshot(t *testing.T) {
+	handler, cleanup := setupBackupDB(t, BackupConfig{Retention: 10})
+	defer cleanup()
+
+	archive, err := handler.Backup()
+	require.NoError(t, err)
+	assert.True(t, filepath.IsAbs(archive))
+	assert.FileExists(t, archive)
+
+	// No leftover raw temp file next to the archive.
+	entries, err := os.ReadDir(filepath.Dir(archive))
+	require.NoError(t, err)
+	for _, e := range entries {
+		assert.False(t, strings.HasSuffix(e.Name(), ".tmp"), "leftover tmp file: %s", e.Name())
+	}
+
+	// The archive must restore into a readable database with the same rows.
+	restored := filepath.Join(t.TempDir(), "restored.db")
+	gunzipTo(t, archive, restored)
+
+	db, err := sql.Open("sqlite", "file:"+restored+"?_pragma=busy_timeout(5000)")
+	require.NoError(t, err)
+	defer db.Close()
+
+	var count int
+	require.NoError(t, db.QueryRow("SELECT count(*) FROM backup_items").Scan(&count))
+	assert.Equal(t, 2, count)
+
+	var name string
+	require.NoError(t, db.QueryRow("SELECT name FROM backup_items WHERE age = 2").Scan(&name))
+	assert.Equal(t, "beta", name)
+}
+
+func TestBackupNamesUniqueAndSorted(t *testing.T) {
+	handler, cleanup := setupBackupDB(t, BackupConfig{})
+	defer cleanup()
+
+	first, err := handler.Backup()
+	require.NoError(t, err)
+	second, err := handler.Backup()
+	require.NoError(t, err)
+	assert.NotEqual(t, first, second, "backups in the same second must not collide")
+}
+
+func TestBackupCustomDirAndRetention(t *testing.T) {
+	tmpDir := t.TempDir()
+	backupDir := filepath.Join(tmpDir, "custom-backup")
+
+	handler, cleanup := setupBackupDB(t, BackupConfig{Dir: backupDir, Retention: 2})
+	defer cleanup()
+
+	// Seed older archives to exercise pruning alongside a fresh backup.
+	for _, stamp := range []string{"20200101-000000-000", "20200201-000000-000", "20200301-000000-000"} {
+		path := filepath.Join(backupDir, "data-"+stamp+".db.gz")
+		require.NoError(t, os.MkdirAll(backupDir, 0755))
+		require.NoError(t, os.WriteFile(path, []byte("old"), 0644))
+	}
+
+	archive, err := handler.Backup()
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(archive, backupDir), "archive should land in the configured dir: %s", archive)
+
+	entries, err := os.ReadDir(backupDir)
+	require.NoError(t, err)
+	assert.Len(t, entries, 2, "retention=2 should keep only the newest archives")
+
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(names)))
+	// The fresh backup outranks the 20200301 seed lexicographically.
+	assert.Contains(t, names[0], time.Now().Format("2006"))
+	assert.Equal(t, "data-20200301-000000-000.db.gz", names[1])
+}
+
+func TestPruneBackupsKeepAllWhenDisabled(t *testing.T) {
+	dir := t.TempDir()
+	for i := 0; i < 5; i++ {
+		path := filepath.Join(dir, fmt.Sprintf("data-2020010%d-000000-000.db.gz", i))
+		require.NoError(t, os.WriteFile(path, []byte("x"), 0644))
+	}
+	require.NoError(t, pruneBackups(dir, "data", 0))
+
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Len(t, entries, 5)
+}
+
+func TestBackupConfigParsing(t *testing.T) {
+	yaml := `
+sqlite:
+  orm:
+    enabled: true
+    db_path: /tmp/x/data.db
+    backup:
+      interval: 6h
+      dir: /tmp/x/backups
+      retention: 30
+`
+	cfg, err := config.NewConfigWithYAML([]byte(yaml), "test")
+	require.NoError(t, err)
+
+	var parsed SQLiteModuleConfig
+	exists, err := env.ParseConfigSection(cfg, "sqlite", &parsed)
+	require.NoError(t, err)
+	require.True(t, exists)
+
+	// Absent `enabled` must stay nil so the module default (on) applies.
+	assert.Nil(t, parsed.ORM.Backup.Enabled)
+	assert.Equal(t, 6*time.Hour, parsed.ORM.Backup.Interval)
+	assert.Equal(t, "/tmp/x/backups", parsed.ORM.Backup.Dir)
+	assert.Equal(t, 30, parsed.ORM.Backup.Retention)
+
+	disabled := `
+sqlite:
+  orm:
+    backup:
+      enabled: false
+`
+	cfg2, err := config.NewConfigWithYAML([]byte(disabled), "test")
+	require.NoError(t, err)
+	var parsed2 SQLiteModuleConfig
+	_, err = env.ParseConfigSection(cfg2, "sqlite", &parsed2)
+	require.NoError(t, err)
+	require.NotNil(t, parsed2.ORM.Backup.Enabled)
+	assert.False(t, *parsed2.ORM.Backup.Enabled)
+}
+
+func TestBackupStatsTracked(t *testing.T) {
+	handler, cleanup := setupBackupDB(t, BackupConfig{Interval: time.Hour})
+	defer cleanup()
+
+	// Before any attempt only the scheduled hint from task registration
+	// would exist; a fresh handler has zero stats.
+	zero := handler.GetBackupStats()
+	assert.Nil(t, zero.LastAttemptTime)
+	assert.Zero(t, zero.SuccessCount)
+
+	archive, err := handler.Backup()
+	require.NoError(t, err)
+
+	stats := handler.GetBackupStats()
+	require.NotNil(t, stats.LastAttemptTime, "last_backup_time must be set")
+	assert.WithinDuration(t, time.Now(), *stats.LastAttemptTime, time.Minute)
+	assert.True(t, stats.LastSuccess, "last_backup_success")
+	assert.Equal(t, archive, stats.LastBackupFile)
+	assert.Greater(t, stats.LastSizeBytes, int64(0), "last_backup_size")
+	assert.GreaterOrEqual(t, stats.LastDurationMs, int64(0))
+	assert.Equal(t, int64(1), stats.SuccessCount)
+	assert.Zero(t, stats.FailureCount)
+
+	// Next run = attempt end + interval, i.e. roughly an hour out.
+	require.NotNil(t, stats.NextBackupTime, "next_backup_time must be projected")
+	assert.WithinDuration(t, time.Now().Add(time.Hour), *stats.NextBackupTime, 2*time.Minute)
+
+	// A successful attempt must surface as green in /health services.
+	assert.Equal(t, "green", global.Env().GetServicesHealth()[BackupHealthService])
+}
+
+func TestBackupStatsFailureAndHealth(t *testing.T) {
+	// Handler that never opened: every attempt fails fast.
+	handler := &SQLiteORM{
+		Config: SQLiteConfig{
+			Enabled: true,
+			DBPath:  filepath.Join(t.TempDir(), "data.db"),
+			Backup:  BackupConfig{Interval: time.Hour},
+		},
+	}
+
+	_, err := handler.Backup()
+	require.Error(t, err)
+
+	stats := handler.GetBackupStats()
+	assert.False(t, stats.LastSuccess)
+	assert.NotEmpty(t, stats.LastError)
+	assert.Equal(t, int64(1), stats.FailureCount)
+	assert.Zero(t, stats.SuccessCount)
+	assert.Nil(t, stats.LastSuccessTime)
+	// The next run must still be projected after a failure.
+	require.NotNil(t, stats.NextBackupTime)
+
+	assert.Equal(t, "red", global.Env().GetServicesHealth()[BackupHealthService])
+}
+
+func TestBackupStatsAction(t *testing.T) {
+	handler, cleanup := setupBackupDB(t, BackupConfig{Interval: 12 * time.Hour, Retention: 5})
+	defer cleanup()
+
+	_, err := handler.Backup()
+	require.NoError(t, err)
+
+	prev := activeORM
+	activeORM = handler
+	t.Cleanup(func() { activeORM = prev })
+
+	module := API{}
+	recorder := httptest.NewRecorder()
+	module.BackupStatsAction(recorder, httptest.NewRequest(http.MethodGet, "/sqlite/backup/stats", nil), nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var payload map[string]interface{}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &payload))
+
+	assert.Equal(t, true, payload["enabled"])
+	assert.Equal(t, "12h0m0s", payload["interval"])
+	assert.Equal(t, float64(5), payload["retention"])
+	assert.Equal(t, true, payload["last_backup_success"])
+	assert.NotEmpty(t, payload["last_backup_file"])
+	assert.Greater(t, payload["last_backup_size"].(float64), float64(0))
+	assert.NotNil(t, payload["last_backup_time"])
+	assert.NotNil(t, payload["next_backup_time"])
+	assert.Equal(t, float64(1), payload["success_count"])
+}
+
+// The stats endpoint is RBAC-guarded by PermissionSystemSqliteBackupRead on
+// the web port; the key must also ride on managed-instance self tokens, or
+// manager-originated calls would start failing the permission filter.
+func TestBackupStatsPermissionRegistered(t *testing.T) {
+	assert.Equal(t, "generic#system:sqlite-backup/read", string(security.PermissionSystemSqliteBackupRead))
+	assert.Contains(t, security.InstanceOpsPermissionKeys(), security.PermissionSystemSqliteBackupRead)
+}

@@ -54,6 +54,18 @@ func (module *SQLiteModule) Setup() {
 	if moduleConfig.ORM.DBPath == "" {
 		moduleConfig.ORM.DBPath = filepath.Join(global.Env().GetDataDir(), "sqlite", "data.db")
 	}
+
+	// Backup defaults: periodic backup is on unless explicitly disabled.
+	if moduleConfig.ORM.Backup.Enabled == nil {
+		enabled := true
+		moduleConfig.ORM.Backup.Enabled = &enabled
+	}
+	if moduleConfig.ORM.Backup.Interval <= 0 {
+		moduleConfig.ORM.Backup.Interval = 12 * time.Hour
+	}
+	if moduleConfig.ORM.Backup.Retention <= 0 {
+		moduleConfig.ORM.Backup.Retention = 14
+	}
 }
 
 func (module *SQLiteModule) Start() error {
@@ -94,6 +106,28 @@ func (module *SQLiteModule) Start() error {
 
 		// statsLoop refreshes planner statistics periodically.
 		global.RegisterBackgroundCallback(&task)
+
+		// Periodic compressed backup. First run shortly after start so a
+		// restart always yields a fresh baseline snapshot, then every
+		// Backup.Interval (default 12h).
+		if moduleConfig.ORM.Backup.Enabled != nil && *moduleConfig.ORM.Backup.Enabled && moduleConfig.ORM.Backup.Interval > 0 {
+			backupTask := global.BackgroundTask{}
+			backupTask.Tag = "sqlite_backup"
+			backupTask.Func = func() {
+				if _, err := handler.Backup(); err != nil {
+					log.Errorf("sqlite periodic backup: %v", err)
+				}
+			}
+			backupTask.Interval = moduleConfig.ORM.Backup.Interval
+			backupTask.InitialDelay = 1 * time.Minute
+			global.RegisterBackgroundCallback(&backupTask)
+			// Show when the first backup is due before it has ever run;
+			// every attempt overwrites this in recordBackupResult.
+			handler.markBackupScheduled(backupTask.InitialDelay)
+			activeORM = handler
+			log.Infof("sqlite periodic backup enabled, interval: %v, dir: %s, retention: %d",
+				moduleConfig.ORM.Backup.Interval, moduleConfig.ORM.Backup.Dir, moduleConfig.ORM.Backup.Retention)
+		}
 	}
 
 	return nil

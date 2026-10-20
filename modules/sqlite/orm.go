@@ -48,6 +48,11 @@ var ErrNotFound = errors.New("record not found")
 type SQLiteORM struct {
 	Config SQLiteConfig
 	DB     *sql.DB
+
+	// statsMu guards backupStats; backup runs themselves are serialized by
+	// backupMu in backup.go.
+	statsMu     sync.RWMutex
+	backupStats BackupStats
 }
 
 // defaultCacheSize is the per-connection page cache in KiB (negative =
