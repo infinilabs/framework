@@ -109,6 +109,9 @@ func (module *API) BackupStatsAction(w http.ResponseWriter, req *http.Request, p
 		"next_backup_time":        stats.NextBackupTime,
 		"success_count":           stats.SuccessCount,
 		"failure_count":           stats.FailureCount,
+		"last_skip_time":          stats.LastSkipTime,
+		"last_skip_reason":        stats.LastSkipReason,
+		"skip_count":              stats.SkipCount,
 	}
 	module.WriteJSON(w, data, http.StatusOK)
 }

@@ -405,6 +405,10 @@ func TestBackupStatsAction(t *testing.T) {
 	assert.NotNil(t, payload["last_backup_time"])
 	assert.NotNil(t, payload["next_backup_time"])
 	assert.Equal(t, float64(1), payload["success_count"])
+	// Skip telemetry promised by the docs must be present in the payload.
+	assert.Equal(t, float64(0), payload["skip_count"])
+	assert.Empty(t, payload["last_skip_reason"])
+	assert.Nil(t, payload["last_skip_time"])
 }
 
 // The stats endpoint is RBAC-guarded by PermissionSystemSqliteBackupRead on
@@ -501,6 +505,7 @@ func TestPruneBackupIgnoresOtherDatabasesAndMalformed(t *testing.T) {
 		"data-20260101-000000-99x.db.gz":     "x", // bad ms digits
 		"data-20260101-000000-000-x9.db.gz":  "x", // bad counter
 		"data-20260101-000000.db.gz":         "x", // missing ms
+		"data-20260101-000000-000.db.gz.tmp": "x", // in-flight partial write
 	}
 	for name, content := range files {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0644))
@@ -514,6 +519,7 @@ func TestPruneBackupIgnoresOtherDatabasesAndMalformed(t *testing.T) {
 		"data-20260101-000000-99x.db.gz",
 		"data-20260101-000000-000-x9.db.gz",
 		"data-20260101-000000.db.gz",
+		"data-20260101-000000-000.db.gz.tmp",
 	} {
 		assert.FileExists(t, filepath.Join(dir, name), "must not be pruned or matched")
 	}

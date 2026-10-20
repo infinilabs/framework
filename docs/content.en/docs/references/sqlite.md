@@ -62,7 +62,9 @@ Backups are plain SQLite database files wrapped in gzip. Decompress to stdout an
 gunzip -c data-20261016-150405-000.db.gz > restored.db
 ```
 
-Point `orm.db_path` at the restored file (or replace the live database file while the process is stopped), then start the application.
+Point `sqlite.db_path` at the restored file (or replace the live database file while the process is stopped), then start the application.
+
+When replacing the live database file in place, also delete its stale WAL companions (`data.db-wal` and `data.db-shm`) next to it: the restored archive is a self-contained `VACUUM INTO` image with no WAL of its own, and a leftover WAL from the old database would be applied to the restored file on the next open, corrupting it. Shut the process down before deleting them — the files are recreated cleanly on start.
 
 ## High-Load Skipping and Forced Runs
 

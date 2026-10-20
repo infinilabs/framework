@@ -196,9 +196,18 @@ func (handler *SQLiteORM) snapshot() (string, int64, error) {
 		log.Warnf("sqlite backup: chmod %s: %v", tmpPath, err)
 	}
 
-	if err := gzipFile(tmpPath, finalPath); err != nil {
-		os.Remove(finalPath)
+	// Compress to a temp name and rename into place: renaming within the
+	// same directory is atomic, so a process killed mid-compression cannot
+	// leave a truncated archive that retention would treat as the newest
+	// backup. The ".tmp" suffix never matches parseArchiveName.
+	partPath := finalPath + ".tmp"
+	if err := gzipFile(tmpPath, partPath); err != nil {
+		os.Remove(partPath)
 		return "", 0, fmt.Errorf("sqlite backup: compress: %w", err)
+	}
+	if err := os.Rename(partPath, finalPath); err != nil {
+		os.Remove(partPath)
+		return "", 0, fmt.Errorf("sqlite backup: finalize %s: %w", finalPath, err)
 	}
 
 	if err := pruneBackups(dir, base, handler.Config.Backup.Retention); err != nil {
