@@ -112,9 +112,10 @@ func (module *SQLiteModule) Start() error {
 		// runs every execution on its own goroutine (a long VACUUM+gzip
 		// cannot stall config polling or PRAGMA optimize), Singleton skips
 		// overlapping runs, the task is visible in the task registry, and
-		// TaskModule.Stop coordinates shutdown. The first run fires right
-		// after registration - a restart always yields a fresh baseline
-		// snapshot - then every Backup.Interval (default 12h).
+		// TaskModule.Stop coordinates shutdown. The first run is due one
+		// full Backup.Interval (default 12h) after startup, then every
+		// interval; note a restart resets that schedule, and POST
+		// /sqlite/backup/_run covers the gap when needed.
 		if moduleConfig.Backup.Enabled != nil && *moduleConfig.Backup.Enabled && moduleConfig.Backup.Interval > 0 {
 			interval := moduleConfig.Backup.Interval
 			loadThreshold := moduleConfig.Backup.HighLoadThreshold
@@ -124,7 +125,12 @@ func (module *SQLiteModule) Start() error {
 				Description: "compressed online backup of the sqlite database",
 				Type:        task.Interval,
 				Interval:    interval.String(),
-				Singleton:   true,
+				// The first backup is due one full interval after startup -
+				// a backup at boot adds I/O right where the process is
+				// warming up and duplicates whatever the previous run
+				// archived; forced runs via the API cover the gap.
+				InitialDelay: interval.String(),
+				Singleton:    true,
 				Task: func(ctx context.Context) {
 					// A busy node skips its backup with a warning instead of
 					// adding VACUUM+gzip I/O on top of the load; operators

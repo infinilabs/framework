@@ -128,15 +128,19 @@ func RegisterTransientTask(group, tag string, f func(ctx context.Context) error,
 }
 
 type ScheduleTask struct {
-	ID          string     `config:"id" json:"id,omitempty"`
-	Group       string     `config:"group" json:"group,omitempty"`
-	Description string     `config:"description" json:"description,omitempty"`
-	Type        string     `config:"type" json:"type,omitempty"`
-	Interval    string     `config:"interval" json:"interval,omitempty"`
-	Crontab     string     `config:"crontab" json:"crontab,omitempty"`
-	CreateTime  time.Time  `config:"create_time" json:"create_time,omitempty"`
-	StartTime   *time.Time `config:"start_time" json:"start_time,omitempty"`
-	EndTime     *time.Time `config:"end_time" json:"end_time,omitempty"`
+	ID          string `config:"id" json:"id,omitempty"`
+	Group       string `config:"group" json:"group,omitempty"`
+	Description string `config:"description" json:"description,omitempty"`
+	Type        string `config:"type" json:"type,omitempty"`
+	Interval    string `config:"interval" json:"interval,omitempty"`
+	// InitialDelay postpones the first run of an interval task by this
+	// duration; empty means the first run fires at the first interval tick
+	// (chrono's default, immediately after scheduling).
+	InitialDelay string     `config:"initial_delay" json:"initial_delay,omitempty"`
+	Crontab      string     `config:"crontab" json:"crontab,omitempty"`
+	CreateTime   time.Time  `config:"create_time" json:"create_time,omitempty"`
+	StartTime    *time.Time `config:"start_time" json:"start_time,omitempty"`
+	EndTime      *time.Time `config:"end_time" json:"end_time,omitempty"`
 
 	// Ensures the task runs as a singleton, preventing duplicate executions when previous attempt is not finished.
 	Singleton bool `config:"singleton" json:"singleton,omitempty"`
@@ -227,6 +231,15 @@ func RegisterScheduleTask(task ScheduleTask) (taskID string) {
 	return task.ID
 }
 
+// initialDelayOption expresses an initial delay in chrono's terms: an
+// absolute start time (second granularity - truncation may shave up to one
+// second off sub-minute delays, which is immaterial for backup-style
+// intervals).
+func initialDelayOption(delay time.Duration) chrono.Option {
+	start := time.Now().Add(delay)
+	return chrono.WithStartTime(start.Year(), start.Month(), start.Day(), start.Hour(), start.Minute(), start.Second())
+}
+
 var quit = make(chan struct{})
 var taskScheduler = chrono.NewDefaultTaskScheduler()
 var defaultInterval = time.Duration(10) * time.Second
@@ -254,7 +267,12 @@ func runTask(task *ScheduleTask) {
 
 	switch task.Type {
 	case Interval:
-		task1, err := taskScheduler.ScheduleAtFixedRate(task.Task, util.GetDurationOrDefault(task.Interval, defaultInterval))
+		period := util.GetDurationOrDefault(task.Interval, defaultInterval)
+		var options []chrono.Option
+		if delay := util.GetDurationOrDefault(task.InitialDelay, 0); delay > 0 {
+			options = append(options, initialDelayOption(delay))
+		}
+		task1, err := taskScheduler.ScheduleAtFixedRate(task.Task, period, options...)
 		if err != nil {
 			log.Error("failed to scheduled interval task:", task.Type, ",", task.Interval, ",", task.Description)
 		}
