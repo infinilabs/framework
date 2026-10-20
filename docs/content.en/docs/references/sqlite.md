@@ -34,7 +34,7 @@ sqlite:
 
 ## How Backup Works
 
-The first backup runs about one minute after startup — a restart always yields a fresh baseline snapshot — then every `interval`.
+The backup is registered with the framework task scheduler (visible in the task registry, e.g. `GET /tasks`, under the ID `sqlite_backup`); each execution runs on its own goroutine, so a long backup never stalls other scheduled tasks, and overlapping runs are skipped. The first backup fires right after startup — a restart always yields a fresh baseline snapshot — then every `interval`.
 
 Each backup uses SQLite's `VACUUM INTO`, which writes a compact, always-consistent snapshot of the database (including all committed WAL content) without blocking readers or writers. The snapshot is then gzip-compressed in place; the database is never held in memory as a whole.
 

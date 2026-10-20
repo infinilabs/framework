@@ -50,9 +50,16 @@ type SQLiteORM struct {
 	DB     *sql.DB
 
 	// statsMu guards backupStats; backup runs themselves are serialized by
-	// backupMu in backup.go.
-	statsMu     sync.RWMutex
-	backupStats BackupStats
+	// backupMu in backup.go. backupInFlight tracks a running backup so Stop
+	// can wait it out before closing the database.
+	statsMu        sync.RWMutex
+	backupStats    BackupStats
+	backupInFlight sync.WaitGroup
+}
+
+// waitBackup blocks until a running backup (if any) finishes.
+func (handler *SQLiteORM) waitBackup() {
+	handler.backupInFlight.Wait()
 }
 
 // defaultCacheSize is the per-connection page cache in KiB (negative =

@@ -133,6 +133,9 @@ func (handler *SQLiteORM) recordBackupResult(start time.Time, path string, size 
 // call while the database is serving reads and writes. Every attempt updates
 // the backup stats and the sqlite_backup service health.
 func (handler *SQLiteORM) Backup() (string, error) {
+	handler.backupInFlight.Add(1)
+	defer handler.backupInFlight.Done()
+
 	backupMu.Lock()
 	defer backupMu.Unlock()
 

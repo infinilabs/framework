@@ -24,6 +24,7 @@
 package sqlite
 
 import (
+	"context"
 	"path/filepath"
 	"time"
 
@@ -31,16 +32,13 @@ import (
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/task"
 )
 
 // SQLiteModule implements the framework module interface for the SQLite ORM backend.
 type SQLiteModule struct {
-	ormHandler *SQLiteORM
-
-	// backupStop signals the backup worker to exit; backupDone is closed by
-	// the worker once the in-flight backup (if any) has finished.
-	backupStop chan struct{}
-	backupDone chan struct{}
+	ormHandler   *SQLiteORM
+	backupTaskID string
 }
 
 var moduleConfig = defaultModuleConfig()
@@ -96,57 +94,48 @@ func (module *SQLiteModule) Start() error {
 		// (measured: 1.18s vs 0.76s per dashboard aggregation at 500k rows).
 		// PRAGMA optimize is near-free when nothing changed — the SQLite
 		// recommended cadence is "every few hours and after bulk changes".
-		task := global.BackgroundTask{}
-		task.Tag = "sqlite_optimize"
-		task.Func = func() {
+		optimizeTask := global.BackgroundTask{}
+		optimizeTask.Tag = "sqlite_optimize"
+		optimizeTask.Func = func() {
 			if _, err := handler.DB.Exec("PRAGMA optimize"); err != nil {
 				log.Warnf("sqlite periodic PRAGMA optimize: %v", err)
 			}
 		}
-		task.Interval = 10 * time.Minute
-		task.InitialDelay = 10 * time.Minute
+		optimizeTask.Interval = 10 * time.Minute
+		optimizeTask.InitialDelay = 10 * time.Minute
 
 		// statsLoop refreshes planner statistics periodically.
-		global.RegisterBackgroundCallback(&task)
+		global.RegisterBackgroundCallback(&optimizeTask)
 
-		// Periodic compressed backup. First run shortly after start so a
-		// restart always yields a fresh baseline snapshot, then every
-		// Backup.Interval (default 12h).
-		//
-		// The backup runs on a dedicated worker instead of the shared
-		// background-callback loop: that loop executes tasks serially and
-		// cannot interrupt one, so a long VACUUM+gzip would stall unrelated
-		// callbacks (config polling, PRAGMA optimize) for the whole backup.
+		// Periodic compressed backup, registered with the framework task
+		// scheduler rather than the shared background-callback loop: chrono
+		// runs every execution on its own goroutine (a long VACUUM+gzip
+		// cannot stall config polling or PRAGMA optimize), Singleton skips
+		// overlapping runs, the task is visible in the task registry, and
+		// TaskModule.Stop coordinates shutdown. The first run fires right
+		// after registration - a restart always yields a fresh baseline
+		// snapshot - then every Backup.Interval (default 12h).
 		if moduleConfig.Backup.Enabled != nil && *moduleConfig.Backup.Enabled && moduleConfig.Backup.Interval > 0 {
 			interval := moduleConfig.Backup.Interval
-			initialDelay := 1 * time.Minute
-			module.backupStop = make(chan struct{})
-			module.backupDone = make(chan struct{})
-			stop, done := module.backupStop, module.backupDone
-			go func() {
-				defer close(done)
-				select {
-				case <-time.After(initialDelay):
-				case <-stop:
-					return
-				}
-				for {
+			module.backupTaskID = task.RegisterScheduleTask(task.ScheduleTask{
+				ID:          "sqlite_backup",
+				Group:       "sqlite",
+				Description: "compressed online backup of the sqlite database",
+				Type:        task.Interval,
+				Interval:    interval.String(),
+				Singleton:   true,
+				Task: func(ctx context.Context) {
 					if _, err := handler.Backup(); err != nil {
 						log.Errorf("sqlite periodic backup: %v", err)
 					}
-					select {
-					case <-time.After(interval):
-					case <-stop:
-						return
-					}
-				}
-			}()
-			// Show when the first backup is due before it has ever run;
-			// every attempt overwrites this in recordBackupResult.
-			handler.markBackupScheduled(initialDelay)
+				},
+			})
+			// Show when the next backup is due before the first attempt has
+			// run; every attempt overwrites this in recordBackupResult.
+			handler.markBackupScheduled(interval)
 			activeORM = handler
-			log.Infof("sqlite periodic backup enabled, interval: %v, dir: %s, retention: %d",
-				interval, moduleConfig.Backup.Dir, moduleConfig.Backup.Retention)
+			log.Infof("sqlite periodic backup enabled, task: %s, interval: %v, dir: %s, retention: %d",
+				module.backupTaskID, interval, moduleConfig.Backup.Dir, moduleConfig.Backup.Retention)
 		}
 	}
 
@@ -154,13 +143,15 @@ func (module *SQLiteModule) Start() error {
 }
 
 func (module *SQLiteModule) Stop() error {
-	// Signal the backup worker and wait out any in-flight backup before
-	// closing the database underneath it.
-	if module.backupStop != nil {
-		close(module.backupStop)
-		<-module.backupDone
+	// Stop future backup runs, then wait out any in-flight backup before
+	// closing the database underneath it. Module stop order is not
+	// guaranteed, so this also covers the case where TaskModule (and its
+	// scheduler shutdown) has not stopped yet.
+	if module.backupTaskID != "" {
+		task.StopTask(module.backupTaskID)
 	}
 	if module.ormHandler != nil {
+		module.ormHandler.waitBackup()
 		return module.ormHandler.Close()
 	}
 	return nil
