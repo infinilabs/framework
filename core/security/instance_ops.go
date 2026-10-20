@@ -37,6 +37,7 @@ var (
 	PermissionSystemQueueUpdate       = GetSimplePermission("generic", "system:queue", Update)
 	PermissionSystemQueueDelete       = GetSimplePermission("generic", "system:queue", Delete)
 	PermissionSystemSqliteBackupRead  = GetSimplePermission("generic", "system:sqlite-backup", Read)
+	PermissionSystemSqliteBackupRun   = GetSimplePermission("generic", "system:sqlite-backup", Update)
 	PermissionSystemConfigRead        = GetSimplePermission("generic", "system:config", Read)
 	PermissionSystemConfigUpdate      = GetSimplePermission("generic", "system:config", Update)
 	PermissionSystemConfigDelete      = GetSimplePermission("generic", "system:config", Delete)
@@ -67,6 +68,7 @@ func InstanceOpsPermissionKeys() []PermissionKey {
 		PermissionSystemQueueUpdate,
 		PermissionSystemQueueDelete,
 		PermissionSystemSqliteBackupRead,
+		PermissionSystemSqliteBackupRun,
 		PermissionSystemConfigRead,
 		PermissionSystemConfigUpdate,
 		PermissionSystemConfigDelete,

@@ -41,6 +41,10 @@ type BackupConfig struct {
 	Interval  time.Duration `config:"interval"`  // default 12h
 	Dir       string        `config:"dir"`       // default: <db dir>/backup
 	Retention int           `config:"retention"` // max archives to keep, default 14
+	// HighLoadThreshold is the total CPU usage percent above which the
+	// scheduled backup skips itself with a warning (default 90). A backup
+	// can still be forced via POST /sqlite/backup/_run; 0 disables the gate.
+	HighLoadThreshold float64 `config:"high_load_threshold"`
 }
 
 // SQLiteConfig is the runtime configuration of a SQLiteORM handler; the
@@ -77,6 +81,7 @@ type SQLiteModuleConfig struct {
 func defaultModuleConfig() SQLiteModuleConfig {
 	c := SQLiteModuleConfig{}
 	c.Backup.Retention = 14
+	c.Backup.HighLoadThreshold = 90
 	return c
 }
 

@@ -45,6 +45,40 @@ func init() {
 	api.HandleAPIMethod(api.GET, "/sqlite/backup/stats", module.BackupStatsAction)
 	api.HandleUIMethod(api.GET, "/sqlite/backup/stats", module.BackupStatsAction,
 		api.RequireLogin(), api.RequirePermission(security.PermissionSystemSqliteBackupRead))
+
+	api.HandleAPIMethod(api.POST, "/sqlite/backup/_run", module.BackupRunAction)
+	api.HandleUIMethod(api.POST, "/sqlite/backup/_run", module.BackupRunAction,
+		api.RequireLogin(), api.RequirePermission(security.PermissionSystemSqliteBackupRun))
+}
+
+// BackupRunAction forces a backup immediately, bypassing the high-load skip
+// gate that applies to scheduled runs. The call runs synchronously and
+// returns the outcome of the attempt.
+func (module *API) BackupRunAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	if activeORM == nil {
+		module.WriteJSON(w, util.MapStr{"error": "sqlite backup is not active"}, http.StatusServiceUnavailable)
+		return
+	}
+	handler := activeORM
+
+	_, err := handler.Backup()
+	stats := handler.GetBackupStats()
+	data := util.MapStr{
+		"forced":                  true,
+		"last_backup_success":     stats.LastSuccess,
+		"last_backup_time":        stats.LastAttemptTime,
+		"last_backup_duration_ms": stats.LastDurationMs,
+		"last_backup_size":        stats.LastSizeBytes,
+		"last_backup_file":        stats.LastBackupFile,
+		"success_count":           stats.SuccessCount,
+		"failure_count":           stats.FailureCount,
+	}
+	if err != nil {
+		data["error"] = err.Error()
+		module.WriteJSON(w, data, http.StatusInternalServerError)
+		return
+	}
+	module.WriteJSON(w, data, http.StatusOK)
 }
 
 // BackupStatsAction reports backup configuration plus the last attempt

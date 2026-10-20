@@ -36,6 +36,7 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
+	"github.com/shirou/gopsutil/v4/cpu"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
@@ -75,6 +76,10 @@ type BackupStats struct {
 	NextBackupTime  *time.Time `json:"next_backup_time"`
 	SuccessCount    int64      `json:"success_count"`
 	FailureCount    int64      `json:"failure_count"`
+
+	LastSkipTime   *time.Time `json:"last_skip_time,omitempty"`
+	LastSkipReason string     `json:"last_skip_reason,omitempty"`
+	SkipCount      int64      `json:"skip_count"`
 }
 
 // GetBackupStats returns a copy of the current backup statistics.
@@ -208,6 +213,57 @@ func (handler *SQLiteORM) snapshot() (string, int64, error) {
 		log.Infof("sqlite backup completed: %s", finalPath)
 	}
 	return finalPath, size, nil
+}
+
+// systemCPULoad samples total CPU usage in percent; a package var so tests
+// can stub it.
+var systemCPULoad = func() (float64, error) {
+	percents, err := cpu.Percent(200*time.Millisecond, false)
+	if err != nil {
+		return 0, err
+	}
+	if len(percents) == 0 {
+		return 0, fmt.Errorf("no cpu usage sample returned")
+	}
+	return percents[0], nil
+}
+
+// SkipAutoBackupUnderLoad reports whether the scheduled backup should skip
+// this run because system CPU usage is above the configured threshold.
+// Failing to read CPU usage never blocks a backup (fail-open); a forced
+// POST /sqlite/backup/_run bypasses this gate entirely.
+func (handler *SQLiteORM) SkipAutoBackupUnderLoad(threshold float64) bool {
+	if threshold <= 0 {
+		return false
+	}
+	load, err := systemCPULoad()
+	if err != nil {
+		log.Warnf("sqlite backup: cannot read system load (%v), proceeding with backup", err)
+		return false
+	}
+	if load < threshold {
+		return false
+	}
+	reason := fmt.Sprintf("system load %.1f%% exceeds threshold %.1f%%", load, threshold)
+	handler.recordBackupSkipped(reason)
+	log.Warnf("sqlite periodic backup skipped: %s; force one via POST /sqlite/backup/_run", reason)
+	return true
+}
+
+// recordBackupSkipped records a load-gated skip and keeps the next-run
+// projection moving so stats never go stale between skipped attempts.
+func (handler *SQLiteORM) recordBackupSkipped(reason string) {
+	now := time.Now()
+	handler.statsMu.Lock()
+	s := &handler.backupStats
+	s.LastSkipTime = &now
+	s.LastSkipReason = reason
+	s.SkipCount++
+	if interval := handler.Config.Backup.Interval; interval > 0 {
+		next := now.Add(interval)
+		s.NextBackupTime = &next
+	}
+	handler.statsMu.Unlock()
 }
 
 // gzipFile streams src into dst.gz-level compression without holding the

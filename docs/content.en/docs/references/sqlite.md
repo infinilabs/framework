@@ -21,6 +21,7 @@ sqlite:
     interval: 12h                # default: 12h
     dir: ""                      # default: <db_path dir>/backup
     retention: 14                # max archives to keep, default: 14
+    high_load_threshold: 90      # skip scheduled backup above this CPU %, default: 90; 0 disables the gate
 ```
 
 | Field              | Description                                                              |
@@ -31,6 +32,7 @@ sqlite:
 | `backup.interval`  | Time between backups (Go duration string, e.g. `30m`, `12h`). Default `12h`. |
 | `backup.dir`       | Directory for backup archives. Defaults to a `backup` folder next to the database file. |
 | `backup.retention` | Maximum number of archives kept; older ones are pruned after each run. Default `14`. Set `0` to keep everything. |
+| `backup.high_load_threshold` | Total CPU usage percent above which a scheduled backup skips itself with a warning instead of adding backup I/O to a busy node. Default `90`; `0` disables the check. Forced runs via the API always proceed. |
 
 ## How Backup Works
 
@@ -60,6 +62,29 @@ gunzip -c data-20261016-150405-000.db.gz > restored.db
 
 Point `orm.db_path` at the restored file (or replace the live database file while the process is stopped), then start the application.
 
+## High-Load Skipping and Forced Runs
+
+Before every scheduled run, the backup samples total CPU usage (~200ms). If usage is at or above `high_load_threshold`, the run is skipped: a warning is logged, the skip is recorded in the statistics (`last_skip_time`, `last_skip_reason`, `skip_count`), and the next-run projection advances. Failing to read CPU usage never blocks a backup.
+
+To back up a busy node anyway, force a run — the forced path bypasses the load gate:
+
+```bash
+curl -XPOST .../sqlite/backup/_run
+```
+
+```json
+{
+  "forced": true,
+  "last_backup_success": true,
+  "last_backup_time": "2026-10-20T16:00:00+08:00",
+  "last_backup_duration_ms": 1200,
+  "last_backup_size": 20480,
+  "last_backup_file": "data-20261020-160000-123.db.gz",
+  "success_count": 3,
+  "failure_count": 0
+}
+```
+
 ## Backup Statistics
 
 `GET /sqlite/backup/stats` reports the backup configuration, the outcome of the last attempt, the next scheduled run, and cumulative counts:
@@ -80,7 +105,10 @@ Point `orm.db_path` at the restored file (or replace the live database file whil
   "last_success_time": "2026-10-16T15:04:05+08:00",
   "next_backup_time": "2026-10-17T03:04:06+08:00",
   "success_count": 10,
-  "failure_count": 0
+  "failure_count": 0,
+  "last_skip_time": null,
+  "last_skip_reason": "",
+  "skip_count": 0
 }
 ```
 
@@ -109,7 +137,8 @@ A failed backup turns the overall health status red, since a broken backup usual
 On the web port, `GET /sqlite/backup/stats` requires login plus the dedicated permission key:
 
 ```
-generic#system:sqlite-backup/read
+generic#system:sqlite-backup/read    # GET  /sqlite/backup/stats
+generic#system:sqlite-backup/update  # POST /sqlite/backup/_run (forced backup)
 ```
 
 Grant it to roles that need to inspect backup status:

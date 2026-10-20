@@ -220,6 +220,9 @@ sqlite:
 	assert.False(t, *parsed2.Backup.Enabled)
 	assert.Equal(t, 12*time.Hour, parsed2.Backup.Interval, "unset interval should default")
 	assert.Equal(t, 14, parsed2.Backup.Retention, "unset retention should default")
+	assert.Equal(t, float64(90), parsed2.Backup.HighLoadThreshold, "unset threshold should default")
+	assert.Equal(t, 6*time.Hour, parsed.Backup.Interval, "explicit interval should survive defaults")
+	assert.Equal(t, float64(90), parsed.Backup.HighLoadThreshold, "unset threshold should default alongside explicit fields")
 
 	// An explicit retention: 0 means keep-all and must survive the
 	// pre-seeded default (a post-parse <=0 -> 14 rule would break it).
@@ -235,6 +238,32 @@ sqlite:
 	require.NoError(t, err)
 	parsed3.applyConfigDefaults()
 	assert.Equal(t, 0, parsed3.Backup.Retention, "explicit retention: 0 (keep all) must survive defaults")
+
+	threshold := `
+sqlite:
+  backup:
+    high_load_threshold: 60
+`
+	cfg4, err := config.NewConfigWithYAML([]byte(threshold), "test")
+	require.NoError(t, err)
+	parsed4 := defaultModuleConfig()
+	_, err = env.ParseConfigSection(cfg4, "sqlite", &parsed4)
+	require.NoError(t, err)
+	parsed4.applyConfigDefaults()
+	assert.Equal(t, float64(60), parsed4.Backup.HighLoadThreshold, "explicit threshold should survive defaults")
+
+	disabledGate := `
+sqlite:
+  backup:
+    high_load_threshold: 0
+`
+	cfg5, err := config.NewConfigWithYAML([]byte(disabledGate), "test")
+	require.NoError(t, err)
+	parsed5 := defaultModuleConfig()
+	_, err = env.ParseConfigSection(cfg5, "sqlite", &parsed5)
+	require.NoError(t, err)
+	parsed5.applyConfigDefaults()
+	assert.Equal(t, float64(0), parsed5.Backup.HighLoadThreshold, "explicit threshold: 0 (gate off) must survive defaults")
 }
 
 // orm.db_path is the pre-backup location; it must keep working as a
@@ -363,7 +392,80 @@ func TestBackupStatsAction(t *testing.T) {
 // manager-originated calls would start failing the permission filter.
 func TestBackupStatsPermissionRegistered(t *testing.T) {
 	assert.Equal(t, "generic#system:sqlite-backup/read", string(security.PermissionSystemSqliteBackupRead))
+	assert.Equal(t, "generic#system:sqlite-backup/update", string(security.PermissionSystemSqliteBackupRun))
 	assert.Contains(t, security.InstanceOpsPermissionKeys(), security.PermissionSystemSqliteBackupRead)
+	assert.Contains(t, security.InstanceOpsPermissionKeys(), security.PermissionSystemSqliteBackupRun)
+}
+
+// stubSystemLoad swaps the load sampler for the test and restores it after.
+func stubSystemLoad(t *testing.T, load float64, err error) {
+	t.Helper()
+	prev := systemCPULoad
+	systemCPULoad = func() (float64, error) { return load, err }
+	t.Cleanup(func() { systemCPULoad = prev })
+}
+
+// Under high load the scheduled path must skip, warn via stats, and not
+// touch the backup dir; the forced API path must still back up.
+func TestBackupSkipsUnderHighLoadButForceRunProceeds(t *testing.T) {
+	handler, cleanup := setupBackupDB(t, BackupConfig{Interval: time.Hour})
+	defer cleanup()
+
+	stubSystemLoad(t, 97.5, nil)
+	assert.True(t, handler.SkipAutoBackupUnderLoad(90), "high load should skip")
+
+	stats := handler.GetBackupStats()
+	assert.Equal(t, int64(1), stats.SkipCount)
+	require.NotNil(t, stats.LastSkipTime)
+	assert.Contains(t, stats.LastSkipReason, "97.5%")
+	assert.Equal(t, int64(0), stats.SuccessCount, "skipped run must not create a backup")
+
+	// The skip happens before any dir/file creation: the backup dir may not
+	// even exist yet, and no archive must be there either way.
+	if entries, err := os.ReadDir(handler.backupDir()); err == nil {
+		assert.Empty(t, entries, "no archive should exist after the skip")
+	} else {
+		assert.True(t, os.IsNotExist(err), "unexpected error: %v", err)
+	}
+
+	// Below the threshold the gate opens.
+	stubSystemLoad(t, 12.0, nil)
+	assert.False(t, handler.SkipAutoBackupUnderLoad(90))
+
+	// Gate disabled entirely (threshold 0): even high load proceeds.
+	stubSystemLoad(t, 99.9, nil)
+	assert.False(t, handler.SkipAutoBackupUnderLoad(0))
+
+	// Load read failure fails open (backup proceeds).
+	stubSystemLoad(t, 0, fmt.Errorf("sensor broken"))
+	assert.False(t, handler.SkipAutoBackupUnderLoad(90))
+}
+
+func TestBackupRunActionForcesBackupUnderHighLoad(t *testing.T) {
+	handler, cleanup := setupBackupDB(t, BackupConfig{Interval: time.Hour})
+	defer cleanup()
+
+	stubSystemLoad(t, 99.9, nil)
+
+	prev := activeORM
+	activeORM = handler
+	t.Cleanup(func() { activeORM = prev })
+
+	module := API{}
+	recorder := httptest.NewRecorder()
+	module.BackupRunAction(recorder, httptest.NewRequest(http.MethodPost, "/sqlite/backup/_run", nil), nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code, "forced run must bypass the load gate")
+
+	var payload map[string]interface{}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &payload))
+	assert.Equal(t, true, payload["forced"])
+	assert.Equal(t, true, payload["last_backup_success"])
+	assert.NotEmpty(t, payload["last_backup_file"])
+
+	stats := handler.GetBackupStats()
+	assert.Equal(t, int64(0), stats.SkipCount, "forced run is not a skip")
+	assert.Equal(t, int64(1), stats.SuccessCount)
 }
 
 // Databases sharing a backup directory (both defaulting to <dir>/backup)

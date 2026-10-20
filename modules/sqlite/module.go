@@ -117,6 +117,7 @@ func (module *SQLiteModule) Start() error {
 		// snapshot - then every Backup.Interval (default 12h).
 		if moduleConfig.Backup.Enabled != nil && *moduleConfig.Backup.Enabled && moduleConfig.Backup.Interval > 0 {
 			interval := moduleConfig.Backup.Interval
+			loadThreshold := moduleConfig.Backup.HighLoadThreshold
 			module.backupTaskID = task.RegisterScheduleTask(task.ScheduleTask{
 				ID:          "sqlite_backup",
 				Group:       "sqlite",
@@ -125,6 +126,12 @@ func (module *SQLiteModule) Start() error {
 				Interval:    interval.String(),
 				Singleton:   true,
 				Task: func(ctx context.Context) {
+					// A busy node skips its backup with a warning instead of
+					// adding VACUUM+gzip I/O on top of the load; operators
+					// can still force a run via the API.
+					if handler.SkipAutoBackupUnderLoad(loadThreshold) {
+						return
+					}
 					if _, err := handler.Backup(); err != nil {
 						log.Errorf("sqlite periodic backup: %v", err)
 					}
