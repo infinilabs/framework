@@ -308,6 +308,65 @@ processor:
           message: "non-POST request"
 ```
 
+### Multi-branch Dispatch with `case`
+
+Chaining `if`/`then`/`else` blocks gets unwieldy once the same input routes to three or more destinations. The `case` block is an ordered multi-way dispatch: the **first** matching branch runs (exactly one arm executes), and an optional `default` chain handles everything else.
+
+```yaml
+processor:
+  - case:
+      field: log_level
+      branches:
+        - values: [error, fatal]
+          then:
+            - echo:
+                message: "route to the alerting pipeline"
+        - values: [warn]
+          then:
+            - echo:
+                message: "route to the warning pipeline"
+      default:
+        - echo:
+            message: "keep on the default route"
+```
+
+Branch arms support two match styles, freely mixed within one block:
+
+| Field | Matches when |
+|-------|--------------|
+| `values` | The current value of the case block's `field` equals any entry (same semantics as the [`in`](conditions/in/) condition). Requires `field` on the case block. |
+| `when` | Any condition operator from the table above (`equals`, `regexp`, `and`, ...). |
+| both on one branch | Both must hold (AND). |
+| `then` | The processor (or list of processors) to run when the branch matches — required on every branch. |
+
+Branches without `values` do not need `field`, so a `case` block also works as a pure ordered condition ladder:
+
+```yaml
+processor:
+  - case:
+      branches:
+        - when:
+            and:
+              - equals:
+                  env: prod
+              - regexp:
+                  file.path: '\.json$'
+          then:
+            - echo:
+                message: "structured prod logs"
+        - when:
+            exists:
+              - file.path
+          then:
+            - echo:
+                message: "plain file logs"
+      default:
+        - echo:
+            message: "everything else"
+```
+
+Value resolution follows `if`/`then`/`else`: inside a per-record sub-chain (e.g. `for_each`) branches see the current record's fields; at pipeline level they read the context through the `_ctx.` prefix. Which arm ran is recorded in the flow trace as `case:1`, `case:2`, ..., `case:default`, or `case:no-match`.
+
 ## Error Handling
 
 Pipeline error handling follows these rules:
@@ -467,7 +526,7 @@ type ConfigError struct {
 
 The compile pass covers:
 
-- **DSL shape** — exactly one action per step, well-formed `if`/`then`/`else` blocks, nested sub-chains (`for_each`, `lane_consumer` inner chains compile recursively);
+- **DSL shape** — exactly one action per step, well-formed `if`/`then`/`else` and `case`/`branches` blocks, nested sub-chains (`for_each`, `lane_consumer` inner chains compile recursively);
 - **Registry existence** — unknown processor names fail with the list of valid names;
 - **Parameter legality** — each constructor's own validation runs (missing required fields, bad enum values, out-of-range numbers);
 - **Record contracts** — placement mismatches surface as warnings, or as errors when the config opts in with `strict_contract: true`.

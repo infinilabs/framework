@@ -146,6 +146,24 @@ func newPipelineWithScope(cfg []*config.Config, scope ScopeInfo, direct bool) (*
 			continue
 		}
 
+		// Handle the case/branches multi-way dispatch: like if/then/else it
+		// owns its step and its arm chains must compile under the enclosing
+		// scope for contract placement.
+		if procConfig.HasField("case") {
+			p, err := NewCaseProcessorWithScope(procConfig, scope)
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to make case/branches processor")
+			}
+			if err := validatePlacement(p, stepIdx, scope, false); err != nil {
+				if scope.Strict {
+					return nil, err
+				}
+				log.Warnf("contract (non-strict): %v", err)
+			}
+			procs.AddProcessor(p)
+			continue
+		}
+
 		if len(procConfig.GetFields()) != 1 {
 			return nil, errors.Errorf("each processor must have exactly one "+
 				"action, but found %d actions (%v)",
