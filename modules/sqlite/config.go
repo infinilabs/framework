@@ -45,6 +45,19 @@ type BackupConfig struct {
 	// scheduled backup skips itself with a warning (default 90). A backup
 	// can still be forced via POST /sqlite/backup/_run; 0 disables the gate.
 	HighLoadThreshold float64 `config:"high_load_threshold"`
+	// FirstBackupDelay postpones the first backup after startup by this
+	// duration (e.g. 1m for an early baseline). Unset or zero means the
+	// first backup is due one full Interval after startup.
+	FirstBackupDelay time.Duration `config:"first_backup_delay"`
+}
+
+// FirstDelayOrDefault resolves when the first backup after startup is due:
+// FirstBackupDelay when set, otherwise one full interval.
+func (c *BackupConfig) FirstDelayOrDefault() time.Duration {
+	if c.FirstBackupDelay > 0 {
+		return c.FirstBackupDelay
+	}
+	return c.Interval
 }
 
 // SQLiteConfig is the runtime configuration of a SQLiteORM handler; the

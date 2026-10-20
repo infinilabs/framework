@@ -264,6 +264,26 @@ sqlite:
 	require.NoError(t, err)
 	parsed5.applyConfigDefaults()
 	assert.Equal(t, float64(0), parsed5.Backup.HighLoadThreshold, "explicit threshold: 0 (gate off) must survive defaults")
+
+	// first_backup_delay: unset -> one interval; explicit -> that delay.
+	assert.Equal(t, time.Duration(0), parsed.Backup.FirstBackupDelay, "unset first_backup_delay stays zero")
+	assert.Equal(t, 6*time.Hour, parsed.Backup.FirstDelayOrDefault(), "unset delay defaults to one interval")
+
+	firstDelay := `
+sqlite:
+  backup:
+    interval: 6h
+    first_backup_delay: 1m
+`
+	cfg6, err := config.NewConfigWithYAML([]byte(firstDelay), "test")
+	require.NoError(t, err)
+	parsed6 := defaultModuleConfig()
+	_, err = env.ParseConfigSection(cfg6, "sqlite", &parsed6)
+	require.NoError(t, err)
+	parsed6.applyConfigDefaults()
+	assert.Equal(t, time.Minute, parsed6.Backup.FirstBackupDelay)
+	assert.Equal(t, time.Minute, parsed6.Backup.FirstDelayOrDefault(), "explicit delay overrides the interval default")
+	assert.Equal(t, 12*time.Hour, parsed2.Backup.FirstDelayOrDefault(), "fallback tracks the defaulted interval")
 }
 
 // orm.db_path is the pre-backup location; it must keep working as a

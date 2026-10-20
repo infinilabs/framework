@@ -112,24 +112,27 @@ func (module *SQLiteModule) Start() error {
 		// runs every execution on its own goroutine (a long VACUUM+gzip
 		// cannot stall config polling or PRAGMA optimize), Singleton skips
 		// overlapping runs, the task is visible in the task registry, and
-		// TaskModule.Stop coordinates shutdown. The first run is due one
-		// full Backup.Interval (default 12h) after startup, then every
-		// interval; note a restart resets that schedule, and POST
-		// /sqlite/backup/_run covers the gap when needed.
+		// TaskModule.Stop coordinates shutdown. The first run is due
+		// Backup.FirstDelayOrDefault() after startup (one full interval by
+		// default, or first_backup_delay), then every interval; note a
+		// restart resets that schedule, and POST /sqlite/backup/_run
+		// covers the gap when needed.
 		if moduleConfig.Backup.Enabled != nil && *moduleConfig.Backup.Enabled && moduleConfig.Backup.Interval > 0 {
 			interval := moduleConfig.Backup.Interval
 			loadThreshold := moduleConfig.Backup.HighLoadThreshold
+			firstDelay := moduleConfig.Backup.FirstDelayOrDefault()
 			module.backupTaskID = task.RegisterScheduleTask(task.ScheduleTask{
 				ID:          "sqlite_backup",
 				Group:       "sqlite",
 				Description: "compressed online backup of the sqlite database",
 				Type:        task.Interval,
 				Interval:    interval.String(),
-				// The first backup is due one full interval after startup -
-				// a backup at boot adds I/O right where the process is
-				// warming up and duplicates whatever the previous run
-				// archived; forced runs via the API cover the gap.
-				InitialDelay: interval.String(),
+				// By default the first backup is due one full interval after
+				// startup - a backup at boot adds I/O right where the process
+				// is warming up and duplicates whatever the previous run
+				// archived. first_backup_delay opts into an earlier baseline;
+				// forced runs via the API cover any gap.
+				InitialDelay: firstDelay.String(),
 				Singleton:    true,
 				Task: func(ctx context.Context) {
 					// A busy node skips its backup with a warning instead of
@@ -145,7 +148,7 @@ func (module *SQLiteModule) Start() error {
 			})
 			// Show when the next backup is due before the first attempt has
 			// run; every attempt overwrites this in recordBackupResult.
-			handler.markBackupScheduled(interval)
+			handler.markBackupScheduled(firstDelay)
 			activeORM = handler
 			log.Infof("sqlite periodic backup enabled, task: %s, interval: %v, dir: %s, retention: %d",
 				module.backupTaskID, interval, moduleConfig.Backup.Dir, moduleConfig.Backup.Retention)

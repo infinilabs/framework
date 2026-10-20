@@ -22,6 +22,7 @@ sqlite:
     dir: ""                      # default: <db_path dir>/backup
     retention: 14                # max archives to keep, default: 14
     high_load_threshold: 90      # skip scheduled backup above this CPU %, default: 90; 0 disables the gate
+    first_backup_delay: 0s       # first backup after startup; default: one full interval
 ```
 
 | Field              | Description                                                              |
@@ -33,10 +34,11 @@ sqlite:
 | `backup.dir`       | Directory for backup archives. Defaults to a `backup` folder next to the database file. |
 | `backup.retention` | Maximum number of archives kept; older ones are pruned after each run. Default `14`. Set `0` to keep everything. |
 | `backup.high_load_threshold` | Total CPU usage percent above which a scheduled backup skips itself with a warning instead of adding backup I/O to a busy node. Default `90`; `0` disables the check. Forced runs via the API always proceed. |
+| `backup.first_backup_delay` | When the first backup after startup is due. Unset or zero means one full `interval` (default behavior — a boot-time backup only adds I/O during warm-up and duplicates the previous archive). Set a positive duration (e.g. `1m`) for an early baseline backup after restarts. |
 
 ## How Backup Works
 
-The backup is registered with the framework task scheduler (visible in the task registry, e.g. `GET /tasks`, under the ID `sqlite_backup`); each execution runs on its own goroutine, so a long backup never stalls other scheduled tasks, and overlapping runs are skipped. The first backup is due one full `interval` after startup — a backup at boot would only add I/O where the process is warming up and duplicate whatever the previous run already archived — then every `interval`. Note that a restart resets this schedule (a process restarted more often than `interval` would never back up automatically); cover the gap with a forced `POST /sqlite/backup/_run`.
+The backup is registered with the framework task scheduler (visible in the task registry, e.g. `GET /tasks`, under the ID `sqlite_backup`); each execution runs on its own goroutine, so a long backup never stalls other scheduled tasks, and overlapping runs are skipped. The first backup is due one full `interval` after startup — a backup at boot would only add I/O where the process is warming up and duplicate whatever the previous run already archived — then every `interval`. Set `first_backup_delay` (e.g. `1m`) to opt into an early baseline backup instead. Note that a restart resets this schedule (a process restarted more often than `interval` would never back up automatically); cover the gap with a forced `POST /sqlite/backup/_run`.
 
 > **Note**: the scheduling rides on the framework's `task` module. Applications that enable the SQLite ORM must also register `task.TaskModule` (as gateway, logpilot, ops, and transfer all do); without it the backup stays pending and never runs.
 
