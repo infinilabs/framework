@@ -77,7 +77,8 @@ func RegisterTransientTask(group, tag string, f func(ctx context.Context) error,
 	task.Description = tag
 	task.Type = Transient
 	task.CreateTime = time.Now()
-	task.State = Pending
+	task.initStateMu()
+	task.setState(Pending)
 
 	ctx, cancel := context.WithCancel(ctxInput)
 	task.Cancel = cancel
@@ -106,23 +107,17 @@ func RegisterTransientTask(group, tag string, f func(ctx context.Context) error,
 					log.Error(r, v)
 				}
 			}
-			task.State = Finished
-			t := time.Now()
-			task.EndTime = &t
+			task.markFinished()
 			Tasks.Delete(task.ID)
 		}()
 
-		t := time.Now()
-		task.StartTime = &t
-		task.EndTime = nil
-		task.State = Running
+		task.markStarted()
+		task.setState(Running)
 		err := inner(innerCtx)
 		if err != nil {
 			log.Error(err)
 		}
-		t = time.Now()
-		task.EndTime = &t
-		task.State = Finished
+		task.markFinished()
 	}(task.Ctx, f)
 	return task.ID
 }
@@ -153,6 +148,48 @@ type ScheduleTask struct {
 	Cancel context.CancelFunc `config:"-" json:"-"`
 
 	isTaskRunning *atomic.Bool
+
+	// stateMu serializes State/StartTime/EndTime, which are written by the
+	// scheduler goroutine executing the task and by callers (RunTasks,
+	// StopTask) with no happens-before relation between them. A pointer for
+	// the same reason as isTaskRunning: ScheduleTask travels by value.
+	stateMu *sync.Mutex
+}
+
+func (task *ScheduleTask) initStateMu() {
+	if task.stateMu == nil {
+		task.stateMu = &sync.Mutex{}
+	}
+}
+
+func (task *ScheduleTask) setState(state State) {
+	task.stateMu.Lock()
+	task.State = state
+	task.stateMu.Unlock()
+}
+
+func (task *ScheduleTask) getState() State {
+	task.stateMu.Lock()
+	defer task.stateMu.Unlock()
+	return task.State
+}
+
+// markStarted stamps the start of an execution and clears any previous end.
+func (task *ScheduleTask) markStarted() {
+	task.stateMu.Lock()
+	t := time.Now()
+	task.StartTime = &t
+	task.EndTime = nil
+	task.stateMu.Unlock()
+}
+
+// markFinished stamps the end of an execution.
+func (task *ScheduleTask) markFinished() {
+	task.stateMu.Lock()
+	t := time.Now()
+	task.EndTime = &t
+	task.State = Finished
+	task.stateMu.Unlock()
 }
 
 const Interval = "interval"
@@ -164,7 +201,8 @@ func RegisterScheduleTask(task ScheduleTask) (taskID string) {
 		task.ID = util.GetUUID()
 	}
 	task.CreateTime = time.Now()
-	task.State = Pending
+	task.initStateMu()
+	task.setState(Pending)
 	if task.Type == "" && task.Interval != "" {
 		task.Type = Interval
 	} else if task.Type == "" && task.Crontab != "" {
@@ -205,15 +243,11 @@ func RegisterScheduleTask(task ScheduleTask) (taskID string) {
 			}()
 		}
 
-		t := time.Now()
-		task.StartTime = &t
-		task.EndTime = nil
+		task.markStarted()
 
 		tempTask(ctx)
 
-		t = time.Now()
-		task.EndTime = &t
-		task.State = Finished
+		task.markFinished()
 	}
 
 	_, ok := Tasks.Load(task.ID)
@@ -258,7 +292,7 @@ func RunTasks() {
 
 func runTask(task *ScheduleTask) {
 
-	if task.State == Running {
+	if task.getState() == Running {
 		return
 	}
 	if global.Env().IsDebug {
@@ -272,19 +306,23 @@ func runTask(task *ScheduleTask) {
 		if delay := util.GetDurationOrDefault(task.InitialDelay, 0); delay > 0 {
 			options = append(options, initialDelayOption(delay))
 		}
+		// Mark Running BEFORE handing the task to the scheduler: the hand-off
+		// goes through a channel, which orders everything written before the
+		// send ahead of the scheduler goroutine's own State writes (Finished).
+		// Writing after the call would race with an immediately fired run.
+		task.setState(Running)
 		task1, err := taskScheduler.ScheduleAtFixedRate(task.Task, period, options...)
 		if err != nil {
 			log.Error("failed to scheduled interval task:", task.Type, ",", task.Interval, ",", task.Description)
 		}
-		task.State = Running
 		task.taskItem = task1
 		break
 	case Crontab:
+		task.setState(Running)
 		task1, err := taskScheduler.ScheduleWithCron(task.Task, task.Crontab)
 		if err != nil {
 			log.Error("failed to scheduled crontab task:", task.Type, ",", task.Interval, ",", task.Description)
 		}
-		task.State = Running
 		task.taskItem = task1
 		break
 	case Transient:
@@ -335,7 +373,7 @@ func StopTask(id string) {
 				case Transient:
 				}
 
-				item.State = Canceled
+				item.setState(Canceled)
 			}
 		}
 	}
