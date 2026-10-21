@@ -38,6 +38,7 @@ Information about release notes of INFINI Framework is provided here.
 - perf(pipeline): probe the current record via `Parameters.Peek` — the `GetValue` miss path built a stack-capturing error for every `CurrentRecord` call outside a record scope (µs + 6 allocs per if/then/else evaluation); the bare locked map read restores the no-record path to pre-fix allocation counts #408
 
 ### 🐛 Bug fix  
+- fix(queue): `disk_queue.max_used_bytes` now counts only `data/queue`, so unrelated application data no longer blocks queue writes or prevents startup. #431
 - fix: expand configs.template when loading templated config files #391
 - fix: register elasticsearch instance even when version probe fails #393
 - fix: health api requires a system cluster that may not exist #393
