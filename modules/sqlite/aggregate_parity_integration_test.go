@@ -13,7 +13,6 @@ import (
 	"infini.sh/framework/modules/elastic/common"
 )
 
-
 // elasticAggstestBackend adapts ElasticORM to the conformance suite for the
 // parity run (the canonical elastic-side copy lives in modules/elastic;
 // duplicated here because parity needs both backends and only this package
@@ -76,7 +75,6 @@ func TestAggParity_SQLite_Elastic(t *testing.T) {
 	}
 	aggstest.RunParity(t, &sqliteAggstestBackend{}, &elasticAggstestBackend{})
 }
-
 
 // seedParityORM registers the sqlite ORM handler over a temp database for
 // the parity run's cluster-record persistence.

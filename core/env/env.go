@@ -567,7 +567,11 @@ func ParseConfigSection(cfg *config.Config, configKey string, configInstance int
 	exist = true
 
 	err = childConfig.Unpack(configInstance)
-	log.Tracef("parsed config: %s, %v", configKey, configInstance)
+	// Format eagerly rather than handing configInstance to the logger: the
+	// async logger formats from its own goroutine, and callers routinely
+	// mutate the freshly parsed struct right after this returns (post-parse
+	// defaults), which is a data race against that deferred reflection.
+	log.Tracef("parsed config: %s, %s", configKey, fmt.Sprintf("%v", configInstance))
 	return exist, err
 }
 
