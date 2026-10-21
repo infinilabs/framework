@@ -16,6 +16,8 @@ Record-scope processors operate on the current record inside [`for_each`](for_ea
 | [`echo`](echo/) | Logs a configured message. |
 | [`dag`](dag/) | Executes a DAG of processors with parallel and dependency-based execution. |
 | [`for_each`](for_each/) | Splits a batch into records, runs a sub-chain per record, re-encodes the batch. |
+| [`if`](if/) | Conditional branch: matching records run the `then` sub-chain, the rest the optional `else`. |
+| [`case`](case/) | Ordered multi-way dispatch: the first matching branch runs, with an optional `default` chain. |
 
 ## Queue
 
