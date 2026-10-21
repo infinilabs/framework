@@ -27,6 +27,7 @@
 package queue
 
 import (
+	stderrors "errors"
 	"fmt"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/security"
@@ -73,6 +74,11 @@ func init() {
 	//reset consumer offset
 	api.HandleAPIMethod(api.PUT, "/queue/:id/consumer/:consumer_id/offset", module.QueueResetConsumerOffset)
 	api.HandleUIMethod(api.PUT, "/queue/:id/consumer/:consumer_id/offset", module.QueueResetConsumerOffset, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueUpdate))
+	// 消费者管理: 位点读取与消费者删除 (残留消费组/位点清理, Console 同款)。
+	api.HandleAPIMethod(api.GET, "/queue/:id/consumer/:consumer_id/offset", module.QueueGetConsumerOffset)
+	api.HandleUIMethod(api.GET, "/queue/:id/consumer/:consumer_id/offset", module.QueueGetConsumerOffset, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueRead))
+	api.HandleAPIMethod(api.DELETE, "/queue/:id/consumer/:consumer_id", module.QueueDeleteConsumerByID)
+	api.HandleUIMethod(api.DELETE, "/queue/:id/consumer/:consumer_id", module.QueueDeleteConsumerByID, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueUpdate))
 	//get consumer offset
 	api.HandleAPIMethod(api.GET, "/queue/:id/consumer/:consumer_id/offset", module.QueueGetConsumerOffset)
 	api.HandleUIMethod(api.GET, "/queue/:id/consumer/:consumer_id/offset", module.QueueGetConsumerOffset, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueRead))
@@ -331,8 +337,14 @@ func (module *API) QueueExplore(w http.ResponseWriter, req *http.Request, ps htt
 		result := util.MapStr{}
 		status := 200
 		if err != nil {
-			result["error"] = err.Error()
-			status = 500
+			// 空队列 (尚无写入) 是浏览/取样的常态, 按"无消息"返回而非 500
+			if stderrors.Is(err, queue1.ErrEmptyQueue) {
+				result["empty"] = true
+				err = nil
+			} else {
+				result["error"] = err.Error()
+				status = 500
+			}
 		}
 		if len(messages) > 0 {
 			if dataIsString {
@@ -396,7 +408,11 @@ func (module *API) QueueExplore(w http.ResponseWriter, req *http.Request, ps htt
 					return
 				}
 			} else {
-				log.Errorf("can't acquire consumer [%v] for [%v]", consumer.Key(), qConfig.Name)
+				if stderrors.Is(err, queue1.ErrEmptyQueue) {
+					log.Debugf("queue [%v] is empty, skip consumer [%v]", qConfig.Name, consumer.Key())
+				} else {
+					log.Errorf("can't acquire consumer [%v] for [%v]", consumer.Key(), qConfig.Name)
+				}
 			}
 
 		} else {

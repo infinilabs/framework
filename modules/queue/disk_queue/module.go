@@ -390,7 +390,7 @@ func (module *DiskQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *q
 		q1 := q.(*DiskBasedQueue)
 		if q1.writeSegmentNum == 0 && q1.writePos == 0 {
 			//empty queue, no need to create consumer
-			return nil, errors.New("empty queue")
+			return nil, queue.ErrEmptyQueue
 		}
 		return q1.AcquireConsumer(qconfig, consumer, offset)
 	}
