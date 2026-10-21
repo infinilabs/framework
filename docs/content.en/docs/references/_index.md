@@ -25,6 +25,7 @@ Comprehensive reference documentation for the INFINI Framework's core systems an
 
 - [API & Web Framework](api_web/) — HTTP API server, web server, routing, middleware, and security configuration
 - [Security & Authentication](security/) — Authentication backends (static, native, OAuth, access tokens), unified `/account/login`, and role-based authorization
+- [File Read Guard](read_guard/) — Allowed read directories, glob patterns, path cleanup, and symbolic-link boundaries
 - [MCP Server](mcp/) — Model Context Protocol server support — expose APIs as AI-callable tools via `api.MCPTool()`
 - [ORM](orm/) — Object-Relational Mapping for Elasticsearch with CRUD operations and query building
 - [SQLite Storage](sqlite/) — Embedded SQLite ORM backend with periodic online backup, compression, retention, statistics, and health reporting
