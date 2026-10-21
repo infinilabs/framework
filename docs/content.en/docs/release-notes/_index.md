@@ -10,7 +10,9 @@ Information about release notes of INFINI Framework is provided here.
 
 ## Latest (In development)  
 ### ❌ Breaking changes  
+- `ReadGuard` rules now interpret glob metacharacters. Literal names containing these characters require escaping or singleton character groups. On Unix, literal backslashes also require escaping. #434
 ### 🚀 Features  
+- feat: support glob rules in `ReadGuard` to authorize matching directories without enumerating the filesystem. Rules support relative paths and path component cleanup, with documented escaping and symbolic-link behavior. #434
 - feat: add MCP (Model Context Protocol) server support — auto-expose UI routes as MCP tools via `api.MCPTool()` annotation
 - feat: add MCP configuration section (`web.mcp.enabled`, `web.mcp.base_path`, `web.mcp.stateless`, `web.mcp.disable_streaming`)
 - feat: add MCP authorization filter — per-tool RBAC via `api.RequirePermission()` + `RegisterMCPToolAuthorizer()`
