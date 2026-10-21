@@ -16,6 +16,7 @@ import (
 	_ "infini.sh/framework/plugins/elastic/bulk_indexing"
 	_ "infini.sh/framework/plugins/elastic/indexing_merge"
 	_ "infini.sh/framework/plugins/elastic/json_indexing"
+	_ "infini.sh/framework/plugins/elastic/lane_bulk"
 	_ "infini.sh/framework/plugins/elastic/merge_to_bulk"
 	_ "infini.sh/framework/plugins/enterprise/otlp/export"
 	_ "infini.sh/framework/plugins/enterprise/processors/decode_duration"

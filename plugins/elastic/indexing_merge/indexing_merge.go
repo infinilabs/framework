@@ -371,9 +371,13 @@ CLEAN_BUFFER:
 //     first-class doc fields)
 //   - a top-level @timestamp is derived from payload.timestamp /
 //     payload.observed_timestamp / the envelope timestamp / now — data
-//     streams reject documents without a date @timestamp
-//   - timestamp mirrors @timestamp (conventional sort field)
-//   - metadata.file (agent collection origin) is kept as top-level "file"
+//     streams reject documents without a date @timestamp. @timestamp is the
+//     document's one true timestamp (house standard): the mirrored top-level
+//     "timestamp" and any payload "timestamp" are folded into it and removed.
+//   - a bare document (no "payload" key) keeps its own @timestamp when
+//     present; only a missing one is stamped with now.
+//   - metadata.file (agent collection origin) lives in @agent.file_* — the
+//     former top-level "file" promotion is gone (zero readers).
 //
 // Documents that are not envelopes (no "payload" key) pass through
 // unchanged except for the @timestamp stamp.
@@ -398,6 +402,11 @@ func normalizeDataStreamDoc(doc []byte) []byte {
 		}
 	}
 	if ts == "" {
+		if v, ok := m["@timestamp"].(string); ok { // bare doc already carrying one
+			ts = v
+		}
+	}
+	if ts == "" {
 		ts = time.Now().UTC().Format(time.RFC3339Nano)
 	}
 
@@ -412,12 +421,9 @@ func normalizeDataStreamDoc(doc []byte) []byte {
 		}
 	}
 	out["@timestamp"] = ts
-	out["timestamp"] = ts
+	delete(out, "timestamp") // @timestamp is the single source of truth
 
 	if meta, ok := m["metadata"].(map[string]interface{}); ok {
-		if f, ok := meta["file"].(map[string]interface{}); ok {
-			out["file"] = f
-		}
 		if rt, ok := meta["log_type"].(string); ok && rt != "" {
 			out["log_type"] = rt
 		}

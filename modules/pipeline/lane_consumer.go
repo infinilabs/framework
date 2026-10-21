@@ -69,10 +69,13 @@ func NewLaneConsumerProcessor(c *config.Config) (pipeline.Processor, error) {
 	if cfg.FailureTag == "" {
 		cfg.FailureTag = "_processing_failed"
 	}
-	l := lane.Get(cfg.Lane)
-	if l == nil {
-		return nil, fmt.Errorf("%s: lane %q not found (define it under lane: or create it dynamically)", laneConsumerName, cfg.Lane)
-	}
+	// GetOrCreate (not Get+error): a lane_consumer task restart races its
+	// producers (output{lane} / consumer{output_lane}) re-creating the lane
+	// after this task's previous instance deleted it on exit — a hard "not
+	// found" here would leave the pipeline dead until the next producer
+	// emit. An explicit `lane:` stanza still wins when present; only the
+	// absent/closed case falls back to a default-config lane.
+	l := lane.GetOrCreate(lane.LaneConfig{Name: cfg.Lane})
 	sub, err := pipeline.NewPipelineWithScope(cfg.Processors, pipeline.ScopeInfo{
 		Kind:      pipeline.ScopeRecord,
 		Namespace: l.Config().Namespace,
@@ -101,7 +104,12 @@ func (p *LaneConsumerProcessor) Process(ctx *pipeline.Context) error {
 	}
 	_ = p.lane.SubscribeBatch(p.cfg.BatchMax, time.Duration(p.cfg.BatchFlushMs)*time.Millisecond, batchFn)
 	<-ctx.Done()
-	p.lane.Close()
+	// Delete (close + unregister), not bare Close: a closed-but-registered
+	// lane accepts nothing forever and wedges every producer, and this
+	// task's own restart would re-bind the dead instance. Delete keeps the
+	// Close drain semantics (buffered batch flushes, receipts settle) and
+	// lets GetOrCreate re-create the lane on the next cycle.
+	_ = lane.Delete(p.cfg.Lane, true)
 	return nil
 }
 

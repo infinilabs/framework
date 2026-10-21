@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	log "github.com/cihub/seelog"
 	httprouter "infini.sh/framework/core/api/router"
@@ -171,6 +172,12 @@ func (module *PipeModule) deletePipelineTaskHandler(w http.ResponseWriter, req *
 	id := ps.ByName("id")
 	_, exists := module.contexts.Load(id)
 	if exists {
+		// 先取消再删表: 管线 goroutine 阻塞在 Process 内部 (consumer 工
+		// 作循环等 IsCanceled / lane 处理器等 ctx.Done), 只清映射表不取消
+		// 会让 goroutine 永远活着 — 任务注册表停留在 STARTED (僵尸"运行
+		// 中")。与 auto_reload 路径同款: 取消并等释放 (≤1min), 超时也强制
+		// 删表。
+		module.stopAndWaitForRelease([]string{id}, time.Minute)
 		module.deleteTask(id)
 		module.WriteAckOKJSON(w)
 	} else {

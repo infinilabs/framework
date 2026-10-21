@@ -92,7 +92,16 @@ func (r WhenProcessor) Process(ctx *Context) error {
 		return nil
 	}
 
-	if !(r.condition).Check(ctx) {
+	// Inside a per-record sub-chain (for_each, direct-ship chains) the
+	// condition must see the current record's fields — the same fallback
+	// IfThenElseProcessor applies; pipeline-level usage keeps reading the
+	// parameters.
+	values := conditions.ValuesMap(ctx)
+	if rec, ok := CurrentRecord(ctx); ok {
+		values = rec
+	}
+
+	if !(r.condition).Check(values) {
 		ctx.AddFlowProcess(r.p.Name() + "-skipped")
 		return nil
 	}
