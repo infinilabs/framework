@@ -26,6 +26,45 @@ func mustCreate(t *testing.T, cfg LaneConfig) Lane {
 	return l
 }
 
+// TestRegistry_ClosedLaneSelfHeals pins the wedge fix: a lane closed by its
+// consumer's task exit must not linger as a permanently-unusable registry
+// entry — Get skips it and GetOrCreate replaces it with a fresh instance.
+func TestRegistry_ClosedLaneSelfHeals(t *testing.T) {
+	l1 := mustCreate(t, LaneConfig{Name: "heal", Capacity: 4})
+	if err := l1.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if Get("heal") != nil {
+		t.Fatal("Get must skip a closed lane")
+	}
+	l2 := GetOrCreate(LaneConfig{Name: "heal", Capacity: 4})
+	if l2 == nil {
+		t.Fatal("GetOrCreate must replace the closed lane")
+	}
+	if l2 == l1 {
+		t.Fatal("GetOrCreate returned the closed instance")
+	}
+	if err := l2.Emit(rec("fresh")); err != nil {
+		t.Fatalf("emit on replaced lane: %v", err)
+	}
+	if err := l1.Emit(rec("stale")); err == nil {
+		t.Fatal("stale handle must keep erroring (drained instance)")
+	}
+	got := make(chan *event.Event, 1)
+	l2.Subscribe(func(r *event.Event) { got <- r })
+	select {
+	case r := <-got:
+		if r.Fields["message"] != "fresh" {
+			t.Fatalf("got %v", r)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("replaced lane did not deliver")
+	}
+	if err := Delete("heal", true); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestLane_BlockBackpressure(t *testing.T) {
 	l := mustCreate(t, LaneConfig{Name: "bp", Capacity: 2})
 	// no subscriber yet: fills up deterministically

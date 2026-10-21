@@ -421,14 +421,29 @@ func Create(cfg LaneConfig) (Lane, error) {
 	return l, nil
 }
 
-// GetOrCreate returns the named lane, creating it lazily on first Emit
-// (dynamic pipelines; owner tags it for cascade cleanup).
+// GetOrCreate returns the named OPEN lane, creating it lazily on first Emit
+// (dynamic pipelines; owner tags it for cascade cleanup). A registered but
+// CLOSED instance is replaced with a fresh one built from cfg — lane
+// consumers close their lane on task exit, and without replacement the
+// registry would hold a permanently-unusable lane that wedges every
+// producer (emit fails "closed" forever, consumer restarts cannot recover).
 func GetOrCreate(cfg LaneConfig) Lane {
 	regMu.RLock()
 	l, ok := registry[cfg.Name]
+	closed := ok && l.Snapshot().Closed
 	regMu.RUnlock()
-	if ok {
+	if ok && !closed {
 		return l
+	}
+	if closed {
+		regMu.Lock()
+		// re-check under the write lock: a concurrent replacer may have won
+		if cur, still := registry[cfg.Name]; still && !cur.Snapshot().Closed {
+			regMu.Unlock()
+			return cur
+		}
+		delete(registry, cfg.Name)
+		regMu.Unlock()
 	}
 	l, err := Create(cfg)
 	if err != nil {
@@ -440,11 +455,17 @@ func GetOrCreate(cfg LaneConfig) Lane {
 	return l
 }
 
-// Get returns the named lane (nil when absent).
+// Get returns the named OPEN lane; nil when absent or closed. A closed lane
+// accepts no emits and no subscribers — callers want a usable channel, and
+// GetOrCreate is the re-creation path.
 func Get(name string) Lane {
 	regMu.RLock()
 	defer regMu.RUnlock()
-	return registry[name]
+	l := registry[name]
+	if l == nil || l.Snapshot().Closed {
+		return nil
+	}
+	return l
 }
 
 // Delete removes a lane; refuses while records are in flight unless force.

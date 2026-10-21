@@ -38,6 +38,10 @@ import (
 	"infini.sh/framework/core/util"
 )
 
+// ErrEmptyQueue 队列尚无任何数据 (无写段) — 浏览/取样场景按"无消息"处理,
+// 不作为错误。DiskQueue 高级处理器在 AcquireConsumer 时返回。
+var ErrEmptyQueue = errors.New("empty queue")
+
 type QueueAPI interface {
 	Name() string
 	Init(string) error

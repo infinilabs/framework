@@ -74,6 +74,8 @@ const (
 const (
 	ResourceHostName       = "host_name"
 	ResourceHostIP         = "host_ip"
+	ResourceAgentID        = "agent_id"
+	ResourceAgentTags      = "agent_tags"
 	ResourceServiceName    = "service_name"
 	ResourceServiceVersion = "service_version"
 	ResourceProcessPID     = "process_pid"

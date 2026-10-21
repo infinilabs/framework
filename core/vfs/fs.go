@@ -43,6 +43,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -597,7 +598,28 @@ func serveFile(w http.ResponseWriter, r *http.Request, fs http.FileSystem, name 
 
 	// serveContent will check modification time
 	sizeFunc := func() (int64, error) { return d.Size(), nil }
+	if cc := spaCacheControl(r.URL.Path); cc != "" {
+		w.Header().Set("Cache-Control", cc)
+	}
 	serveContent(w, r, d.Name(), d.ModTime(), sizeFunc, f)
+}
+
+// vfsAssetHashRE 匹配前端构建产物文件名里的内容哈希段（如
+// index-DPak5aSO.js、pizza_engine_bg-B2pSYpQe.wasm）。
+var vfsAssetHashRE = regexp.MustCompile(`-[A-Za-z0-9_]{8,}\.[A-Za-z0-9]+$`)
+
+// spaCacheControl SPA 静态资源缓存策略：/assets/ 下带内容哈希的构建产物
+// 内容永不原地变更，标记 immutable 让浏览器跳过重复校验（大 bundle 场景
+// 二次访问收益明显）；HTML 入口必须始终再验证，保证发版后能拉到新 hash
+// 的资源清单。返回空串表示不干预（沿用 Last-Modified 协商缓存）。
+func spaCacheControl(p string) string {
+	if strings.HasPrefix(p, "/assets/") && vfsAssetHashRE.MatchString(p) {
+		return "public, max-age=31536000, immutable"
+	}
+	if strings.HasSuffix(p, ".html") || strings.HasSuffix(p, "/") || p == "" {
+		return "no-cache"
+	}
+	return ""
 }
 
 // toHTTPError returns a non-specific HTTP error message and status code
