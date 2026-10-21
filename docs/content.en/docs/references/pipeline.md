@@ -505,7 +505,7 @@ import _ "your_app/plugins/health"
 
 ## Built-in Processors
 
-The framework ships with a growing set of built-in processors registered via `RegisterProcessorPlugin` / `RegisterDomainProcessor` — framework primitives (`echo`, `dag`, `for_each`), queue bridges (`consumer`, `queue_output`), Elasticsearch indexing (`bulk_indexing`, `json_indexing`, `indexing_merge`, `merge_to_bulk`), output transports (`otlp_export`), general-purpose helpers (`http`, `smtp`, `replay`), and a wide catalog of record processors for parsing, transforming, enriching, routing and governing records inside `for_each` sub-chains (`dissect`, `grok`, `mutate`, `geoip`, `throttle`, `script`, ...).
+The framework ships with a growing set of built-in processors registered via `RegisterProcessorPlugin` / `RegisterDomainProcessor` — framework primitives (`echo`, `dag`, `for_each`), queue bridges (`consumer`, `queue_output`, `lane_consumer`), Elasticsearch indexing (`bulk_indexing`, `json_indexing`, `indexing_merge`, `merge_to_bulk`, and the in-memory tail `merge_to_bulk_lane` + `bulk_indexing_lane`), unified output (`output` — exactly one of queue/lane), output transports (`otlp_export`), general-purpose helpers (`http`, `smtp`, `replay`), and a wide catalog of record processors for parsing, transforming, enriching, routing and governing records inside `for_each` sub-chains (`dissect`, `grok`, `mutate`, `geoip`, `throttle`, `script`, ...).
 
 Every processor has its own reference page — description, configuration parameters with types and defaults, and an example — under the **Processor Reference** section. Record processors operate on the current record inside `for_each` sub-chains (most are no-ops outside a record scope); they are registered by domain category, the bare name is the YAML key, and `category:name` is an explicit alias.
 
@@ -578,6 +578,17 @@ The gate is only as strong as constructor validation. Two rules, enforced by the
 
 1. **Return errors, never panic** — a config problem is not a runtime fault; `panic` in a constructor crashes the host that compiles the chain.
 2. **Either require your inputs or default them safely** — every processor is constructed with an empty config in CI; one that succeeds must land in the audit's documented allowlist (44 entries, each annotated with why empty-accept is legitimate), otherwise it must fail with a clear required-field error. Variable templates such as `$[[env.HOSTS]]` remain non-empty strings at validation time and do not conflict with required-field checks.
+
+## Stream indexing tail: lanes vs disk bridge
+
+Compiled stream pipelines (LogPilot → Gateway) choose between two tail shapes via the stream spec `sink.transport`:
+
+| `sink.transport` | Shape | Durability |
+|------------------|-------|------------|
+| `""` / `"lane"` (default) | `consumer(staging)` → `for_each(parallel)` → `output{lane}` → `merge_to_bulk_lane{input_lane}` → `bulk_indexing_lane` → ES. The staging queue is the **only** disk write. | At-most-once: in-flight records are lost if the gateway exits. |
+| `"disk"` | `consumer(staging)` → `output{queue: indexing}` → `indexing_merge` → `bulk` queue → `bulk_indexing` → ES. | At-least-once: bulk payloads survive a gateway restart. |
+
+Both tails process records in parallel (`for_each.parallel`, `worker_size`); log workloads are order-insensitive.
 
 ## Pipeline Configuration API
 
@@ -670,6 +681,24 @@ A pipeline whose config fails to compile **on the instance** (e.g. the instance'
 | `POST /pipeline/dry-run` | Unified dry-run: execute a processor chain against sample input with side-effect capture, field diffs, and scope/contract checks. |
 | `GET /pipeline/processors` | Processor catalog (`?grouped=1`). |
 | `GET /pipeline/codecs` | Registered record codecs. |
-| `GET /pipeline/lanes` | In-process lane channels and their depth. |
+| `GET /pipeline/lanes` | In-process lane channels: depth, emitted/delivered counters, drops, backpressure waits. |
+| `GET /pipeline/task/:id/stages?stage=<n>` | Per-stage metrics for one stage. |
+| `DELETE /pipeline/task/:id` | Stop and remove a task (cancels consumers first, waits for release). |
+
+### Queue consumer management
+
+Queue consumers (offset registrations) are manageable per queue — stale consumer groups from removed pipelines are the typical cleanup target:
+
+| Method & Path | Description |
+|---------------|-------------|
+| `GET /queue/:id/consumer/:consumer_id/offset` | Read a consumer's committed offset. |
+| `PUT /queue/:id/consumer/:consumer_id/offset?offset=<seg>,<pos>` | Reset the offset to an explicit segment/position. Rewinds re-ingest (duplicates); jumps skip backlog. An actively committing consumer overwrites manual resets at its next commit cycle — pause the pipeline first for a sticky reset. |
+| `DELETE /queue/:id/consumer/:consumer_id` | Remove the consumer registration and its offset. Active consumers re-register at `0,0` (from head); stale registrations clear permanently. |
+
+Notes:
+
+- Address the **queue by its registry UUID** (the key in `/queue/stats`) — consumer/offset lookups walk the per-queue KV bucket and do not resolve queue names.
+- The consumer ID is the `id` field of the entry in `/queue/stats` (`?use_key=true&consumers=true`).
+- All three are surfaced in the Console queue browser per consumer (reset-to-earliest / reset-to-latest / delete).
 
 `GET /pipeline/cluster/overview` aggregates fleet-wide pipeline health for control-plane dashboards.

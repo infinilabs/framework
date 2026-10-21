@@ -1,6 +1,7 @@
 ---
 title: "Processor Reference"
 weight: 16
+bookCollapseSection: true
 ---
 # Processor Reference
 
@@ -22,6 +23,7 @@ Record-scope processors operate on the current record inside [`for_each`](for_ea
 |-----------|-------------|
 | [`consumer`](consumer/) | Consumes a queue (by name or label selector) and exposes the batch to the pipeline. |
 | [`queue_output`](queue_output/) | Appends the processed batch onto a target queue — the two-stage pipeline bridge. |
+| [`lane_consumer`](lane_consumer/) | Consumes an in-memory lane in competing micro-batches, runs a record sub-chain, optional durable bridge. |
 
 ## Elasticsearch
 
@@ -31,12 +33,15 @@ Record-scope processors operate on the current record inside [`for_each`](for_ea
 | [`json_indexing`](json_indexing/) | Indexes JSON documents into Elasticsearch. |
 | [`indexing_merge`](indexing_merge/) | Merges small documents into combined indexing requests before writing. |
 | [`merge_to_bulk`](merge_to_bulk/) | Merges events into Elasticsearch bulk requests. |
+| [`merge_to_bulk_lane`](merge_to_bulk_lane/) | Aggregates queue/lane input into bulk payloads written to an in-memory lane — the memory tail of the indexing pipeline. |
+| [`bulk_indexing_lane`](bulk_indexing_lane/) | Ships combined bulk payloads from an in-memory lane to Elasticsearch. |
 
 ## Output transport
 
 | Processor | Description |
 |-----------|-------------|
 | [`otlp_export`](otlp_export/) | Ships the processed batch to any OTLP/gRPC collector. |
+| [`output`](output/) | Unified output step: writes to exactly one target — a durable queue (batch scope) or an in-memory lane (record scope). |
 
 ## General
 
