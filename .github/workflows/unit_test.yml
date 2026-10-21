@@ -112,5 +112,5 @@ jobs:
                 cd $WORK
                 go mod edit -replace infini.sh/license=../license
 
-                echo Testing code at $PWD (with enterprise overlay) ...
+                echo "Testing code at $PWD (with enterprise overlay) ..."
                 OFFLINE_BUILD=true CI=true make tidy test
