@@ -77,3 +77,21 @@ func TestSaveConfigStr(t *testing.T) {
 		t.Fatalf("Failed to remove test file: %v", err)
 	}
 }
+
+// TestStripManagedMarkersSymmetry — 客户端剥离标记行后的哈希必须与服务端
+// (原始行内容 TrimSpace) 一致, 否则每个同步周期都判定内容变化、重写文件。
+func TestStripManagedMarkersSymmetry(t *testing.T) {
+	row := "{\"pipeline\":[{\"name\":\"x\"}]}"
+	stamped := row + "\n#MANAGED_CONFIG_VERSION: 15\n#MANAGED: true"
+	if got := stripManagedMarkers(stamped); got != row {
+		t.Fatalf("strip = %q, want %q", got, row)
+	}
+	// 标记粘行 (历史叠加): 整行剔除
+	glued := row + "\n#MANAGED: trueMANAGED_CONFIG_VERSION: 15"
+	if got := stripManagedMarkers(glued); got != row {
+		t.Fatalf("strip glued = %q, want %q", got, row)
+	}
+	if stripManagedMarkers(row) != row {
+		t.Fatal("bare content must pass through")
+	}
+}

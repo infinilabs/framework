@@ -472,6 +472,10 @@ func upsertInstance(instance *model.Instance) (bool, error) {
 		// Groups are server-owned (UI-managed targeting): the heartbeat
 		// payload does not carry them — keep the stored value.
 		instanceCopy.Groups = existing.Groups
+		// Alias/Description are server-owned display metadata (UI-managed):
+		// keep the stored value across heartbeats.
+		instanceCopy.Alias = existing.Alias
+		instanceCopy.Description = existing.Description
 		// Heartbeat syncs carry no access token; keep the registered one
 		// (wiping it here would 401 the very next sync).
 		if instanceCopy.AccessToken == nil {
@@ -579,7 +583,8 @@ func (h *APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, _ htt
 
 // loadAssignedConfigs returns the server-side config files assigned to the
 // instance: its own + the "*" catch-all + any group-targeted config whose
-// Groups intersect the instance's groups. Newest version per name.
+// Groups intersect the instance's groups. Same-name rows resolve by
+// specificity: per-instance rows shadow group/catch-all rows.
 // A query FAILURE returns an error — callers must NOT treat it as "no
 // configs": a transiently empty read (e.g. manager just booting, ORM not
 // ready) would diff every client file as Deleted and wipe managed configs
@@ -630,15 +635,38 @@ func loadAssignedConfigs(instanceID string) ([]common.ConfigFile, error) {
 		}
 	}
 
-	out := make([]common.ConfigFile, 0, len(stored))
-	for _, mc := range stored {
+	// Same-name resolution: a per-instance row (edge-rule variant) must
+	// SHADOW the group/catch-all rows of the same file for that instance —
+	// per-row version counters are not comparable across rows, so
+	// specificity decides and version only breaks ties within the same
+	// specificity. Without this the winner is query-order luck and an
+	// instance variant may never apply.
+	rank := func(mc *ManagedConfig) int {
+		if mc.InstanceID == instanceID {
+			return 2 // per-instance override
+		}
+		return 1 // "*" catch-all or group-targeted base
+	}
+	byName := make(map[string]ManagedConfig, len(stored))
+	for i := range stored {
+		mc := stored[i]
+		cur, ok := byName[mc.Name]
+		if !ok || rank(&mc) > rank(&cur) || (rank(&mc) == rank(&cur) && mc.Version > cur.Version) {
+			byName[mc.Name] = mc
+		}
+	}
+
+	out := make([]common.ConfigFile, 0, len(byName))
+	for _, mc := range byName {
 		out = append(out, common.ConfigFile{
 			Name:     mc.Name,
 			Location: mc.Location,
 			Content:  mc.Content,
 			Version:  mc.Version,
 			Managed:  true,
-			Hash:     util.MD5digest(mc.Content),
+			// TrimSpace mirrors the client's digest (managed trailer
+			// lines stripped on the client side before hashing).
+			Hash:     util.MD5digest(strings.TrimSpace(mc.Content)),
 			Size:     int64(len(mc.Content)),
 			Updated:  time.Now().UnixMilli(),
 		})
@@ -695,6 +723,18 @@ func diffConfigs(assigned []common.ConfigFile, clientConfigs map[string]common.C
 		}
 		if !cc.Managed {
 			continue // client opted this file out of management
+		}
+		// Content-hash comparison when the client reports one (newer
+		// clients): the assigned row may be a DIFFERENT row than the one
+		// the client's file came from (instance variant vs group base),
+		// and per-row version counters cannot be compared across rows —
+		// the hash says exactly whether the bytes differ. Version
+		// comparison remains the fallback for old clients.
+		if sc.Hash != "" && cc.Hash != "" {
+			if sc.Hash != cc.Hash {
+				resp.Configs.UpdatedConfigs[name] = sc
+			}
+			continue
 		}
 		if sc.Version > cc.Version {
 			resp.Configs.UpdatedConfigs[name] = sc

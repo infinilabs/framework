@@ -225,3 +225,40 @@ func TestHashTokenOneWay(t *testing.T) {
 		t.Fatal("different inputs must hash differently")
 	}
 }
+
+// TestDiffConfigs_HashAware — 内容哈希比较 (新客户端): 跨行版本号不可比
+// (实例变体 v1 vs 客户端持有的基础行 v12), 哈希不同即更新; 哈希相同则即使
+// 版本号更小也不重发。旧客户端 (无哈希) 回退版本比较。
+func TestDiffConfigs_HashAware(t *testing.T) {
+	base := cfg("s.yml", 12)
+	base.Hash = "hash-base"
+	variant := cfg("s.yml", 1)
+	variant.Hash = "hash-variant"
+
+	t.Run("variant applied over higher-versioned base content", func(t *testing.T) {
+		client := map[string]common.ConfigFile{"s.yml": base}
+		resp := diffConfigs([]common.ConfigFile{variant}, client)
+		if !resp.Changed || resp.Configs.UpdatedConfigs["s.yml"].Hash != "hash-variant" {
+			t.Fatalf("variant must win by hash, got %+v", resp.Configs.UpdatedConfigs)
+		}
+	})
+
+	t.Run("identical hash, lower version → no churn", func(t *testing.T) {
+		same := cfg("s.yml", 3)
+		same.Hash = "hash-base"
+		client := map[string]common.ConfigFile{"s.yml": base}
+		resp := diffConfigs([]common.ConfigFile{same}, client)
+		if resp.Changed {
+			t.Fatal("same content must not re-send")
+		}
+	})
+
+	t.Run("old client without hash falls back to version", func(t *testing.T) {
+		oldClient := cfg("s.yml", 12) // no Hash
+		client := map[string]common.ConfigFile{"s.yml": oldClient}
+		resp := diffConfigs([]common.ConfigFile{variant}, client)
+		if resp.Changed {
+			t.Fatal("version 1 must not beat 12 for hashless clients (logpilot bumps row versions instead)")
+		}
+	})
+}

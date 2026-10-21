@@ -178,6 +178,17 @@ func deleteConfigAction(w http.ResponseWriter, req *http.Request, params httprou
 
 var versionRegexp = regexp.MustCompile(`#MANAGED_CONFIG_VERSION:\s*(?P<version>\d+)`)
 var managedRegexp = regexp.MustCompile(`#MANAGED:\s*(?P<managed>\w+)`)
+// managedMarkerLine matches whole trailer lines (`#MANAGED...`) so the
+// content digest can exclude client-local metadata stamps.
+var managedMarkerLine = regexp.MustCompile(`(?m)^\s*#MANAGED(_CONFIG_VERSION)?:[^\n]*$`)
+
+// stripManagedMarkers removes the managed trailer lines: the config server
+// digests the raw row content, while the local file carries the version/
+// managed stamps the client appends — hashing the stamped bytes would make
+// every managed file look permanently changed (rewrite loop each sync).
+func stripManagedMarkers(input string) string {
+	return strings.TrimSpace(managedMarkerLine.ReplaceAllString(input, ""))
+}
 
 func parseConfigVersion(input string) int64 {
 	matches := versionRegexp.FindStringSubmatch(util.TrimSpaces(input))
@@ -313,6 +324,12 @@ func GetConfigFromFile(cfgDir, filename string) (*common.ConfigFile, error) {
 		Updated:  f.ModTime().Unix(),
 		Size:     f.Size(),
 	}
+	// Content digest: the config server diffs by hash when present —
+	// per-row version counters aren't comparable across the same-name rows
+	// an instance may be assigned (instance variant vs group base). The
+	// digest must match the server's (raw row content): strip the managed
+	// trailer lines first.
+	cfg.Hash = util.MD5digest(stripManagedMarkers(content))
 
 	cfg.Content = content
 	cfg.Managed = parseConfigManaged(content, cfg.Version > 0 || global.Env().SystemConfig.Configs.ConfigFileManagedByDefault)
