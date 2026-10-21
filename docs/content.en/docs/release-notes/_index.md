@@ -11,7 +11,15 @@ Information about release notes of INFINI Framework is provided here.
 ## Latest (In development)  
 ### ❌ Breaking changes  
 - `ReadGuard` rules now interpret glob metacharacters. Literal names containing these characters require escaping or singleton character groups. On Unix, literal backslashes also require escaping. #434
+- pipeline configs are now validated at compile time before they are persisted or distributed: unknown processors, missing required fields, constructor errors and scope-violating sub-chains are rejected up front instead of surfacing at runtime, and every registered processor constructor is audited to return an error (never panic) on an empty config. #433
 ### 🚀 Features  
+- feat(pipeline): unified pipeline engine foundation — record contracts declared per processor (`ContractProvider` with `Scope`/`Namespace`/`Granularity`, enforced by `NewPipelineWithScope`, `batch_only` processors restricted to direct members of record hosts), payload-agnostic record codecs with namespace declaration and in-place upgrade registration (`RegisterRecordCodecOrReplace`, `ListRecordCodecs`), in-memory lanes with self-healing `lane.GetOrCreate`, and per-step stats (`Context.StepStat`) for sequential runs feeding document-level timelines. #433
+- feat(pipeline): distributed deployment management — `PipelineConfigV2`/`PipelineDeployment` ORM models and a deployment reconciler that pushes configs to instances through configs-center: instance-targeted selectors with exact per-instance convergence, disabling a deployment propagates to instances, deleting one cascades config recall, name-based status matching, and instance runtime reporting in `POST /configs/_sync`. #433
+- feat(pipeline): pipeline rollback gate — a config distribution that fails on an instance rolls the deployment back instead of leaving instances half-applied, with instance-side failure visibility in the deployment status. #433
+- feat(pipeline): lane-based bulk indexing, the memory-path twin of the disk-queue bulk pipeline — `merge_to_bulk_lane` aggregates queue/lane input into combined bulk payloads written to an in-memory lane, `bulk_indexing_lane` ships them to Elasticsearch and settles the batch receipt on success. #433
+- feat(pipeline): add the `case` processor — ordered multi-way dispatch for enumerated routing: the first matching branch runs (exactly one arm executes) with an optional `default` chain, unmatched records pass through unchanged when no `default` is set; arms match on `values` (typed `in`-style membership against the block's `field`) or on any condition (`when`), combinable with AND, and evaluate against the current record inside per-record sub-chains. #433
+- feat(configs): per-instance config rows shadow group defaults, enabling edge-rule variants per instance without forking the group config; heartbeat upserts preserve server-owned display metadata (`alias`) and group assignments. #433
+- feat(queue): disk-queue consumer self-heal — offsets parked at a missing write head re-open the segment (or keep waiting for it) instead of erroring forever, so consumers closing their lane on exit no longer wedge producers. #433
 - feat: support glob rules in `ReadGuard` to authorize matching directories without enumerating the filesystem. Rules support relative paths and path component cleanup, with documented escaping and symbolic-link behavior. #434
 - feat: add MCP (Model Context Protocol) server support — auto-expose UI routes as MCP tools via `api.MCPTool()` annotation
 - feat: add MCP configuration section (`web.mcp.enabled`, `web.mcp.base_path`, `web.mcp.stateless`, `web.mcp.disable_streaming`)
@@ -40,6 +48,9 @@ Information about release notes of INFINI Framework is provided here.
 - perf(pipeline): probe the current record via `Parameters.Peek` — the `GetValue` miss path built a stack-capturing error for every `CurrentRecord` call outside a record scope (µs + 6 allocs per if/then/else evaluation); the bare locked map read restores the no-record path to pre-fix allocation counts #408
 
 ### 🐛 Bug fix  
+- fix(pipeline): the unified `output` processor accepts a bare queue name or a full config object. #433
+- fix(agent): mint the reverse-channel loopback API token agents were missing, so agent-initiated loopback calls authenticate again. #433
+- fix(agent): skip the deployment reconcile loop and guard ORM access on lightweight agent builds that carry no metadata store. #433
 - fix(queue): `disk_queue.max_used_bytes` now counts only `data/queue`, so unrelated application data no longer blocks queue writes or prevents startup. #431
 - fix: expand configs.template when loading templated config files #391
 - fix: register elasticsearch instance even when version probe fails #393
