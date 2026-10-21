@@ -119,7 +119,9 @@ func TestConfigsHash(t *testing.T) {
 	if h1 != h2 {
 		t.Fatal("hash must be stable")
 	}
-	// 顺序无关不应成立? 协议要求两侧列表一致 — 同序序列化, 顺序变化视为变更
+	// order-insensitivity must NOT hold: the protocol requires both sides
+	// to carry the same list — same-order marshaling, so a reorder counts
+	// as a change
 	reordered := []common.ConfigFile{files[1], files[0]}
 	if ConfigsHash(reordered) == h1 {
 		t.Log("note: hash is order-sensitive (both sides marshal the same list)")
@@ -226,9 +228,11 @@ func TestHashTokenOneWay(t *testing.T) {
 	}
 }
 
-// TestDiffConfigs_HashAware — 内容哈希比较 (新客户端): 跨行版本号不可比
-// (实例变体 v1 vs 客户端持有的基础行 v12), 哈希不同即更新; 哈希相同则即使
-// 版本号更小也不重发。旧客户端 (无哈希) 回退版本比较。
+// TestDiffConfigs_HashAware — content-hash comparison (new clients):
+// version numbers are not comparable across rows (an instance variant at
+// v1 vs the base row at v12 held by the client); a different hash means
+// update, and an equal hash suppresses the resend even when the version is
+// smaller. Legacy clients (no hash) fall back to version comparison.
 func TestDiffConfigs_HashAware(t *testing.T) {
 	base := cfg("s.yml", 12)
 	base.Hash = "hash-base"

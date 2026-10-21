@@ -89,9 +89,11 @@ func (processor *MergeToBulkLaneProcessor) Name() string {
 
 type MergeConfig struct {
 	InputQueue string `config:"input_queue"`
-	// InputLane 内存输入 (与 InputQueue 二选一): 记录为 event.Event,
-	// 序列化其 Fields 为文档字节后走同一聚合路径 — 上游 output{lane}
-	// 直写, 全程内存 (staging 队列是唯一落盘点)。
+	// InputLane is the in-memory input (mutually exclusive with InputQueue):
+	// records arrive as event.Event, their Fields are serialized into
+	// document bytes and take the same aggregation path — written directly
+	// by an upstream output{lane}, in memory end to end (the staging queue
+	// is the only disk landing point).
 	InputLane   string `config:"input_lane"`
 	OutputLane  string `config:"output_lane"`
 	IndexName   string `config:"index_name"`
@@ -247,8 +249,9 @@ func (processor *MergeToBulkLaneProcessor) newBulkWorker(ctx *pipeline.Context, 
 
 	var lastCommit time.Time = time.Now()
 
-	// 输入源: input_lane 时订阅 lane, 序列化 Fields 为文档字节;
-	// input_queue 时直接 PopTimeout 磁盘队列 (原路径)。
+	// Input source: with input_lane, subscribe to the lane and serialize
+	// Fields into document bytes; with input_queue, PopTimeout the disk
+	// queue directly (the original path).
 	docs := make(chan []byte, 256)
 	var laneCancel func()
 	if processor.config.InputLane != "" {

@@ -69,8 +69,10 @@ jobs:
                 check-latest: false
                 cache: true
 
-            # enterprise 插件 overlay (私有仓库): 优先取与本 PR 同名的分支,
-            # 不存在时回退默认分支; license 模块是 overlay 的编译依赖。
+            # Enterprise plugins overlay (private repo): prefer the branch
+            # matching this PR's branch name, fall back to the default branch
+            # when it does not exist there; the license module is a build
+            # dependency of the overlay.
             - name: Checkout enterprise plugins overlay
               env:
                 CI_GH_TOKEN: ${{ secrets.CI_TOKEN || secrets.DOCS_DEPLOYMENT_TOKEN }}
@@ -108,7 +110,7 @@ jobs:
                 mkdir -p $HOME/go/src/
                 ln -s $GITHUB_WORKSPACE $WORKBASE
 
-                # overlay 的 umbrella 包依赖私有模块 infini.sh/license (不进 go.mod)
+                # the overlay's umbrella packages need the private infini.sh/license module (kept out of go.mod)
                 cd $WORK
                 go mod edit -replace infini.sh/license=../license
 

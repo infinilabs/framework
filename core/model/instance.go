@@ -65,7 +65,7 @@ type Instance struct {
 	// registration/heartbeat upserts preserve the stored value.
 	Groups []string `json:"groups,omitempty" elastic_mapping:"groups:{type:keyword}"`
 
-	// Alias is a SERVER-OWNED display name (UI-managed, e.g. "边缘网关-生产"):
+	// Alias is a SERVER-OWNED display name (UI-managed, e.g. "edge-gateway-prod"):
 	// shown in the management UI in place of the auto-generated instance
 	// name. Like Groups, heartbeat upserts preserve the stored value.
 	Alias string `json:"alias,omitempty" elastic_mapping:"alias:{type:keyword,copy_to:search_text}"`

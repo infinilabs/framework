@@ -31,8 +31,10 @@ func TestNormalizeDataStreamDoc(t *testing.T) {
 		t.Fatalf("payload key should not survive: %v", doc)
 	}
 
-	// @timestamp: payload 无显式 timestamp 时 observed_timestamp 优先于信封级。
-	// @timestamp 是唯一真实时间戳 — legacy "timestamp" mirror 不再写出。
+	// @timestamp: when the payload carries no explicit timestamp,
+	// observed_timestamp wins over the envelope-level one. @timestamp is
+	// the only real timestamp — the legacy "timestamp" mirror is no longer
+	// written.
 	if doc["@timestamp"] != "2026-08-23T14:38:32.982744Z" {
 		t.Fatalf("@timestamp = %v", doc["@timestamp"])
 	}
@@ -40,8 +42,9 @@ func TestNormalizeDataStreamDoc(t *testing.T) {
 		t.Fatalf("timestamp mirror must not be written: %v", doc["timestamp"])
 	}
 
-	// metadata promotion: file origin 不再提升为顶层 "file" (采集溯源由
-	// @agent.file_* 承载), 仅 log_type/log_kind 标签提升。
+	// metadata promotion: file origin no longer promotes to a top-level
+	// "file" (collection provenance lives on @agent.file_*); only the
+	// log_type/log_kind labels promote.
 	if _, ok := doc["file"]; ok {
 		t.Fatalf("top-level file promotion is gone: %v", doc["file"])
 	}

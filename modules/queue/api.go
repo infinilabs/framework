@@ -74,7 +74,8 @@ func init() {
 	//reset consumer offset
 	api.HandleAPIMethod(api.PUT, "/queue/:id/consumer/:consumer_id/offset", module.QueueResetConsumerOffset)
 	api.HandleUIMethod(api.PUT, "/queue/:id/consumer/:consumer_id/offset", module.QueueResetConsumerOffset, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueUpdate))
-	// 消费者管理: 位点读取与消费者删除 (残留消费组/位点清理, Console 同款)。
+	// Consumer management: offset read and consumer delete (clearing stale
+	// consumer groups/offsets, same as Console).
 	api.HandleAPIMethod(api.GET, "/queue/:id/consumer/:consumer_id/offset", module.QueueGetConsumerOffset)
 	api.HandleUIMethod(api.GET, "/queue/:id/consumer/:consumer_id/offset", module.QueueGetConsumerOffset, api.RequireLogin(), api.RequirePermission(security.PermissionSystemQueueRead))
 	api.HandleAPIMethod(api.DELETE, "/queue/:id/consumer/:consumer_id", module.QueueDeleteConsumerByID)
@@ -337,7 +338,8 @@ func (module *API) QueueExplore(w http.ResponseWriter, req *http.Request, ps htt
 		result := util.MapStr{}
 		status := 200
 		if err != nil {
-			// 空队列 (尚无写入) 是浏览/取样的常态, 按"无消息"返回而非 500
+			// an empty queue (nothing written yet) is normal for
+			// browse/sample: answer "no messages" instead of a 500
 			if stderrors.Is(err, queue1.ErrEmptyQueue) {
 				result["empty"] = true
 				err = nil

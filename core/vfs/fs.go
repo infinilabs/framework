@@ -604,14 +604,16 @@ func serveFile(w http.ResponseWriter, r *http.Request, fs http.FileSystem, name 
 	serveContent(w, r, d.Name(), d.ModTime(), sizeFunc, f)
 }
 
-// vfsAssetHashRE 匹配前端构建产物文件名里的内容哈希段（如
-// index-DPak5aSO.js、pizza_engine_bg-B2pSYpQe.wasm）。
+// vfsAssetHashRE matches the content-hash segment in built frontend asset
+// names (index-DPak5aSO.js, pizza_engine_bg-B2pSYpQe.wasm).
 var vfsAssetHashRE = regexp.MustCompile(`-[A-Za-z0-9_]{8,}\.[A-Za-z0-9]+$`)
 
-// spaCacheControl SPA 静态资源缓存策略：/assets/ 下带内容哈希的构建产物
-// 内容永不原地变更，标记 immutable 让浏览器跳过重复校验（大 bundle 场景
-// 二次访问收益明显）；HTML 入口必须始终再验证，保证发版后能拉到新 hash
-// 的资源清单。返回空串表示不干预（沿用 Last-Modified 协商缓存）。
+// spaCacheControl is the cache policy for SPA static assets: hashed build
+// outputs under /assets/ never change in place, so they are marked
+// immutable to let browsers skip revalidation (a big win on repeat visits
+// with large bundles); the HTML entry must always revalidate so a release
+// picks up the asset manifest with the new hashes. An empty return means
+// no intervention (Last-Modified negotiation as usual).
 func spaCacheControl(p string) string {
 	if strings.HasPrefix(p, "/assets/") && vfsAssetHashRE.MatchString(p) {
 		return "public, max-age=31536000, immutable"

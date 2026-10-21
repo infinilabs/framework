@@ -221,12 +221,13 @@ func TestNormalizeDataStreamDoc(t *testing.T) {
 	if m["@timestamp"] != "2026-10-15T00:00:00Z" {
 		t.Errorf("@timestamp = %v", m["@timestamp"])
 	}
-	// @timestamp 是唯一真实时间戳: payload 里的 timestamp 折叠进
-	// @timestamp 后删除, 不再写顶层 mirror。
+	// @timestamp is the only real timestamp: the payload's timestamp folds
+	// into @timestamp and is dropped — no top-level mirror is written.
 	if _, ok := m["timestamp"]; ok {
 		t.Errorf("timestamp mirror must not survive: %v", m["timestamp"])
 	}
-	// file origin 不再提升为顶层 "file" (采集溯源由 @agent.file_* 承载)
+	// file origin no longer promotes to a top-level "file"
+	// (collection provenance lives on @agent.file_*)
 	if _, ok := m["file"]; ok {
 		t.Errorf("top-level file promotion is gone: %v", m["file"])
 	}
