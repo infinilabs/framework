@@ -51,6 +51,7 @@ Information about release notes of INFINI Framework is provided here.
 - fix(queue): label selector AND semantics, kafka partition commits, consumer config overrides — `GetConfigByLabels` requires ALL requested label pairs (a queue tagged `{topic:x}` is no longer selected by a `{topic:x, env:prod}` selector; `matched` defaults to false and is enabled only when every pair verifies), kafka `CommitOffset` persists each partition's own offset instead of overwriting partition 0, and the queue-consumer processor applies its `consumer` overrides to a `Clone()` covering every field instead of mutating the shared registry config #413
 
 ### ✈️ Improvements  
+- refactor: resolve Windows junctions during path canonicalization, matching symbolic-link behavior. #435
 - refactor: add EventSink support to overall utilization collector #387
 - refactor: enable CORS for GET /setting/application #390
 - refactor: rate limit the large cluster warning in metric collection #394

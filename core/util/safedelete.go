@@ -39,36 +39,6 @@ var neverDeleteRoot = map[string]bool{
 	"/private/var": true, "/private/tmp": true,
 }
 
-// canonicalPath absolutizes and symlink-resolves p. When p itself does not
-// exist yet (the common case: cleaning a destination right before writing
-// it), the deepest EXISTING ancestor is resolved instead, so a not-yet-
-// created target under a symlinked root canonicalizes identically to the
-// root — and a link jumping out of the allowed root cannot smuggle a
-// target past the containment check either way.
-func canonicalPath(p string) string {
-	abs, err := filepath.Abs(p)
-	if err != nil {
-		abs = filepath.Clean(p)
-	}
-	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
-		return resolved
-	}
-	rest := ""
-	dir := abs
-	for {
-		parent := filepath.Dir(dir)
-		if parent == dir { // reached "/"
-			break
-		}
-		rest = filepath.Join(filepath.Base(dir), rest)
-		if resolved, err := filepath.EvalSymlinks(parent); err == nil {
-			return filepath.Join(resolved, rest)
-		}
-		dir = parent
-	}
-	return abs
-}
-
 // IsDangerousPath reports whether p is a system-critical location that must
 // not be deleted: the filesystem root, a neverTouch member or anything
 // under it, or a bare neverDeleteRoot member (its CONTENT is fine).
@@ -101,7 +71,7 @@ func IsDangerousPath(p string) bool {
 // IsPathWithin reports whether target is strictly BELOW root (target ==
 // root does not count: deleting the root itself is a different operation
 // and must be opted into explicitly). Lexical on cleaned absolute paths,
-// with symlink resolution when the paths exist.
+// with symlink and Windows junction resolution when the paths exist.
 func IsPathWithin(target, root string) bool {
 	t, r := canonicalPath(target), canonicalPath(root)
 	if t == r {
