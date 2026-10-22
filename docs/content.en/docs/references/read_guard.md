@@ -150,6 +150,12 @@ Cleanup cannot bypass these restrictions: `/srv/node-*/..` becomes `/srv` and fa
 Literal roots resolve symbolic links during construction.
 Patterns preserve their cleaned expression paths and do not map symbolic-link aliases to their targets.
 Every actual request path resolves symbolic links before matching, including the final file in `ResolveUnder`.
+On Windows, literal roots and actual request paths also resolve directory junctions through Windows file handles.
+For example, a request through `assets/easysearch/logs` can match `assets/easysearch-*/logs` when the junction targets `assets/easysearch-2.5.0-windows-amd64`.
+Junctions inside a permitted log directory cannot authorize targets outside the allowed roots.
+
+Read and deletion guards share path canonicalization and follow both symbolic links and Windows junctions.
+`SafeRemoveAll` removes the resolved target, which must pass the dangerous-path and allowed-root checks.
 
 For example, suppose `/srv/current` links to `/srv/easysearch`.
 The pattern `/srv/current/node-*/logs` does not authorize a target that resolves to `/srv/easysearch/node-a/logs`.
