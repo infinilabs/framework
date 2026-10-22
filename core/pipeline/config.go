@@ -44,7 +44,8 @@ type PipelineConfigV2 struct {
 
 	// Human-readable identifier for this pipeline.
 	// Required when creating a pipeline via the API.
-	Name string `config:"name" json:"name,omitempty"`
+	// Keyword so the pipeline list API can term-query and sort on it.
+	Name string `config:"name" json:"name,omitempty" elastic_mapping:"name: { type: keyword }"`
 
 	// A disabled pipeline is treated as if it does not exist. Nil means
 	// "use the module default".
@@ -98,7 +99,10 @@ type PipelineConfigV2 struct {
 	// Processors is the ordered chain of processor definitions that makes
 	// up the actual work the pipeline performs. Each entry is a single
 	// processor config keyed by processor type.
-	Processors []map[string]interface{} `config:"processor" json:"processor"`
+	// Indexing is disabled: processor configs are arbitrary per-processor
+	// JSON and would otherwise be dynamically mapped, risking field-type
+	// conflicts between pipelines on the same index.
+	Processors []map[string]interface{} `config:"processor" json:"processor" elastic_mapping:"processor: { enabled: false }"`
 
 	// StrictContract turns record-contract mismatches into compile errors
 	// instead of warnings. Absent = legacy warn-only (P8 flips the default).
