@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/env"
 	"infini.sh/framework/lib/go-ucfg"
 	"infini.sh/framework/modules/configs/common"
 )
@@ -265,4 +266,36 @@ func TestDiffConfigs_HashAware(t *testing.T) {
 			t.Fatal("version 1 must not beat 12 for hashless clients (logpilot bumps row versions instead)")
 		}
 	})
+}
+
+// Instances built without version ldflags report placeholder dates ("N/A").
+// An index whose mapping predates the keyword pin maps these fields as
+// `date`, and ES rejects the placeholder — every heartbeat upsert failed
+// silently (Debug log) while syncs kept returning 200. normalizeVersionDates
+// must blank anything that is not an RFC3339 date.
+func TestNormalizeVersionDates(t *testing.T) {
+	app := env.Application{}
+	app.Version.BuildDate = "N/A"
+	app.Version.EolDate = "unknown"
+	app.Version.BuildCommitHash = "abc123"
+
+	normalizeVersionDates(&app)
+
+	if app.Version.BuildDate != "" {
+		t.Fatalf("placeholder build_date not blanked: %q", app.Version.BuildDate)
+	}
+	if app.Version.EolDate != "" {
+		t.Fatalf("placeholder eol_date not blanked: %q", app.Version.EolDate)
+	}
+	if app.Version.BuildCommitHash != "abc123" {
+		t.Fatalf("non-date field must be untouched: %q", app.Version.BuildCommitHash)
+	}
+
+	// real dates survive
+	app.Version.BuildDate = "2026-10-21T12:58:27Z"
+	app.Version.EolDate = "2027-12-31T10:10:10Z"
+	normalizeVersionDates(&app)
+	if app.Version.BuildDate != "2026-10-21T12:58:27Z" || app.Version.EolDate != "2027-12-31T10:10:10Z" {
+		t.Fatalf("real dates must survive: %+v", app.Version)
+	}
 }

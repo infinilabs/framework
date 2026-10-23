@@ -436,6 +436,24 @@ func (h *APIHandler) registerInstance(w http.ResponseWriter, req *http.Request, 
 	h.WriteJSON(w, resp, http.StatusOK)
 }
 
+// normalizeVersionDates blanks client-reported version date placeholders
+// ("N/A", "unknown", ...) that are not RFC3339 dates. Indices created
+// before the keyword mapping pin carry a dynamic `date` mapping for
+// version.build_date/eol_date (the first writer sent real ISO dates), and
+// ES rejects placeholder strings with document_parsing_exception — which
+// silently killed every heartbeat upsert for instances built without
+// full version metadata (plain `go build`, no ldflags).
+func normalizeVersionDates(app *env.Application) {
+	for _, d := range []*string{&app.Version.BuildDate, &app.Version.EolDate} {
+		if *d == "" {
+			continue
+		}
+		if _, err := time.Parse(time.RFC3339, *d); err != nil {
+			*d = ""
+		}
+	}
+}
+
 // upsertInstance persists/refreshes the registration. Returns true when
 // the instance was newly created.
 func upsertInstance(instance *model.Instance) (bool, error) {
@@ -448,6 +466,8 @@ func upsertInstance(instance *model.Instance) (bool, error) {
 	}
 	// not-found is the normal first-registration path, not an error
 	exists = err == nil && exists
+
+	normalizeVersionDates(&instance.Application)
 
 	now := strconv.FormatInt(time.Now().UnixMilli(), 10)
 	if instance.Labels == nil {
@@ -532,7 +552,7 @@ func (h *APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, _ htt
 
 	// Heartbeat: refresh the instance record on every sync.
 	if _, err := upsertInstance(&obj.Client); err != nil {
-		log.Debugf("configs server: heartbeat upsert failed for %s: %v", obj.Client.ID, err)
+		log.Warnf("configs server: heartbeat upsert failed for %s: %v", obj.Client.ID, err)
 	}
 
 	// Runtime report: persist the instance's pipeline state for the
