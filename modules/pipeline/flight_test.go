@@ -47,3 +47,36 @@ func TestFlight_RingBounded(t *testing.T) {
 		t.Fatalf("ring = %d, want %d", n, flightRing)
 	}
 }
+
+// Loss must be counted, never silent: OK steps skipped by sampling and
+// entries evicted from a full ring both land in the lost counters.
+func TestFlight_LossCounters(t *testing.T) {
+	installFlight()
+	f := globalFlight.Load().(*flightRecorder)
+
+	errsBefore := f.evicted.Load()
+	sampledBefore := f.sampledOut.Load()
+
+	// 200 OK steps: all but ~2 are sampled out
+	for i := 0; i < 200; i++ {
+		f.OnStep(&pipeline.StepEvent{Pipeline: "loss", Outcome: pipeline.OutcomeOK})
+	}
+	sampled := f.sampledOut.Load() - sampledBefore
+	if sampled < 190 || sampled > 198 { // ~99% of 200
+		t.Fatalf("sampledOut = %d, want ~198", sampled)
+	}
+
+	// errors only: two full rings worth — the older ring overflows
+	for i := 0; i < flightRing*2; i++ {
+		f.OnStep(&pipeline.StepEvent{Pipeline: "loss-ring", Outcome: pipeline.OutcomeError})
+	}
+	if evicted := f.evicted.Load() - errsBefore; evicted != flightRing {
+		t.Fatalf("evicted = %d, want %d", evicted, flightRing)
+	}
+
+	// stats surface through the package helper (handler reads this)
+	lost := flightLostStats()
+	if lost.SampledOut < sampled || lost.Evicted < flightRing {
+		t.Fatalf("flightLostStats = %+v, want counters >= this test's deltas", lost)
+	}
+}

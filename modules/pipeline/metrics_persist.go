@@ -5,6 +5,7 @@
 package pipeline
 
 import (
+	"sync/atomic"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -27,6 +28,12 @@ type PipelineStageStat struct {
 	AvgLatency int64     `json:"avg_latency_ns" elastic_mapping:"avg_latency_ns:{type:long}"`
 	Ts         time.Time `json:"ts" elastic_mapping:"ts:{type:date}"`
 }
+
+// metricsPersistFailures counts stage-snapshot rows the exporter failed
+// to persist (orm save errors) — cumulative since process start. Losses
+// here mean the persisted metric history has holes; surfaced via the
+// stages endpoint next to the in-memory stats.
+var metricsPersistFailures atomic.Int64
 
 // metricsPersistConfig reads pipeline_metrics.persistence.
 type metricsPersistConfig struct {
@@ -87,6 +94,7 @@ func (module *PipeModule) persistStageSnapshot() {
 			}
 			row.ID = util.GetUUID()
 			if err := orm.Save(octx, &row); err != nil {
+				metricsPersistFailures.Add(1)
 				log.Warnf("metrics persist: save %s/%s failed: %v", name, st.Stage, err)
 			}
 		}
