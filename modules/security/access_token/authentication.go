@@ -241,6 +241,11 @@ func CreateAPIToken(user *security.UserSessionInfo, tokenName, tokenDesc, typeNa
 		ctx.DirectAccess()
 		ctx.Refresh = orm.WaitForRefresh
 		ctx.PermissionScope(security.PermissionScopePlatform)
+		// the elastic ORM's data-op hooks resolve the index from the ctx
+		// model — without this the create panics "model is not set" on any
+		// ES-backed manager (sqlite resolves from the object, so only
+		// native+elastic deployments hit it)
+		orm.WithModel(ctx, &accessToken)
 
 		if err := orm.Create(ctx, &accessToken); err != nil {
 			return nil, err
@@ -618,6 +623,7 @@ func ListTokens() ([]*security.AccessToken, error) {
 	if isNative() {
 		ctx := orm.NewContext().DirectAccess()
 		ctx.PermissionScope(security.PermissionScopePlatform)
+		orm.WithModel(ctx, &security.AccessToken{})
 		res, err := orm.SearchV2(ctx, orm.NewQuery().Size(1000))
 		if err != nil {
 			return nil, err
@@ -658,6 +664,7 @@ func DeleteTokenByID(tokenID string) error {
 	if isNative() {
 		ctx := orm.NewContext().DirectAccess()
 		ctx.PermissionScope(security.PermissionScopePlatform)
+		orm.WithModel(ctx, &security.AccessToken{})
 		t := security.AccessToken{}
 		t.ID = tokenID
 		return orm.Delete(ctx, &t)
