@@ -351,12 +351,19 @@ func (module *PipeModule) reconcilePipeline(octx *orm.Context, pipelineID string
 			byID[instances[i].ID] = instances[i]
 		}
 		singleton := owner.Placement.Strategy == "singleton"
-		ready := func(id string) bool {
-			inst, ok := byID[id]
-			if !ok {
-				return false
-			}
-			st, reported := runtimePipelineStates(inst.RuntimePipelines)[cfg.Name]
+			ready := func(id string) bool {
+				inst, ok := byID[id]
+				if !ok {
+					return false
+				}
+				// a frozen report must not count forever: an instance that
+				// died keeps its last STARTED+digest — require a heartbeat
+				// within 3 default sync intervals (30s each) or the wave
+				// holds until a live holder proves the content
+				if inst.Updated != nil && time.Since(*inst.Updated) > 90*time.Second {
+					return false
+				}
+				st, reported := runtimePipelineStates(inst.RuntimePipelines)[cfg.Name]
 			if !reported || st.State == "FAILED" {
 				return false
 			}
@@ -616,6 +623,15 @@ func (h *PipeModule) getDeploymentStatus(dep *PipelineDeployment) DeploymentStat
 
 	for _, inst := range instances {
 		inScope := broadcast || targets[inst.ID]
+		// the honest "when did this instance last check in" — the ORM
+		// record's updated stamp refreshes on every _sync heartbeat.
+		// Read-time now() would show dead instances as freshly reporting
+		// forever (#130: a killed gateway kept displaying STARTED with a
+		// brand-new last_seen).
+		lastSeen := time.Now().UTC()
+		if inst.Updated != nil {
+			lastSeen = inst.Updated.UTC()
+		}
 		if inst.RuntimePipelines == "" {
 			// in-scope instances that have not reported yet are part of
 			// the desired count — surface them as pending instead of
@@ -625,7 +641,7 @@ func (h *PipeModule) getDeploymentStatus(dep *PipelineDeployment) DeploymentStat
 					InstanceID: inst.ID,
 					State:      "PENDING",
 					Version:    dep.Version,
-					LastSeen:   time.Now().UTC(),
+					LastSeen:   lastSeen,
 				})
 			}
 			continue
@@ -643,7 +659,7 @@ func (h *PipeModule) getDeploymentStatus(dep *PipelineDeployment) DeploymentStat
 				InstanceID: inst.ID,
 				State:      st.State,
 				Version:    dep.Version,
-				LastSeen:   time.Now().UTC(),
+				LastSeen:   lastSeen,
 				Reason:     st.Reason,
 				// stale = the instance still runs the pipeline but the
 				// scope no longer includes it (config recall in flight,
