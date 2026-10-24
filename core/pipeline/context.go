@@ -105,6 +105,10 @@ type Context struct {
 	pause    sync.WaitGroup
 	// Set this to true if you want to stop the pipeline, and then, pause (suspend) the goroutine.
 	isQuit    bool
+	// drainRequested asks long-running consumers to stop FETCHING new
+	// work: finish the in-flight batch, commit its offset, then return —
+	// as opposed to CancelTask, which aborts mid-batch (redelivery).
+	drainRequested bool
 	stateLock sync.Mutex
 	// Set this to true if you want to let the goroutine exit, i.e., the kill signal.
 	released bool
@@ -370,6 +374,9 @@ func (ctx *Context) Restart() {
 	defer ctx.stateLock.Unlock()
 
 	ctx.isQuit = false
+	// a fresh run is no longer draining — otherwise a consumer started
+	// after _drain would immediately drain again
+	ctx.drainRequested = false
 }
 
 // IsExit means pipeline has been manually stopped, will not running until Restart
@@ -386,6 +393,23 @@ func (ctx *Context) Exit() {
 	defer ctx.stateLock.Unlock()
 
 	ctx.isQuit = true
+}
+
+// Drain requests a graceful stop: consumers finish the current batch,
+// commit its offset, then wind down instead of fetching more work.
+func (ctx *Context) Drain() {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
+	ctx.drainRequested = true
+}
+
+// IsDraining reports whether a graceful drain was requested.
+func (ctx *Context) IsDraining() bool {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
+	return ctx.drainRequested
 }
 
 func (ctx *Context) CancelTask() {

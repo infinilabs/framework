@@ -214,9 +214,50 @@ func (module *PipeModule) flightPipelineTaskHandler(w http.ResponseWriter, req *
 	module.WriteJSON(w, util.MapStr{"events": events}, http.StatusOK)
 }
 
+// requestedGeneration parses the optional ?generation= control guard.
+// Returns (0, false) when absent or malformed — legacy unguarded behavior.
+func requestedGeneration(req *http.Request) (int, bool) {
+	g := req.URL.Query().Get("generation")
+	if g == "" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(g)
+	if err != nil || n <= 0 {
+		return 0, false
+	}
+	return n, true
+}
+
+// checkGenerationGuard enforces the fleet control contract (#120): an
+// instruction stamped with a generation applies only when the local task
+// runs exactly that config revision — an instance still on an older
+// generation (hot reload not landed yet) must not act on instructions
+// issued for the new one, and vice versa. Writes a 409 carrying both
+// generations on mismatch; absent/malformed param keeps today's
+// unconditional behavior.
+func (module *PipeModule) checkGenerationGuard(w http.ResponseWriter, req *http.Request, id string) bool {
+	n, ok := requestedGeneration(req)
+	if !ok {
+		return true
+	}
+	cur := module.generationOf(id)
+	if cur != n {
+		module.WriteAckJSON(w, false, http.StatusConflict, util.MapStr{
+			"error":                  "generation mismatch, instruction skipped",
+			"current_generation":     cur,
+			"instruction_generation": n,
+		})
+		return false
+	}
+	return true
+}
+
 // pausePipelineTaskHandler — POST /pipeline/task/:id/_pause
 func (module *PipeModule) pausePipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.MustGetParameter("id")
+	if !module.checkGenerationGuard(w, req, id) {
+		return
+	}
 	if !module.pauseTask(id) {
 		module.WriteOpRecordNotFoundJSON(w, id)
 		return
@@ -227,6 +268,13 @@ func (module *PipeModule) pausePipelineTaskHandler(w http.ResponseWriter, req *h
 // resumePipelineTaskHandler — POST /pipeline/task/:id/_resume
 func (module *PipeModule) resumePipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.MustGetParameter("id")
+	if !module.checkGenerationGuard(w, req, id) {
+		return
+	}
+	if module.cordoned.Load() {
+		module.WriteAckJSON(w, false, http.StatusConflict, util.MapStr{"error": "instance is cordoned"})
+		return
+	}
 	if !module.resumeTask(id) {
 		module.WriteOpRecordNotFoundJSON(w, id)
 		return
@@ -322,6 +370,13 @@ func (module *PipeModule) injectPipelineTaskHandler(w http.ResponseWriter, req *
 
 func (module *PipeModule) startPipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
+	if !module.checkGenerationGuard(w, req, id) {
+		return
+	}
+	if module.cordoned.Load() {
+		module.WriteAckJSON(w, false, http.StatusConflict, util.MapStr{"error": "instance is cordoned"})
+		return
+	}
 	exists := module.startTask(id)
 	if exists {
 		module.WriteAckOKJSON(w)
@@ -335,6 +390,9 @@ func (module *PipeModule) startPipelineTaskHandler(w http.ResponseWriter, req *h
 // curl -XPOST http://localhost:2900/pipeline/task/echo-test/_stop
 func (module *PipeModule) stopPipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
+	if !module.checkGenerationGuard(w, req, id) {
+		return
+	}
 	exists := module.stopTask(id)
 	if exists {
 		module.WriteAckOKJSON(w)
@@ -343,4 +401,66 @@ func (module *PipeModule) stopPipelineTaskHandler(w http.ResponseWriter, req *ht
 			"error": "task not found",
 		})
 	}
+}
+
+// drainPipelineTaskHandler — POST /pipeline/task/:id/_drain
+// Graceful stop: the consumer finishes the current batch and commits its
+// offset, then the task parks STOPPED (resumable via _start). Honors the
+// ?generation= guard; ?timeout_seconds= bounds the settle wait (default
+// 30, max 600).
+func (module *PipeModule) drainPipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	id := ps.MustGetParameter("id")
+	if !module.checkGenerationGuard(w, req, id) {
+		return
+	}
+	if !module.drainTask(id) {
+		module.WriteOpRecordNotFoundJSON(w, id)
+		return
+	}
+	timeout := 30 * time.Second
+	if v := req.URL.Query().Get("timeout_seconds"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 600 {
+			timeout = time.Duration(n) * time.Second
+		}
+	}
+	state := module.waitTaskSettled(id, timeout)
+	settled := state != pipeline.STARTED && state != pipeline.STARTING && state != pipeline.STOPPING
+	module.WriteJSON(w, util.MapStr{"drained": settled, "id": id, "state": string(state)}, http.StatusOK)
+}
+
+// drainInstanceHandler — POST /pipeline/_drain
+// Graceful-stop every running task on this instance (maintenance path;
+// pair with _cordon so no new work starts while draining). Optional
+// ?timeout_seconds= bounds the shared settle wait (default 60).
+func (module *PipeModule) drainInstanceHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	timeout := 60 * time.Second
+	if v := req.URL.Query().Get("timeout_seconds"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 3600 {
+			timeout = time.Duration(n) * time.Second
+		}
+	}
+	states := module.drainAllTasks(timeout)
+	module.WriteJSON(w, util.MapStr{"drained": states}, http.StatusOK)
+}
+
+// cordonInstanceHandler — POST /pipeline/_cordon
+// Marks the instance cordoned: running tasks drain to completion, but no
+// task starts (auto_start, _start, _resume; hot-reload recreations park
+// STOPPED) until _uncordon.
+func (module *PipeModule) cordonInstanceHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	module.cordoned.Store(true)
+	log.Info("pipeline instance cordoned: task starts are rejected until _uncordon")
+	module.WriteJSON(w, util.MapStr{"cordoned": true}, http.StatusOK)
+}
+
+// uncordonInstanceHandler — POST /pipeline/_uncordon
+func (module *PipeModule) uncordonInstanceHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	module.cordoned.Store(false)
+	log.Info("pipeline instance uncordoned")
+	module.WriteJSON(w, util.MapStr{"cordoned": false}, http.StatusOK)
+}
+
+// getCordonHandler — GET /pipeline/_cordon
+func (module *PipeModule) getCordonHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	module.WriteJSON(w, util.MapStr{"cordoned": module.cordoned.Load()}, http.StatusOK)
 }

@@ -37,6 +37,12 @@ const (
 	OutcomeError           Outcome = "error"
 	OutcomeDropped         Outcome = "dropped"
 	OutcomeSkippedContract Outcome = "skipped-contract"
+
+	// OutcomeTakeover marks a singleton lock takeover (a control-plane
+	// lifecycle event, not a chain step): this instance acquired a lock
+	// whose previous holder's lease expired. Not an error, but always
+	// retained by the flight recorder (any non-ok outcome is).
+	OutcomeTakeover Outcome = "lock-takeover"
 )
 
 // ExecutionObserver receives StepEvents as chains execute. Observers must

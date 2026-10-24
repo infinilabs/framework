@@ -68,6 +68,10 @@ type PipeModule struct {
 	// startup version); each successful hot reload increments it and the
 	// runtime report exposes it so controllers can see a reload landed
 	generations sync.Map // taskID -> int
+	// cordoned marks the instance under maintenance: running tasks drain
+	// to completion, but no task starts (auto_start/_start/_resume, and
+	// tasks recreated by hot reload park STOPPED) until uncordoned
+	cordoned atomic.Bool
 }
 
 // recordFailure stores a pipeline compile/load failure for the runtime
@@ -215,6 +219,20 @@ func (module *PipeModule) Setup() {
 	api.HandleUIMethod(api.POST, "/pipeline/task/:id/_start", module.startPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
 	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopPipelineTaskHandler)
 	api.HandleUIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+
+	// graceful stop (#121): finish the current batch, commit, park
+	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_drain", module.drainPipelineTaskHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/task/:id/_drain", module.drainPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+
+	// instance maintenance (#121): drain everything / cordon against new starts
+	api.HandleAPIMethod(api.POST, "/pipeline/_drain", module.drainInstanceHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/_drain", module.drainInstanceHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	api.HandleAPIMethod(api.POST, "/pipeline/_cordon", module.cordonInstanceHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/_cordon", module.cordonInstanceHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	api.HandleAPIMethod(api.POST, "/pipeline/_uncordon", module.uncordonInstanceHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/_uncordon", module.uncordonInstanceHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	api.HandleAPIMethod(api.GET, "/pipeline/_cordon", module.getCordonHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/_cordon", module.getCordonHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
 
 	// processor discovery: names + config schemas for pipeline designers
 	api.HandleAPIMethod(api.GET, "/pipeline/processors", module.getProcessorsHandler)
@@ -710,6 +728,107 @@ func (module *PipeModule) reloadPipelineTaskAsync(pipelineID string, newCfg *pip
 	go module.hotReloadPipeline(pipelineID, newCfg)
 }
 
+// drainTask marks the task for a graceful stop (#121): the consumer
+// finishes the current batch and commits its offset, then the pipeline
+// loop parks STOPPED (resumable via _start). Returns false when the task
+// does not exist locally.
+func (module *PipeModule) drainTask(taskID string) bool {
+	v, ok := module.contexts.Load(taskID)
+	if !ok {
+		return false
+	}
+	ctx, ok := v.(*pipeline.Context)
+	if !ok {
+		return false
+	}
+	ctx.Drain()
+	ctx.Exit() // no keep_running restarts after the current pass
+	return true
+}
+
+// taskRunningState reports the task's current state ("" when absent).
+func (module *PipeModule) taskRunningState(taskID string) pipeline.RunningState {
+	v, ok := module.contexts.Load(taskID)
+	if !ok {
+		return ""
+	}
+	ctx, ok := v.(*pipeline.Context)
+	if !ok {
+		return ""
+	}
+	return ctx.GetRunningState()
+}
+
+// waitTaskSettled polls until the task leaves the running states or the
+// timeout elapses; returns the last observed state.
+func (module *PipeModule) waitTaskSettled(taskID string, timeout time.Duration) pipeline.RunningState {
+	deadline := time.Now().Add(timeout)
+	for {
+		state := module.taskRunningState(taskID)
+		if state != pipeline.STARTED && state != pipeline.STARTING && state != pipeline.STOPPING {
+			return state
+		}
+		if time.Now().After(deadline) {
+			return state
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// drainAllTasks gracefully stops every running task on this instance
+// (maintenance path — pair with cordon so no new work starts while
+// draining). All drains are marked first, then one bounded wait; the
+// returned map carries each task's settled state.
+func (module *PipeModule) drainAllTasks(timeout time.Duration) map[string]string {
+	module.contexts.Range(func(k, v any) bool {
+		if id, ok := k.(string); ok {
+			module.drainTask(id)
+		}
+		return true
+	})
+	deadline := time.Now().Add(timeout)
+	out := map[string]string{}
+	for {
+		running := 0
+		module.contexts.Range(func(k, v any) bool {
+			id, ok := k.(string)
+			if !ok {
+				return true
+			}
+			state := module.taskRunningState(id)
+			out[id] = string(state)
+			if state == pipeline.STARTED || state == pipeline.STARTING || state == pipeline.STOPPING {
+				running++
+			}
+			return true
+		})
+		if running == 0 || time.Now().After(deadline) {
+			return out
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// probeLockTakeover reports the previous owner when the singleton lock
+// for name sits EXPIRED under another instance — the Hold that follows
+// takes it over. kv-less environments (unit tests, lightweight agents)
+// report "" instead of panicking.
+func probeLockTakeover(bucket, name string, ttl time.Duration) string {
+	defer func() { _ = recover() }()
+	ok, info, err := locker.GetAllocateInfo(bucket, name)
+	if err != nil || !ok || info == nil {
+		return ""
+	}
+	self := global.Env().SystemConfig.NodeConfig.ID
+	if info.ClientID == "" || info.ClientID == self {
+		return ""
+	}
+	if time.Since(info.Timestamp) > ttl {
+		return info.ClientID
+	}
+	return ""
+}
+
 // Helper function to run a pipeline, i.e., create a pipeline task.
 func (module *PipeModule) createPipelineTask(v pipeline.PipelineConfigV2, transient bool) error {
 	if module.closed.Load() {
@@ -833,16 +952,34 @@ func (module *PipeModule) createPipelineTask(v pipeline.PipelineConfigV2, transi
 			switch state {
 			case pipeline.STARTING:
 
+				// cordoned instance: the task registers but does not run —
+				// it parks STOPPED and resumes via _start after _uncordon
+				if module.cordoned.Load() {
+					ctx.Stopped()
+					ctx.Pause()
+					continue
+				}
+
 				//check
 				if v.Singleton {
 					if v.MaxRunningInMs <= 0 {
 						v.MaxRunningInMs = 60000
 					}
-					ok, err := locker.Hold(pipelineSingleton, v.ID, global.Env().SystemConfig.NodeConfig.ID, time.Duration(v.MaxRunningInMs)*time.Millisecond, true)
+					ttl := time.Duration(v.MaxRunningInMs) * time.Millisecond
+					// takeover detection (#122): the lock's lease expired
+					// under another instance — the Hold below acquires it,
+					// ending that instance's run; surface the event
+					takeoverFrom := probeLockTakeover(pipelineSingleton, v.ID, ttl)
+					ok, err := locker.Hold(pipelineSingleton, v.ID, global.Env().SystemConfig.NodeConfig.ID, ttl, true)
 					if !ok {
 						log.Debugf("pipeline [%v] is already running somewhere, %v", cfg.Name, err)
 						ctx.Finished()
 						continue
+					}
+					if takeoverFrom != "" {
+						msg := fmt.Sprintf("singleton lock taken over from instance %s (lease expired)", takeoverFrom)
+						log.Warnf("pipeline [%v]: %v", cfg.Name, msg)
+						recordPipelineEvent(cfg.Name, pipeline.OutcomeTakeover, msg)
 					}
 				}
 

@@ -274,7 +274,7 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 				var lastDispatch = time.Now()
 
 				for {
-					if c.IsCanceled() {
+					if c.IsCanceled() || c.IsDraining() {
 						return
 					}
 
@@ -292,7 +292,7 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 					//log.Errorf("filter queue by:%v, num of queues:%v", processor.config.Selector.ToString(), len(cfgs))
 
 					for _, v := range cfgs {
-						if c.IsCanceled() {
+						if c.IsCanceled() || c.IsDraining() {
 							return
 						}
 
@@ -623,11 +623,14 @@ READ_DOCS:
 
 	//TODO
 	//consumerInstance.ResetOffset(queue.ConvertOffset(offset))
-	EOF := false
-	for {
-		if global.ShuttingDown() || ctx.IsCanceled() || ctx.IsFailed() || parentContext != nil && (parentContext.IsFailed() || parentContext.IsCanceled()) {
-			goto CLEAN_BUFFER
-		}
+		EOF := false
+		for {
+			// drain (graceful stop): break to CLEAN_BUFFER so the current
+			// offset commits, then return instead of fetching more — the
+			// batch boundary is the safe exit point for maintenance stops
+			if global.ShuttingDown() || ctx.IsCanceled() || ctx.IsFailed() || ctx.IsDraining() || parentContext != nil && (parentContext.IsFailed() || parentContext.IsCanceled() || parentContext.IsDraining()) {
+				goto CLEAN_BUFFER
+			}
 
 		if len(processor.config.WaitingAfter) > 0 {
 			for _, v := range processor.config.WaitingAfter {
@@ -805,7 +808,7 @@ CLEAN_BUFFER:
 	}
 
 	log.Tracef("slice_worker, goto READ_DOCS, return on queue:[%v], slice_id:%v", qConfig.Name, sliceID)
-	if !ctx.IsCanceled() && !(parentContext != nil && (parentContext.IsFailed() || parentContext.IsCanceled())) {
+	if !ctx.IsCanceled() && !ctx.IsDraining() && !(parentContext != nil && (parentContext.IsFailed() || parentContext.IsCanceled() || parentContext.IsDraining())) {
 		goto READ_DOCS
 	}
 }

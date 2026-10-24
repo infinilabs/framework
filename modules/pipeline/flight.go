@@ -88,3 +88,19 @@ func installFlight() {
 	pipeline.RegisterObserver(newFlightRecorder())
 	globalFlight.Store(newFlightRecorder())
 }
+
+// recordPipelineEvent files a control-plane lifecycle event (singleton
+// lock takeover...) into the flight ring — the alert surface operators
+// watch. No-op when flight is not installed; non-ok outcomes are always
+// retained by the recorder.
+func recordPipelineEvent(pipelineName string, outcome pipeline.Outcome, msg string) {
+	f := globalFlight.Load()
+	if f == nil {
+		return
+	}
+	f.(*flightRecorder).OnStep(&pipeline.StepEvent{
+		Pipeline: pipelineName,
+		Outcome:  outcome,
+		Err:      msg,
+	})
+}
