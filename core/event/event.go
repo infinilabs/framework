@@ -49,8 +49,11 @@ type Event struct {
 	TimeSeries bool        `json:"-"` // true if the event contains timeseries data
 
 	// pooled links to the record-pool wrapper while the event came from
-	// AcquireEvent; managed by pool.go, never serialized.
-	pooled *pooledEvent
+	// AcquireEvent; managed by pool.go, never serialized. Held as
+	// interface{} on purpose: a typed *pooledEvent back-reference would
+	// create a recursive type (Event -> pooledEvent -> Event) and blow
+	// the reflection walkers (GetTagsByTagName) with a stack overflow.
+	pooled interface{}
 }
 
 type EventMetadata struct {

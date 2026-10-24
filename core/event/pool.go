@@ -82,10 +82,13 @@ func AcquireEvent() *Event {
 // back to the pool, false for non-pooled events or a rejected double
 // release.
 func ReleaseEvent(e *Event) bool {
-	if e == nil || e.pooled == nil {
+	if e == nil {
 		return false
 	}
-	pe := e.pooled
+	pe, ok := e.pooled.(*pooledEvent)
+	if !ok {
+		return false
+	}
 	if !pe.live.CompareAndSwap(true, false) {
 		return false
 	}
