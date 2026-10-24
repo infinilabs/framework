@@ -192,16 +192,20 @@ func receiptSettled(r Receipt) bool {
 
 // ─── dry-run interception ────────────────────────────────────────────────────
 
-// DryRunWrite is one captured side effect (queue/lane write intercepted
-// during a dry run — never delivered).
+// DryRunWrite is one captured side effect (queue/lane/attachment write
+// intercepted during a dry run — never delivered).
 type DryRunWrite struct {
-	Kind    string // queue | lane
+	Kind    string // queue | lane | attachment (host-specific labels welcome)
 	Target  string
 	Records int
 	Preview string
 }
 
-const dryRunKey = "__dry_run_sink"
+// dryRunCtxKey rides the Go context chain: processor helpers derive plain
+// contexts from ctx.Context and never see the pipeline wrapper's parameter
+// store, so the state must travel with the embedded chain to stay visible
+// under orm/attachment layers.
+type dryRunCtxKey struct{}
 
 // EnableDryRun marks the context as a dry run; when capture is true,
 // output processors append intercepted writes to sink instead of
@@ -210,7 +214,21 @@ func EnableDryRun(ctx *Context, sink *[]DryRunWrite, capture bool) {
 	if ctx == nil {
 		return
 	}
-	ctx.Set(dryRunKey, &dryRunState{sink: sink, capture: capture})
+	st := &dryRunState{sink: sink, capture: capture}
+	ctx.Context = context.WithValue(ctx.Context, dryRunCtxKey{}, st)
+}
+
+type dryRunState struct {
+	sink    *[]DryRunWrite
+	capture bool
+}
+
+func dryRunStateFrom(ctx context.Context) *dryRunState {
+	if ctx == nil {
+		return nil
+	}
+	st, _ := ctx.Value(dryRunCtxKey{}).(*dryRunState)
+	return st
 }
 
 // InDryRun reports whether this context runs under a dry-run replay
@@ -219,13 +237,13 @@ func InDryRun(ctx *Context) bool {
 	if ctx == nil {
 		return false
 	}
-	st, _ := ctx.Get(dryRunKey).(*dryRunState)
-	return st != nil
+	return dryRunStateFrom(ctx.Context) != nil
 }
 
-type dryRunState struct {
-	sink    *[]DryRunWrite
-	capture bool
+// InDryRunCtx is the context-chain variant for code holding a derived
+// plain context (below processors that re-wrap the parent).
+func InDryRunCtx(ctx context.Context) bool {
+	return dryRunStateFrom(ctx) != nil
 }
 
 // DryRunCapture returns the sink when this context runs in capturing
@@ -234,7 +252,17 @@ func DryRunCapture(ctx *Context) *[]DryRunWrite {
 	if ctx == nil {
 		return nil
 	}
-	st, _ := ctx.Get(dryRunKey).(*dryRunState)
+	return dryRunSinkFrom(ctx.Context)
+}
+
+// DryRunCaptureCtx is the context-chain variant for code deep under a
+// pipeline (orm/attachment layers holding derived contexts).
+func DryRunCaptureCtx(ctx context.Context) *[]DryRunWrite {
+	return dryRunSinkFrom(ctx)
+}
+
+func dryRunSinkFrom(ctx context.Context) *[]DryRunWrite {
+	st := dryRunStateFrom(ctx)
 	if st == nil || !st.capture {
 		return nil
 	}
