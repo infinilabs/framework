@@ -64,6 +64,10 @@ type PipeModule struct {
 	// instance (e.g. a processor missing from the local catalog) — the
 	// deployment status needs to see WHY, not just that it is absent
 	failures sync.Map // name -> string (compile/load error)
+	// generations counts the config revisions applied per task (1 = the
+	// startup version); each successful hot reload increments it and the
+	// runtime report exposes it so controllers can see a reload landed
+	generations sync.Map // taskID -> int
 }
 
 // recordFailure stores a pipeline compile/load failure for the runtime
@@ -106,9 +110,13 @@ func (module *PipeModule) RuntimeSnapshot() map[string]interface{} {
 		case pipeline.STOPPED, pipeline.FINISHED:
 			state = "STOPPED"
 		}
-		out[name] = map[string]interface{}{
+		entry := map[string]interface{}{
 			"state": state,
 		}
+		if taskID, ok := k.(string); ok {
+			entry["generation"] = module.generationOf(taskID)
+		}
+		out[name] = entry
 		return true
 	})
 	// pipelines that never made it into contexts (config rejected or
@@ -622,6 +630,85 @@ func (module *PipeModule) stopAndWaitForRelease(taskIDs []string, timeout time.D
 const pipelineSingleton = "pipeline_singleton"
 
 var creatingLocker = sync.Mutex{}
+
+// hotReloadLocker serializes hot reloads — two rapid API edits to the same
+// pipeline would otherwise race their stop/delete/create sequences and
+// LoadOrStore could converge on the older config.
+var hotReloadLocker = sync.Mutex{}
+
+// generationOf returns the config revision counter for a task (1 = the
+// startup version; each successful hot reload increments it).
+func (module *PipeModule) generationOf(taskID string) int {
+	if v, ok := module.generations.Load(taskID); ok {
+		if n, ok := v.(int); ok && n > 0 {
+			return n
+		}
+	}
+	return 1
+}
+
+// hotReloadPipeline swaps the locally running task for pipelineID to newCfg
+// (nil = stop and remove only) — the ORM CRUD path. API edits used to only
+// persist: a running task kept its stale compiled chain until the instance
+// restarted. Same semantics as the fsnotify reload: drain the in-flight
+// batch (stopAndWaitForRelease), then rebuild from the new config.
+// Transient tasks are never reloaded.
+//
+// Matching is strict on task ID — deployment-rendered configs keep the ORM
+// pipeline ID, so an edit reaches every instance running the pipeline,
+// while unrelated local YAML tasks (their own IDs) stay untouched.
+func (module *PipeModule) hotReloadPipeline(pipelineID string, newCfg *pipeline.PipelineConfigV2) {
+	v, ok := module.configs.Load(pipelineID)
+	if !ok {
+		return
+	}
+	oldC, ok := v.(pipeline.PipelineConfigV2)
+	if !ok {
+		return
+	}
+	if oldC.Transient {
+		log.Debugf("pipeline [%s] is transient, skip hot reload", pipelineID)
+		return
+	}
+	if newCfg != nil && oldC.Equals(*newCfg) && isPipelineEnabled(newCfg.Enabled) {
+		return // semantically unchanged — nothing to rebuild
+	}
+
+	hotReloadLocker.Lock()
+	defer hotReloadLocker.Unlock()
+
+	defer func() {
+		if !global.Env().IsDebug {
+			if r := recover(); r != nil {
+				log.Error("error on hot reloading pipeline,", pipelineID, ",", r)
+			}
+		}
+	}()
+
+	log.Infof("pipeline [%s] config changed via API, reloading task", pipelineID)
+	module.stopAndWaitForRelease([]string{pipelineID}, time.Minute)
+	module.deleteTask(pipelineID)
+
+	if newCfg == nil {
+		return
+	}
+	if err := module.createPipelineTask(*newCfg, false); err != nil {
+		module.recordFailure(newCfg.Name, err)
+		log.Errorf("pipeline [%s] hot reload: recreate failed: %v", pipelineID, err)
+		return
+	}
+	module.generations.Store(pipelineID, module.generationOf(pipelineID)+1)
+}
+
+// reloadPipelineTaskAsync runs the hot reload off the request path —
+// draining the current batch can legitimately take seconds, and the API
+// response must not wait for it.
+func (module *PipeModule) reloadPipelineTaskAsync(pipelineID string, newCfg *pipeline.PipelineConfigV2) {
+	if _, ok := module.configs.Load(pipelineID); !ok {
+		return // no local task runs this ORM row
+	}
+	go module.hotReloadPipeline(pipelineID, newCfg)
+}
 
 // Helper function to run a pipeline, i.e., create a pipeline task.
 func (module *PipeModule) createPipelineTask(v pipeline.PipelineConfigV2, transient bool) error {

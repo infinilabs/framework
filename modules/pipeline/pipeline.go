@@ -43,6 +43,10 @@ func (h *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
+	// a local task may already run under this ID (e.g. a deployment-
+	// rendered config) — swap it to the freshly created definition
+	h.reloadPipelineTaskAsync(obj.ID, obj)
+
 	h.WriteCreatedOKJSON(w, obj.ID)
 }
 
@@ -131,6 +135,10 @@ func (h *PipeModule) updatePipelineHandler(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
+	// hot-reload any local task running this pipeline — the edit used to
+	// only persist, leaving a running chain stale until restart
+	h.reloadPipelineTaskAsync(newConfig.ID, &newConfig)
+
 	h.WriteUpdatedOKJSON(w, newConfig.ID)
 }
 
@@ -169,6 +177,9 @@ func (h *PipeModule) deletePipelineHandler(w http.ResponseWriter, req *http.Requ
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// stop and remove any local task running this pipeline
+	h.reloadPipelineTaskAsync(id, nil)
 
 	h.WriteDeletedOKJSON(w, id)
 }
