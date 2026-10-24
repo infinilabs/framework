@@ -110,13 +110,25 @@ func (module *PipeModule) RuntimeSnapshot() map[string]interface{} {
 			}
 		}
 		state := "UNKNOWN"
-		switch ctx.GetRunningState() {
+		switch st := ctx.GetRunningState(); st {
 		case pipeline.STARTED, pipeline.STARTING:
 			state = "STARTED"
 		case pipeline.FAILED:
 			state = "FAILED"
-		case pipeline.STOPPED, pipeline.FINISHED:
+		case pipeline.STOPPED, pipeline.STOPPING:
 			state = "STOPPED"
+		case pipeline.FINISHED:
+			// keep_running tasks idle between passes (retry delay) with
+			// state FINISHED — the loop goroutine is alive and will run
+			// again. Reporting STOPPED here flaps a healthy fleet to
+			// "down" once per inter-pass sleep and permanently stalls
+			// rollout waves (readiness requires STARTED). A FAILED pass
+			// still reports FAILED: crash-loops must hold rollouts.
+			if ctx.Config.KeepRunning && !ctx.IsExit() {
+				state = "STARTED"
+			} else {
+				state = "STOPPED"
+			}
 		}
 		entry := map[string]interface{}{
 			"state": state,
