@@ -105,8 +105,13 @@ func installStats() {
 	if globalStats.Load() != nil {
 		return
 	}
-	pipeline.RegisterObserver(newStatsRecorder())
-	globalStats.Store(newStatsRecorder())
+	// one recorder for BOTH roles: registered observer (fed by the
+	// execution loop) and the globalStats snapshot (read by stageStats).
+	// Two separate instances here would count into one and read from the
+	// other — stage views would silently stay empty.
+	rec := newStatsRecorder()
+	pipeline.RegisterObserver(rec)
+	globalStats.Store(rec)
 }
 
 var _ = time.Second

@@ -82,7 +82,11 @@ func (module *PipeModule) persistStageSnapshot() {
 		return true
 	})
 	now := time.Now().UTC()
-	octx := orm.NewContext()
+	// DirectAccess: this is a background system writer (no request user);
+	// the security orm hooks require either a session user or the direct
+	// read/write flags — a bare context panics on the first save under
+	// security-enabled apps (coco) and takes the process down
+	octx := orm.NewContext().DirectAccess()
 	for _, name := range names {
 		for _, st := range stageStats(name) {
 			if st.Count == 0 && st.Errors == 0 {
