@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/pipeline"
 )
 
@@ -99,8 +100,9 @@ func recordPipelineEvent(pipelineName string, outcome pipeline.Outcome, msg stri
 		return
 	}
 	f.(*flightRecorder).OnStep(&pipeline.StepEvent{
-		Pipeline: pipelineName,
-		Outcome:  outcome,
-		Err:      msg,
+		InstanceID: global.Env().SystemConfig.NodeConfig.ID,
+		Pipeline:   pipelineName,
+		Outcome:    outcome,
+		Err:        msg,
 	})
 }

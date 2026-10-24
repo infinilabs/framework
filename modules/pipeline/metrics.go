@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/lane"
 	"infini.sh/framework/core/pipeline"
 )
@@ -17,6 +18,9 @@ import (
 // processor (in-process stages) plus one row per lane carrier — the
 // runtime projection of the StepEvent stream.
 type StageStats struct {
+	// InstanceID identifies the emitting node: rows shipped to cluster
+	// views (or persisted cross-instance) self-describe their origin.
+	InstanceID string `json:"instance_id"`
 	Stage      string `json:"stage"`   // processor name or lane name
 	Carrier    string `json:"carrier"` // "processor" | "lane:<name>"
 	Count      int64  `json:"count"`   // invocations
@@ -67,13 +71,14 @@ func (s *statsRecorder) OnStep(e *pipeline.StepEvent) {
 // stageStats snapshots one pipeline's processor stages plus every lane
 // carrier (depth from the live registry).
 func stageStats(pipelineName string) []StageStats {
+	self := global.Env().SystemConfig.NodeConfig.ID
 	out := []StageStats{}
 	if rec := globalStats.Load(); rec != nil {
 		s := rec.(*statsRecorder)
 		s.mu.Lock()
 		if m := s.per[pipelineName]; m != nil {
 			for name, st := range m {
-				entry := StageStats{Stage: name, Carrier: "processor", Count: st.count, Errors: st.errors, LastOutcom: string(st.last)}
+				entry := StageStats{InstanceID: self, Stage: name, Carrier: "processor", Count: st.count, Errors: st.errors, LastOutcom: string(st.last)}
 				if st.count > 0 {
 					entry.AvgLatency = st.duration / st.count
 				}
@@ -84,10 +89,11 @@ func stageStats(pipelineName string) []StageStats {
 	}
 	for _, l := range lane.List() {
 		out = append(out, StageStats{
-			Stage:   l.Name,
-			Carrier: "lane:" + l.Name,
-			Count:   l.Emitted,
-			Errors:  l.Drops + l.Spills, // degraded deliveries surface as stage errors
+			InstanceID: self,
+			Stage:      l.Name,
+			Carrier:    "lane:" + l.Name,
+			Count:      l.Emitted,
+			Errors:     l.Drops + l.Spills, // degraded deliveries surface as stage errors
 		})
 	}
 	return out

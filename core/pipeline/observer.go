@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 )
 
@@ -17,16 +18,21 @@ import (
 // metrics aggregate it (counters/latency histograms), and the flight
 // recorder keeps a sampled ring of it (errors always kept).
 type StepEvent struct {
-	TraceID   string      // record-level trace id ("" when absent)
-	Pipeline  string      // pipeline/task name
-	Step      int         // 0-based index within the executing chain
-	Processor string      // processor Name()
-	Scope     ScopeInfo   // batch | record + namespace ("" = unset)
-	Before    util.MapStr // optional pre-state snapshot (nil unless captured)
-	After     util.MapStr // optional post-state snapshot (nil unless captured)
-	Duration  time.Duration
-	Outcome   Outcome
-	Err       string
+	TraceID string // record-level trace id ("" when absent)
+	// InstanceID identifies the executing node. Multi-instance
+	// deployments attribute events per instance (cluster views aggregate
+	// them); emitStep stamps it, so it is "" only in unit tests that
+	// build events by hand.
+	InstanceID string
+	Pipeline   string      // pipeline/task name
+	Step       int         // 0-based index within the executing chain
+	Processor  string      // processor Name()
+	Scope      ScopeInfo   // batch | record + namespace ("" = unset)
+	Before     util.MapStr // optional pre-state snapshot (nil unless captured)
+	After      util.MapStr // optional post-state snapshot (nil unless captured)
+	Duration   time.Duration
+	Outcome    Outcome
+	Err        string
 }
 
 // Outcome classifies how a step ended.
@@ -124,8 +130,11 @@ func hasObservers() bool {
 
 // emitStep fans a StepEvent out to the installed observers. Caller fills
 // the event; emitStep only stamps what it can derive (TraceID from the
-// current record when in record scope).
+// current record when in record scope, InstanceID from the local node).
 func emitStep(e *StepEvent, ctx *Context) {
+	if e.InstanceID == "" {
+		e.InstanceID = global.Env().SystemConfig.NodeConfig.ID
+	}
 	if ctx != nil {
 		if rec, ok := CurrentRecord(ctx); ok {
 			e.TraceID = TraceID(rec)

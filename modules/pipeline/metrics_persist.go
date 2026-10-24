@@ -19,6 +19,10 @@ import (
 type PipelineStageStat struct {
 	orm.ORMObjectBase `json:",inline" elastic_mapping:"-"`
 
+	// InstanceID identifies the emitting node — cross-instance queries
+	// group on it; the #130 acceptance (cluster aggregate = sum of the
+	// per-instance rows) keys off this column.
+	InstanceID string    `json:"instance_id" elastic_mapping:"instance_id:{type:keyword}"`
 	Pipeline   string    `json:"pipeline" elastic_mapping:"pipeline:{type:keyword}"`
 	Stage      string    `json:"stage" elastic_mapping:"stage:{type:keyword}"`
 	Carrier    string    `json:"carrier" elastic_mapping:"carrier:{type:keyword}"`
@@ -81,7 +85,7 @@ func (module *PipeModule) persistStageSnapshot() {
 				continue
 			}
 			row := PipelineStageStat{
-				Pipeline: name, Stage: st.Stage, Carrier: st.Carrier,
+				InstanceID: st.InstanceID, Pipeline: name, Stage: st.Stage, Carrier: st.Carrier,
 				Count: st.Count, Errors: st.Errors, AvgLatency: st.AvgLatency,
 				Ts: now,
 			}
