@@ -23,6 +23,8 @@
 
 package pipeline
 
+import "time"
+
 func runSync(job *Job, ctx *Context) {
 
 	if job.onFailure != nil {
@@ -31,7 +33,11 @@ func runSync(job *Job, ctx *Context) {
 
 	for _, task := range job.tasks {
 
-		task.Process(ctx)
+		// per-step timing/error snapshot for pipeline observability
+		// (document run timelines); see Context.AddStepStat
+		started := time.Now()
+		err := task.Process(ctx)
+		ctx.AddStepStat(task.Name(), time.Since(started), err)
 	}
 
 	if job.onComplete != nil {

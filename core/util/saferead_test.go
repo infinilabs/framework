@@ -275,6 +275,65 @@ func TestIsTooBroadReadRoot(t *testing.T) {
 		t.Error("expected specific subdir to be acceptable")
 	}
 }
+func TestValidateReadRoot(t *testing.T) {
+	dir := t.TempDir()
+	denied := []string{
+		"/", "/etc", "/etc/nginx", "/root",
+		"/home", "/var", "/opt", // wholesale top-level trees
+		"/var/log/../../etc", // traversal into a system tree
+	}
+	for _, p := range denied {
+		if err := ValidateReadRoot(p); err == nil {
+			t.Errorf("expected [%s] to be rejected", p)
+		}
+	}
+	allowed := []string{
+		"/var/log",
+		"/var/log/elasticsearch",
+		"/opt/myapp/logs",
+		filepath.Join(dir, "logs"),
+		filepath.Join(dir, "not-created-yet"), // existence is the caller's concern
+	}
+	for _, p := range allowed {
+		if err := ValidateReadRoot(p); err != nil {
+			t.Errorf("expected [%s] to pass: %v", p, err)
+		}
+	}
+}
+
+func TestIsConfinedUnder(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "secret.log")
+
+	if !IsConfinedUnder(root, root) {
+		t.Error("the root itself must be confined")
+	}
+	if !IsConfinedUnder(root, filepath.Join(root, "app", "a.log")) {
+		t.Error("file under the root must be confined")
+	}
+	if !IsConfinedUnder(root, filepath.Join(root, "sub", "..", "a.log")) {
+		t.Error("cleaned traversal inside the root must be confined")
+	}
+	if IsConfinedUnder(root, outside) {
+		t.Error("file outside the root must not be confined")
+	}
+	if IsConfinedUnder(root, root+"-escape") {
+		t.Error("sibling sharing the prefix must not pass as confined")
+	}
+
+	link := filepath.Join(root, "jump.log")
+	// the target must exist, otherwise EvalSymlinks cannot resolve the
+	// link and the deepest-ancestor fallback would compare the raw link
+	if err := os.WriteFile(outside, []byte("secret"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	if IsConfinedUnder(root, link) {
+		t.Error("symlink escaping the root must not be confined")
+	}
+}
 
 // Helper function to create a real log file for guard authorization and resolution tests.
 //

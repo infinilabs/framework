@@ -77,3 +77,23 @@ func TestSaveConfigStr(t *testing.T) {
 		t.Fatalf("Failed to remove test file: %v", err)
 	}
 }
+
+// TestStripManagedMarkersSymmetry — the hash computed after the client
+// strips the marker lines must equal the server-side one (raw lines,
+// TrimSpace'd); otherwise every sync cycle would see a content change and
+// rewrite the file.
+func TestStripManagedMarkersSymmetry(t *testing.T) {
+	row := "{\"pipeline\":[{\"name\":\"x\"}]}"
+	stamped := row + "\n#MANAGED_CONFIG_VERSION: 15\n#MANAGED: true"
+	if got := stripManagedMarkers(stamped); got != row {
+		t.Fatalf("strip = %q, want %q", got, row)
+	}
+	// marker glued onto the row (historic stacking): the whole line goes
+	glued := row + "\n#MANAGED: trueMANAGED_CONFIG_VERSION: 15"
+	if got := stripManagedMarkers(glued); got != row {
+		t.Fatalf("strip glued = %q, want %q", got, row)
+	}
+	if stripManagedMarkers(row) != row {
+		t.Fatal("bare content must pass through")
+	}
+}

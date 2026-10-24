@@ -237,3 +237,40 @@ func TestReifyUnpackersPtr(t *testing.T) {
 	assertSubConfig(to.C.c)
 	assertSubConfig(to.R.c)
 }
+
+// An empty dict value must keep its key when unpacked into a generic
+// map[string]interface{}: `processor: [{echo: {}}]` losing `echo` broke
+// every config-file-loaded pipeline with an empty processor body.
+func TestUnpackPreservesEmptyDictKeys(t *testing.T) {
+	cfg, err := NewFrom(map[string]interface{}{
+		"processor": []interface{}{
+			map[string]interface{}{"echo": map[string]interface{}{}},
+			map[string]interface{}{"node_stamp": map[string]interface{}{"field": "x"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type raw struct {
+		Processor []map[string]interface{} `config:"processor"`
+	}
+	out := raw{}
+	if err := cfg.Unpack(&out); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(out.Processor) != 2 {
+		t.Fatalf("expected 2 processors, got %d", len(out.Processor))
+	}
+	echoCfg, exists := out.Processor[0]["echo"]
+	if !exists {
+		t.Fatalf("empty dict key dropped: %v", out.Processor[0])
+	}
+	if m, ok := echoCfg.(map[string]interface{}); !ok || len(m) != 0 {
+		t.Fatalf("expected echo to be an empty map, got %#v", echoCfg)
+	}
+	if _, exists := out.Processor[1]["node_stamp"]; !exists {
+		t.Fatalf("node_stamp key dropped: %v", out.Processor[1])
+	}
+}

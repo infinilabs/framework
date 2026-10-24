@@ -12,10 +12,12 @@ import (
 
 type memKV struct{ data map[string][]byte }
 
-func (m *memKV) Open() error                                     { return nil }
-func (m *memKV) Close() error                                    { return nil }
+func (m *memKV) Open() error  { return nil }
+func (m *memKV) Close() error { return nil }
 func (m *memKV) GetValue(b string, k []byte) ([]byte, error) {
-	if v, ok := m.data[string(k)]; ok { return append([]byte(nil), v...), nil }
+	if v, ok := m.data[string(k)]; ok {
+		return append([]byte(nil), v...), nil
+	}
 	return nil, nil
 }
 func (m *memKV) GetCompressedValue(b string, k []byte) ([]byte, error) { return m.GetValue(b, k) }
@@ -44,15 +46,15 @@ func TestEmptyRemovesConsumedSegments(t *testing.T) {
 	_ = os.MkdirAll(dataPath, 0755)
 
 	cfg := &DiskQueueConfig{
-		MinMsgSize:       1,
-		MaxMsgSize:       104857600,
-		MaxBytesPerFile:  1024, // small segments: multiple files quickly
-		SyncEveryRecords: 1,
-		SyncTimeoutInMS:  10,
-		WriteTimeoutInMS: 1000,
+		MinMsgSize:        1,
+		MaxMsgSize:        104857600,
+		MaxBytesPerFile:   1024, // small segments: multiple files quickly
+		SyncEveryRecords:  1,
+		SyncTimeoutInMS:   10,
+		WriteTimeoutInMS:  1000,
 		EOFRetryDelayInMs: 100,
-		ReadChanBuffer:   10,
-		WriteChanBuffer:  10,
+		ReadChanBuffer:    10,
+		WriteChanBuffer:   10,
 	}
 	d := NewDiskQueueByConfig(name, dataPath, cfg)
 	defer d.Close()

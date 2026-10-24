@@ -120,6 +120,11 @@ type QueryBuilder struct {
 	allowRequestBodyBytes bool
 	requestBodyBytes      []byte
 	Aggs                  map[string]Aggregation
+
+	// body-level search parameters (min_score, track_total_hits, ...) —
+	// rendered at the DSL body root by the Elasticsearch builder, see
+	// BodyParameter
+	bodyParams map[string]interface{}
 }
 
 func NewQuery() *QueryBuilder {
@@ -207,6 +212,24 @@ func (q *QueryBuilder) Parameter(key param.ParaKey, val interface{}) *QueryBuild
 	}
 	q.root.Parameter(key, val)
 	return q
+}
+
+// BodyParameter records a top-level search-body parameter (min_score,
+// track_total_hits, ...). Unlike Parameter, whose keys feed the bool clause,
+// these are rendered by the Elasticsearch DSL builder at the body root next
+// to query/from/size, overriding raw request-body keys of the same name.
+func (q *QueryBuilder) BodyParameter(key string, val interface{}) *QueryBuilder {
+	if q.bodyParams == nil {
+		q.bodyParams = map[string]interface{}{}
+	}
+	q.bodyParams[key] = val
+	return q
+}
+
+// BodyParametersVal returns the recorded body-level parameters (nil when
+// none were set).
+func (q *QueryBuilder) BodyParametersVal() map[string]interface{} {
+	return q.bodyParams
 }
 
 func (q *QueryBuilder) DefaultQueryField(field ...string) *QueryBuilder {

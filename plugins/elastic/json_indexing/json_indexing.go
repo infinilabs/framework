@@ -100,7 +100,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	}
 
 	if cfg.InputQueue == "" {
-		panic(errors.New("input_queue can't be nil"))
+		return nil, errors.New("json_indexing processor requires input_queue")
 	}
 
 	if cfg.FailureQueue == "" {

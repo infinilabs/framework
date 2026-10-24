@@ -30,7 +30,9 @@
 //	https://opentelemetry.io/docs/specs/otel/logs/data-model/
 //
 // Structural standard  : OTel LogRecord (top-level typed fields + Resource
-//	                    /Attributes attribute collections).
+//
+//	/Attributes attribute collections).
+//
 // Field naming standard: lowercase snake_case keys ("log_level",
 // "host_name", ...), matching the house convention. The
 // field_standardize processor (enterprise) can switch attribute naming to
@@ -54,7 +56,7 @@ import (
 const (
 	FieldTimestamp         = "timestamp"
 	FieldObservedTimestamp = "observed_timestamp"
-	FieldLogLevel          = "log_level"      // OTel SeverityText, original string
+	FieldLogLevel          = "log_level"       // OTel SeverityText, original string
 	FieldSeverityNumber    = "severity_number" // OTel SeverityNumber, 1-24
 	FieldMessage           = "message"         // OTel Body
 	FieldEventName         = "event_name"
@@ -70,15 +72,17 @@ const (
 
 // Common Resource attribute keys (stable per source, snake_case).
 const (
-	ResourceHostName        = "host_name"
-	ResourceHostIP          = "host_ip"
-	ResourceServiceName     = "service_name"
-	ResourceServiceVersion  = "service_version"
-	ResourceProcessPID      = "process_pid"
-	ResourceProcessName     = "process_name"
-	ResourceCloudProvider   = "cloud_provider"
-	ResourceCloudRegion     = "cloud_region"
-	ResourceCloudAccountID  = "cloud_account_id"
+	ResourceHostName       = "host_name"
+	ResourceHostIP         = "host_ip"
+	ResourceAgentID        = "agent_id"
+	ResourceAgentTags      = "agent_tags"
+	ResourceServiceName    = "service_name"
+	ResourceServiceVersion = "service_version"
+	ResourceProcessPID     = "process_pid"
+	ResourceProcessName    = "process_name"
+	ResourceCloudProvider  = "cloud_provider"
+	ResourceCloudRegion    = "cloud_region"
+	ResourceCloudAccountID = "cloud_account_id"
 )
 
 // OTel SeverityNumber scale (see the Logs Data Model): 1-24, the 9 "well

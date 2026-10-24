@@ -69,6 +69,55 @@ func TestEventRoundTrip(t *testing.T) {
 	}
 }
 
+// The agent identity must survive the OTLP LogRecord projection: FromEvent
+// merges it into Resource attributes, ToEvent restores it when the inbound
+// event has none. A resource key set upstream must not be overwritten, and
+// an event that already carries its Agent must keep it as-is.
+func TestAgentIdentitySurvivesLogRecord(t *testing.T) {
+	e := &event.Event{
+		Timestamp: time.Now().UTC(),
+		Agent: &event.AgentMeta{
+			AgentID:  "agent-7",
+			Hostname: "web-1",
+			MajorIP:  "10.0.0.5",
+			Tags:     []string{"prod", "edge"},
+		},
+		Fields: util.MapStr{FieldMessage: "m"},
+	}
+
+	rec := FromEvent(e)
+	if rec.Resource[ResourceAgentID] != "agent-7" || rec.Resource[ResourceHostName] != "web-1" {
+		t.Fatalf("agent identity not merged into resource: %v", rec.Resource)
+	}
+	if rec.Resource[ResourceHostIP] != "10.0.0.5" {
+		t.Fatalf("host_ip = %v", rec.Resource)
+	}
+
+	back := rec.ToEvent()
+	if back.Agent == nil || back.Agent.AgentID != "agent-7" || back.Agent.Hostname != "web-1" ||
+		back.Agent.MajorIP != "10.0.0.5" {
+		t.Fatalf("agent not restored: %v", back.Agent)
+	}
+
+	// upstream resource keys win over the agent merge
+	e2 := &event.Event{
+		Agent:  &event.AgentMeta{AgentID: "agent-7", Hostname: "web-1"},
+		Meta:   util.MapStr{MetaResourceKey: util.MapStr{ResourceHostName: "already-set"}},
+		Fields: util.MapStr{FieldMessage: "m"},
+	}
+	rec2 := FromEvent(e2)
+	if rec2.Resource[ResourceHostName] != "already-set" {
+		t.Fatalf("existing resource keys must not be overwritten: %v", rec2.Resource)
+	}
+
+	// no agent anywhere: nothing restored, no empty AgentMeta injected
+	e3 := &event.Event{Fields: util.MapStr{FieldMessage: "m"}}
+	back3 := FromEvent(e3).ToEvent()
+	if back3.Agent != nil {
+		t.Fatalf("agent must stay nil without identity, got %v", back3.Agent)
+	}
+}
+
 func TestEnvelopeRoundTrip(t *testing.T) {
 	ts := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
 	e := &event.Event{

@@ -436,6 +436,24 @@ func (h *APIHandler) registerInstance(w http.ResponseWriter, req *http.Request, 
 	h.WriteJSON(w, resp, http.StatusOK)
 }
 
+// normalizeVersionDates blanks client-reported version date placeholders
+// ("N/A", "unknown", ...) that are not RFC3339 dates. Indices created
+// before the keyword mapping pin carry a dynamic `date` mapping for
+// version.build_date/eol_date (the first writer sent real ISO dates), and
+// ES rejects placeholder strings with document_parsing_exception — which
+// silently killed every heartbeat upsert for instances built without
+// full version metadata (plain `go build`, no ldflags).
+func normalizeVersionDates(app *env.Application) {
+	for _, d := range []*string{&app.Version.BuildDate, &app.Version.EolDate} {
+		if *d == "" {
+			continue
+		}
+		if _, err := time.Parse(time.RFC3339, *d); err != nil {
+			*d = ""
+		}
+	}
+}
+
 // upsertInstance persists/refreshes the registration. Returns true when
 // the instance was newly created.
 func upsertInstance(instance *model.Instance) (bool, error) {
@@ -448,6 +466,8 @@ func upsertInstance(instance *model.Instance) (bool, error) {
 	}
 	// not-found is the normal first-registration path, not an error
 	exists = err == nil && exists
+
+	normalizeVersionDates(&instance.Application)
 
 	now := strconv.FormatInt(time.Now().UnixMilli(), 10)
 	if instance.Labels == nil {
@@ -472,6 +492,10 @@ func upsertInstance(instance *model.Instance) (bool, error) {
 		// Groups are server-owned (UI-managed targeting): the heartbeat
 		// payload does not carry them — keep the stored value.
 		instanceCopy.Groups = existing.Groups
+		// Alias/Description are server-owned display metadata (UI-managed):
+		// keep the stored value across heartbeats.
+		instanceCopy.Alias = existing.Alias
+		instanceCopy.Description = existing.Description
 		// Heartbeat syncs carry no access token; keep the registered one
 		// (wiping it here would 401 the very next sync).
 		if instanceCopy.AccessToken == nil {
@@ -528,8 +552,31 @@ func (h *APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, _ htt
 
 	// Heartbeat: refresh the instance record on every sync.
 	if _, err := upsertInstance(&obj.Client); err != nil {
-		log.Debugf("configs server: heartbeat upsert failed for %s: %v", obj.Client.ID, err)
+		log.Warnf("configs server: heartbeat upsert failed for %s: %v", obj.Client.ID, err)
 	}
+
+		// Runtime report: persist the instance's pipeline state for the
+		// deployment reconciler (desired-vs-reported comparison). The
+		// cordon flag rides the same report (#128) — the upsert must run
+		// even when no pipelines are running, or the un-cordon transition
+		// would never reach the control plane.
+		if obj.Runtime != nil {
+			updated := false
+			if len(obj.Runtime.Pipelines) > 0 {
+				rtJSON, rerr := json.Marshal(obj.Runtime.Pipelines)
+				if rerr == nil {
+					obj.Client.RuntimePipelines = string(rtJSON)
+					updated = true
+				}
+			}
+			if obj.Runtime.Cordoned != obj.Client.Cordoned {
+				obj.Client.Cordoned = obj.Runtime.Cordoned
+				updated = true
+			}
+			if updated {
+				_, _ = upsertInstance(&obj.Client) // second upsert with runtime
+			}
+		}
 
 	assigned, aerr := loadAssignedConfigs(obj.Client.ID)
 	if aerr != nil {
@@ -569,7 +616,8 @@ func (h *APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, _ htt
 
 // loadAssignedConfigs returns the server-side config files assigned to the
 // instance: its own + the "*" catch-all + any group-targeted config whose
-// Groups intersect the instance's groups. Newest version per name.
+// Groups intersect the instance's groups. Same-name rows resolve by
+// specificity: per-instance rows shadow group/catch-all rows.
 // A query FAILURE returns an error — callers must NOT treat it as "no
 // configs": a transiently empty read (e.g. manager just booting, ORM not
 // ready) would diff every client file as Deleted and wipe managed configs
@@ -620,15 +668,38 @@ func loadAssignedConfigs(instanceID string) ([]common.ConfigFile, error) {
 		}
 	}
 
-	out := make([]common.ConfigFile, 0, len(stored))
-	for _, mc := range stored {
+	// Same-name resolution: a per-instance row (edge-rule variant) must
+	// SHADOW the group/catch-all rows of the same file for that instance —
+	// per-row version counters are not comparable across rows, so
+	// specificity decides and version only breaks ties within the same
+	// specificity. Without this the winner is query-order luck and an
+	// instance variant may never apply.
+	rank := func(mc *ManagedConfig) int {
+		if mc.InstanceID == instanceID {
+			return 2 // per-instance override
+		}
+		return 1 // "*" catch-all or group-targeted base
+	}
+	byName := make(map[string]ManagedConfig, len(stored))
+	for i := range stored {
+		mc := stored[i]
+		cur, ok := byName[mc.Name]
+		if !ok || rank(&mc) > rank(&cur) || (rank(&mc) == rank(&cur) && mc.Version > cur.Version) {
+			byName[mc.Name] = mc
+		}
+	}
+
+	out := make([]common.ConfigFile, 0, len(byName))
+	for _, mc := range byName {
 		out = append(out, common.ConfigFile{
 			Name:     mc.Name,
 			Location: mc.Location,
 			Content:  mc.Content,
 			Version:  mc.Version,
 			Managed:  true,
-			Hash:     util.MD5digest(mc.Content),
+			// TrimSpace mirrors the client's digest (managed trailer
+			// lines stripped on the client side before hashing).
+			Hash:     util.MD5digest(strings.TrimSpace(mc.Content)),
 			Size:     int64(len(mc.Content)),
 			Updated:  time.Now().UnixMilli(),
 		})
@@ -685,6 +756,18 @@ func diffConfigs(assigned []common.ConfigFile, clientConfigs map[string]common.C
 		}
 		if !cc.Managed {
 			continue // client opted this file out of management
+		}
+		// Content-hash comparison when the client reports one (newer
+		// clients): the assigned row may be a DIFFERENT row than the one
+		// the client's file came from (instance variant vs group base),
+		// and per-row version counters cannot be compared across rows —
+		// the hash says exactly whether the bytes differ. Version
+		// comparison remains the fallback for old clients.
+		if sc.Hash != "" && cc.Hash != "" {
+			if sc.Hash != cc.Hash {
+				resp.Configs.UpdatedConfigs[name] = sc
+			}
+			continue
 		}
 		if sc.Version > cc.Version {
 			resp.Configs.UpdatedConfigs[name] = sc

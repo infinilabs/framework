@@ -1652,3 +1652,41 @@ func TestToDSL_NestedQuery_SimpleMatch(t *testing.T) {
 	actual, _ := json.Marshal(dsl)
 	assert.JSONEq(t, expected, string(actual))
 }
+
+func TestBuildQueryDSL_BodyParameter(t *testing.T) {
+	q := orm.NewQuery().
+		Must(orm.MatchQuery("title", "elastic")).
+		BodyParameter("min_score", 0.35)
+
+	dsl := BuildQueryDSL(q)
+
+	// body-level parameter must sit at the DSL root, next to query —
+	// not inside the bool clause where ES rejects it with
+	// "unknown field [min_score]"
+	// a single must clause flattens to a bare match (flattenBoolClauses)
+	expected := `{
+		"query": {
+			"match": {"title": {"query": "elastic"}}
+		},
+		"min_score": 0.35
+	}`
+	actual, _ := json.Marshal(dsl)
+	assert.JSONEq(t, expected, string(actual))
+}
+
+func TestBuildQueryDSLOnTopOfDSL_BodyParameterOverridesRawBody(t *testing.T) {
+	q := orm.NewQuery().
+		Must(orm.MatchQuery("title", "elastic")).
+		BodyParameter("min_score", 0.35)
+
+	raw := []byte(`{"query": {"match_all": {}}, "min_score": 0.05, "size": 20}`)
+	dsl := BuildQueryDSLOnTopOfDSL(q, raw)
+
+	// the explicit BodyParameter beats the raw request-body key
+	if v, ok := dsl["min_score"].(float64); !ok || v != 0.35 {
+		t.Fatalf("min_score = %v, want 0.35", dsl["min_score"])
+	}
+	if dsl["size"] != float64(20) {
+		t.Fatalf("size = %v, want 20 (raw body keys survive unless overridden)", dsl["size"])
+	}
+}

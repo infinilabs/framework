@@ -42,9 +42,12 @@ import (
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/lane"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
+	configs_client "infini.sh/framework/modules/configs/client"
 )
 
 type PipeModule struct {
@@ -57,6 +60,112 @@ type PipeModule struct {
 	pipelines sync.Map
 	configs   sync.Map
 	contexts  sync.Map
+	// failures records pipelines whose config failed to compile on THIS
+	// instance (e.g. a processor missing from the local catalog) — the
+	// deployment status needs to see WHY, not just that it is absent
+	failures sync.Map // name -> string (compile/load error)
+	// generations counts the config revisions applied per task (1 = the
+	// startup version); each successful hot reload increments it and the
+	// runtime report exposes it so controllers can see a reload landed
+	generations sync.Map // taskID -> int
+	// cordoned marks the instance under maintenance: running tasks drain
+	// to completion, but no task starts (auto_start/_start/_resume, and
+	// tasks recreated by hot reload park STOPPED) until uncordoned
+	cordoned atomic.Bool
+	// rolloutMu serializes staged-rollout state transitions between the
+	// reconciler tick and the _rollout endpoint (both read-modify-write
+	// the deployment's RolloutState)
+	rolloutMu sync.Mutex
+}
+
+// recordFailure stores a pipeline compile/load failure for the runtime
+// report; recordSuccess clears a stale entry after the pipeline runs.
+func (module *PipeModule) recordFailure(name string, err error) {
+	if name == "" || err == nil {
+		return
+	}
+	module.failures.Store(name, err.Error())
+}
+
+func (module *PipeModule) recordSuccess(name string) {
+	module.failures.Delete(name)
+}
+
+// RuntimeSnapshot returns the current pipeline task states for the
+// configs _sync runtime report (consumed by the deployment reconciler).
+func (module *PipeModule) RuntimeSnapshot() map[string]interface{} {
+	out := map[string]interface{}{}
+	module.contexts.Range(func(k, v interface{}) bool {
+		ctx, ok := v.(*pipeline.Context)
+		if !ok {
+			return true
+		}
+		// report under the pipeline NAME — consumers (deployment status)
+		// match by name; the map key is the config ID which only equals
+		// the name for id-less YAML configs
+		name := ctx.Config.Name
+		if name == "" {
+			if s, ok := k.(string); ok {
+				name = s
+			}
+		}
+		state := "UNKNOWN"
+		switch st := ctx.GetRunningState(); st {
+		case pipeline.STARTED, pipeline.STARTING:
+			state = "STARTED"
+		case pipeline.FAILED:
+			state = "FAILED"
+		case pipeline.STOPPED, pipeline.STOPPING:
+			state = "STOPPED"
+		case pipeline.FINISHED:
+			// keep_running tasks idle between passes (retry delay) with
+			// state FINISHED — the loop goroutine is alive and will run
+			// again. Reporting STOPPED here flaps a healthy fleet to
+			// "down" once per inter-pass sleep and permanently stalls
+			// rollout waves (readiness requires STARTED). A FAILED pass
+			// still reports FAILED: crash-loops must hold rollouts.
+			if ctx.Config.KeepRunning && !ctx.IsExit() {
+				state = "STARTED"
+			} else {
+				state = "STOPPED"
+			}
+		}
+		entry := map[string]interface{}{
+			"state": state,
+		}
+		// the running config's content digest — same canonical shape the
+		// deployment renderer produces, so the control plane can verify a
+		// staged rollout wave actually runs the pushed content (#125)
+		entry["config_digest"] = deployedContentDigest(deployedPipelineMap(&ctx.Config, renderSpec{
+			enabled:   isPipelineEnabled(ctx.Config.Enabled),
+			singleton: ctx.Config.Singleton,
+		}))
+		if taskID, ok := k.(string); ok {
+			entry["generation"] = module.generationOf(taskID)
+		}
+		out[name] = entry
+		return true
+	})
+	// pipelines that never made it into contexts (config rejected or
+	// processor missing locally) are reported as FAILED with the reason —
+	// absent entries hide breakage from the deployment status
+	module.failures.Range(func(k, v interface{}) bool {
+		name, ok := k.(string)
+		if !ok {
+			return true
+		}
+		if _, running := out[name]; running {
+			return true
+		}
+		if msg, ok := v.(string); ok {
+			out[name] = map[string]interface{}{
+				"state":  "FAILED",
+				"reason": msg,
+			}
+		}
+		return true
+	})
+	return out
 }
 
 func (module *PipeModule) Name() string {
@@ -67,7 +176,42 @@ var moduleCfg = struct {
 	PipelineEnabledByDefault bool `config:"pipeline_enabled_by_default"`
 }{PipelineEnabledByDefault: true}
 
+// loadLaneConfigs reads the top-level `lane:` stanzas (the static plane;
+// dynamic lanes come via lane.Create at runtime).
+func (module *PipeModule) loadLaneConfigs() {
+	cfgs := []lane.LaneConfig{}
+	if exist, err := env.ParseConfig("lane", &cfgs); !exist || err != nil {
+		log.Debugf("no lane config section (exist=%v err=%v)", exist, err)
+	}
+	for _, c := range cfgs {
+		if c.Name == "" {
+			continue
+		}
+		if _, err := lane.Create(c); err != nil {
+			log.Warnf("lane %s: %v", c.Name, err)
+		}
+	}
+}
+
 func (module *PipeModule) Setup() {
+	// provide the runtime snapshot for the configs _sync client
+	// (deployment reconciler reads it for health status)
+	configs_client.SetPipelineRuntimeSnapshotProvider(module.RuntimeSnapshot)
+	// instance-level maintenance flags ride the same _sync report (#128):
+	// the control plane mirrors the local cordon state onto the Instance
+	configs_client.SetInstanceFlagsProvider(func() map[string]interface{} {
+		return map[string]interface{}{"cordoned": module.cordoned.Load()}
+	})
+	// ORM schema registration (table/index auto-creation on startup)
+	orm.MustRegisterSchemaWithIndexName(pipeline.PipelineConfigV2{}, "pipeline-configs")
+	orm.MustRegisterSchemaWithIndexName(PipelineVersion{}, "pipeline-versions")
+	orm.MustRegisterSchemaWithIndexName(PipelineDeployment{}, "pipeline-deployments")
+	orm.MustRegisterSchemaWithIndexName(PipelineStageStat{}, "pipeline-stage-stats")
+
+	module.loadLaneConfigs()
+	installFlight()
+	installStats()
+	module.startDeploymentReconciler()
 	if global.Env().IsDebug {
 		log.Debug("pipeline framework config: ", moduleCfg)
 	}
@@ -104,9 +248,105 @@ func (module *PipeModule) Setup() {
 	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopPipelineTaskHandler)
 	api.HandleUIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
 
+	// graceful stop (#121): finish the current batch, commit, park
+	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_drain", module.drainPipelineTaskHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/task/:id/_drain", module.drainPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+
+	// instance maintenance (#121): drain everything / cordon against new starts
+	api.HandleAPIMethod(api.POST, "/pipeline/_drain", module.drainInstanceHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/_drain", module.drainInstanceHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	api.HandleAPIMethod(api.POST, "/pipeline/_cordon", module.cordonInstanceHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/_cordon", module.cordonInstanceHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	api.HandleAPIMethod(api.POST, "/pipeline/_uncordon", module.uncordonInstanceHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/_uncordon", module.uncordonInstanceHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	api.HandleAPIMethod(api.GET, "/pipeline/_cordon", module.getCordonHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/_cordon", module.getCordonHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
 	// processor discovery: names + config schemas for pipeline designers
 	api.HandleAPIMethod(api.GET, "/pipeline/processors", module.getProcessorsHandler)
 	api.HandleUIMethod(api.GET, "/pipeline/processors", module.getProcessorsHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
+	// config pre-flight: compile check without persisting (editor save hint)
+	api.HandleAPIMethod(api.POST, "/pipeline/_validate", module.validatePipelineHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/_validate", module.validatePipelineHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
+	api.HandleAPIMethod(api.GET, "/pipeline/codecs", module.getCodecsHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/codecs", module.getCodecsHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
+	api.HandleAPIMethod(api.GET, "/pipeline/lanes", module.getLanesHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/lanes", module.getLanesHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
+	// Fleet API (deployment management, D7)
+	api.HandleAPIMethod(api.GET, "/pipeline/deployments/", module.listDeploymentsHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/deployments/", module.listDeploymentsHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+	api.HandleAPIMethod(api.POST, "/pipeline/deployments/", module.createDeploymentHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/deployments/", module.createDeploymentHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineCreate))
+	api.HandleAPIMethod(api.GET, "/pipeline/deployments/:id", module.getDeploymentHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/deployments/:id", module.getDeploymentHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+	api.HandleAPIMethod(api.PUT, "/pipeline/deployments/:id", module.updateDeploymentHandler)
+	api.HandleUIMethod(api.PUT, "/pipeline/deployments/:id", module.updateDeploymentHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	api.HandleAPIMethod(api.DELETE, "/pipeline/deployments/:id", module.deleteDeploymentHandler)
+	api.HandleUIMethod(api.DELETE, "/pipeline/deployments/:id", module.deleteDeploymentHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineDelete))
+	api.HandleAPIMethod(api.GET, "/pipeline/deployments/:id/status", module.getDeploymentStatusHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/deployments/:id/status", module.getDeploymentStatusHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
+	// staged rollout control (#125): manual advance / content rollback
+	api.HandleAPIMethod(api.POST, "/pipeline/deployments/:id/_rollout", module.rolloutActionHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/deployments/:id/_rollout", module.rolloutActionHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+
+	// cluster broadcast of transient commands (#125): forwarded per target
+	// over the reverse channel; ?generation=N carries the #120 split-brain
+	// guard — instances on another config generation answer 409
+	for _, action := range []string{"pause", "resume", "stop"} {
+		path := "/pipeline/deployments/:id/_" + action
+		api.HandleAPIMethod(api.POST, path, module.broadcastDeploymentActionHandler(action))
+		api.HandleUIMethod(api.POST, path, module.broadcastDeploymentActionHandler(action), api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	}
+
+	// per-instance maintenance over the reverse channel (#125): the
+	// instance-side primitives are #121's _drain/_cordon/_uncordon
+	for _, action := range []string{"drain", "cordon", "uncordon"} {
+		path := "/pipeline/instances/:id/_" + action
+		api.HandleAPIMethod(api.POST, path, module.instanceActionHandler(action))
+		api.HandleUIMethod(api.POST, path, module.instanceActionHandler(action), api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	}
+	// read-only passthrough onto an instance's own pipeline API
+	api.HandleAPIMethod(api.GET, "/pipeline/instances/:id/proxy", module.instanceProxyHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/instances/:id/proxy", module.instanceProxyHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
+	api.HandleAPIMethod(api.GET, "/pipeline/cluster/overview", module.getClusterOverviewHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/cluster/overview", module.getClusterOverviewHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
+	// cluster-wide stage totals from the persisted snapshots (#127/#130)
+	api.HandleAPIMethod(api.GET, "/pipeline/cluster/stages", module.clusterStagesHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/cluster/stages", module.clusterStagesHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
+	// pipeline version history + rollback
+	api.HandleAPIMethod(api.GET, "/pipelines/:id/versions", module.listPipelineVersionsHandler)
+	api.HandleUIMethod(api.GET, "/pipelines/:id/versions", module.listPipelineVersionsHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+	api.HandleAPIMethod(api.GET, "/pipelines/:id/versions/:version", module.getPipelineVersionHandler)
+	api.HandleUIMethod(api.GET, "/pipelines/:id/versions/:version", module.getPipelineVersionHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+	api.HandleAPIMethod(api.POST, "/pipelines/:id/versions/:version/rollback", module.rollbackPipelineHandler)
+	api.HandleUIMethod(api.POST, "/pipelines/:id/versions/:version/rollback", module.rollbackPipelineHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+
+	api.HandleAPIMethod(api.POST, "/pipeline/dry-run", module.postDryRunHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/dry-run", module.postDryRunHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+
+	api.HandleAPIMethod(api.POST, "/pipeline/ai-generate", module.postAIGenerateHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/ai-generate", module.postAIGenerateHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+
+	api.HandleAPIMethod(api.GET, "/pipeline/task/:id/stages", module.stagesPipelineTaskHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/task/:id/stages", module.stagesPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
+	api.HandleAPIMethod(api.GET, "/pipeline/task/:id/flight", module.flightPipelineTaskHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/task/:id/flight", module.flightPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
+	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_pause", module.pausePipelineTaskHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/task/:id/_pause", module.pausePipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_resume", module.resumePipelineTaskHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/task/:id/_resume", module.resumePipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_inject", module.injectPipelineTaskHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/task/:id/_inject", module.injectPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
 
 	//use pipelines to avoid naming conflicts
 	api.HandleUIMethod(api.POST, "/pipelines/_search", module.searchPipelineHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Search)))
@@ -120,6 +360,23 @@ func (module *PipeModule) Setup() {
 	api.HandleUIMethod(api.POST, "/pipelines/:id/_stop", module.stopPipelineTaskHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Admin)))
 	//api.HandleUIMethod(api.POST, "/pipeline/task/:id/logging/_search", module.getPipelineLoggingsHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Admin)))
 	//api.HandleUIMethod(api.POST, "/pipeline/task/:id/metrics/_search", module.getPipelineMetricsHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Admin)))
+}
+
+// pauseTask parks a running pipeline after its CURRENT batch: flow
+// stops between fetches, in-flight records finish (no mid-batch abort).
+func (module *PipeModule) pauseTask(taskID string) (exists bool) {
+	ctx, ok := module.contexts.Load(taskID)
+	if !ok {
+		return
+	}
+	if v1, ok := ctx.(*pipeline.Context); ok {
+		v1.Pause()
+	}
+	return true
+}
+
+func (module *PipeModule) resumeTask(taskID string) (exists bool) {
+	return module.startTask(taskID)
 }
 
 func (module *PipeModule) startTask(taskID string) (exists bool) {
@@ -256,6 +513,7 @@ func getPipelineConfig() ([]pipeline.PipelineConfigV2, error) {
 }
 
 func (module *PipeModule) Start() error {
+	module.startMetricsPersist()
 	var (
 		pipelines []pipeline.PipelineConfigV2
 		err       error
@@ -447,6 +705,186 @@ const pipelineSingleton = "pipeline_singleton"
 
 var creatingLocker = sync.Mutex{}
 
+// hotReloadLocker serializes hot reloads — two rapid API edits to the same
+// pipeline would otherwise race their stop/delete/create sequences and
+// LoadOrStore could converge on the older config.
+var hotReloadLocker = sync.Mutex{}
+
+// generationOf returns the config revision counter for a task (1 = the
+// startup version; each successful hot reload increments it).
+func (module *PipeModule) generationOf(taskID string) int {
+	if v, ok := module.generations.Load(taskID); ok {
+		if n, ok := v.(int); ok && n > 0 {
+			return n
+		}
+	}
+	return 1
+}
+
+// hotReloadPipeline swaps the locally running task for pipelineID to newCfg
+// (nil = stop and remove only) — the ORM CRUD path. API edits used to only
+// persist: a running task kept its stale compiled chain until the instance
+// restarted. Same semantics as the fsnotify reload: drain the in-flight
+// batch (stopAndWaitForRelease), then rebuild from the new config.
+// Transient tasks are never reloaded.
+//
+// Matching is strict on task ID — deployment-rendered configs keep the ORM
+// pipeline ID, so an edit reaches every instance running the pipeline,
+// while unrelated local YAML tasks (their own IDs) stay untouched.
+func (module *PipeModule) hotReloadPipeline(pipelineID string, newCfg *pipeline.PipelineConfigV2) {
+	v, ok := module.configs.Load(pipelineID)
+	if !ok {
+		return
+	}
+	oldC, ok := v.(pipeline.PipelineConfigV2)
+	if !ok {
+		return
+	}
+	if oldC.Transient {
+		log.Debugf("pipeline [%s] is transient, skip hot reload", pipelineID)
+		return
+	}
+	if newCfg != nil && oldC.Equals(*newCfg) && isPipelineEnabled(newCfg.Enabled) {
+		return // semantically unchanged — nothing to rebuild
+	}
+
+	hotReloadLocker.Lock()
+	defer hotReloadLocker.Unlock()
+
+	defer func() {
+		if !global.Env().IsDebug {
+			if r := recover(); r != nil {
+				log.Error("error on hot reloading pipeline,", pipelineID, ",", r)
+			}
+		}
+	}()
+
+	log.Infof("pipeline [%s] config changed via API, reloading task", pipelineID)
+	module.stopAndWaitForRelease([]string{pipelineID}, time.Minute)
+	module.deleteTask(pipelineID)
+
+	if newCfg == nil {
+		return
+	}
+	if err := module.createPipelineTask(*newCfg, false); err != nil {
+		module.recordFailure(newCfg.Name, err)
+		log.Errorf("pipeline [%s] hot reload: recreate failed: %v", pipelineID, err)
+		return
+	}
+	module.generations.Store(pipelineID, module.generationOf(pipelineID)+1)
+}
+
+// reloadPipelineTaskAsync runs the hot reload off the request path —
+// draining the current batch can legitimately take seconds, and the API
+// response must not wait for it.
+func (module *PipeModule) reloadPipelineTaskAsync(pipelineID string, newCfg *pipeline.PipelineConfigV2) {
+	if _, ok := module.configs.Load(pipelineID); !ok {
+		return // no local task runs this ORM row
+	}
+	go module.hotReloadPipeline(pipelineID, newCfg)
+}
+
+// drainTask marks the task for a graceful stop (#121): the consumer
+// finishes the current batch and commits its offset, then the pipeline
+// loop parks STOPPED (resumable via _start). Returns false when the task
+// does not exist locally.
+func (module *PipeModule) drainTask(taskID string) bool {
+	v, ok := module.contexts.Load(taskID)
+	if !ok {
+		return false
+	}
+	ctx, ok := v.(*pipeline.Context)
+	if !ok {
+		return false
+	}
+	ctx.Drain()
+	ctx.Exit() // no keep_running restarts after the current pass
+	return true
+}
+
+// taskRunningState reports the task's current state ("" when absent).
+func (module *PipeModule) taskRunningState(taskID string) pipeline.RunningState {
+	v, ok := module.contexts.Load(taskID)
+	if !ok {
+		return ""
+	}
+	ctx, ok := v.(*pipeline.Context)
+	if !ok {
+		return ""
+	}
+	return ctx.GetRunningState()
+}
+
+// waitTaskSettled polls until the task leaves the running states or the
+// timeout elapses; returns the last observed state.
+func (module *PipeModule) waitTaskSettled(taskID string, timeout time.Duration) pipeline.RunningState {
+	deadline := time.Now().Add(timeout)
+	for {
+		state := module.taskRunningState(taskID)
+		if state != pipeline.STARTED && state != pipeline.STARTING && state != pipeline.STOPPING {
+			return state
+		}
+		if time.Now().After(deadline) {
+			return state
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// drainAllTasks gracefully stops every running task on this instance
+// (maintenance path — pair with cordon so no new work starts while
+// draining). All drains are marked first, then one bounded wait; the
+// returned map carries each task's settled state.
+func (module *PipeModule) drainAllTasks(timeout time.Duration) map[string]string {
+	module.contexts.Range(func(k, v any) bool {
+		if id, ok := k.(string); ok {
+			module.drainTask(id)
+		}
+		return true
+	})
+	deadline := time.Now().Add(timeout)
+	out := map[string]string{}
+	for {
+		running := 0
+		module.contexts.Range(func(k, v any) bool {
+			id, ok := k.(string)
+			if !ok {
+				return true
+			}
+			state := module.taskRunningState(id)
+			out[id] = string(state)
+			if state == pipeline.STARTED || state == pipeline.STARTING || state == pipeline.STOPPING {
+				running++
+			}
+			return true
+		})
+		if running == 0 || time.Now().After(deadline) {
+			return out
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// probeLockTakeover reports the previous owner when the singleton lock
+// for name sits EXPIRED under another instance — the Hold that follows
+// takes it over. kv-less environments (unit tests, lightweight agents)
+// report "" instead of panicking.
+func probeLockTakeover(bucket, name string, ttl time.Duration) string {
+	defer func() { _ = recover() }()
+	ok, info, err := locker.GetAllocateInfo(bucket, name)
+	if err != nil || !ok || info == nil {
+		return ""
+	}
+	self := global.Env().SystemConfig.NodeConfig.ID
+	if info.ClientID == "" || info.ClientID == self {
+		return ""
+	}
+	if time.Since(info.Timestamp) > ttl {
+		return info.ClientID
+	}
+	return ""
+}
+
 // Helper function to run a pipeline, i.e., create a pipeline task.
 func (module *PipeModule) createPipelineTask(v pipeline.PipelineConfigV2, transient bool) error {
 	if module.closed.Load() {
@@ -491,12 +929,14 @@ func (module *PipeModule) createPipelineTask(v pipeline.PipelineConfigV2, transi
 		}
 		processorConfigs, err := cfg.GetProcessorsConfig()
 		if err != nil {
+			module.recordFailure(v.Name, err)
 			ready <- err
 			return errors.Errorf("failed to get processor config, %v", err)
 		}
 
 		processors, err := pipeline.NewPipeline(processorConfigs)
 		if err != nil {
+			module.recordFailure(v.Name, err)
 			ready <- err
 			return err
 		}
@@ -504,6 +944,7 @@ func (module *PipeModule) createPipelineTask(v pipeline.PipelineConfigV2, transi
 		ctx := pipeline.AcquireContext(v)
 		module.pipelines.Store(v.ID, processors)
 		module.contexts.Store(v.ID, ctx)
+		module.recordSuccess(v.Name)
 
 		defer func() {
 			if !global.Env().IsDebug {
@@ -567,16 +1008,34 @@ func (module *PipeModule) createPipelineTask(v pipeline.PipelineConfigV2, transi
 			switch state {
 			case pipeline.STARTING:
 
+				// cordoned instance: the task registers but does not run —
+				// it parks STOPPED and resumes via _start after _uncordon
+				if module.cordoned.Load() {
+					ctx.Stopped()
+					ctx.Pause()
+					continue
+				}
+
 				//check
 				if v.Singleton {
 					if v.MaxRunningInMs <= 0 {
 						v.MaxRunningInMs = 60000
 					}
-					ok, err := locker.Hold(pipelineSingleton, v.ID, global.Env().SystemConfig.NodeConfig.ID, time.Duration(v.MaxRunningInMs)*time.Millisecond, true)
+					ttl := time.Duration(v.MaxRunningInMs) * time.Millisecond
+					// takeover detection (#122): the lock's lease expired
+					// under another instance — the Hold below acquires it,
+					// ending that instance's run; surface the event
+					takeoverFrom := probeLockTakeover(pipelineSingleton, v.ID, ttl)
+					ok, err := locker.Hold(pipelineSingleton, v.ID, global.Env().SystemConfig.NodeConfig.ID, ttl, true)
 					if !ok {
 						log.Debugf("pipeline [%v] is already running somewhere, %v", cfg.Name, err)
 						ctx.Finished()
 						continue
+					}
+					if takeoverFrom != "" {
+						msg := fmt.Sprintf("singleton lock taken over from instance %s (lease expired)", takeoverFrom)
+						log.Warnf("pipeline [%v]: %v", cfg.Name, msg)
+						recordPipelineEvent(cfg.Name, pipeline.OutcomeTakeover, msg)
 					}
 				}
 
