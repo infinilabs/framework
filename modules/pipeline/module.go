@@ -250,6 +250,9 @@ func (module *PipeModule) Setup() {
 	api.HandleAPIMethod(api.POST, "/pipeline/dry-run", module.postDryRunHandler)
 	api.HandleUIMethod(api.POST, "/pipeline/dry-run", module.postDryRunHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
 
+	api.HandleAPIMethod(api.POST, "/pipeline/ai-generate", module.postAIGenerateHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/ai-generate", module.postAIGenerateHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+
 	api.HandleAPIMethod(api.GET, "/pipeline/task/:id/stages", module.stagesPipelineTaskHandler)
 	api.HandleUIMethod(api.GET, "/pipeline/task/:id/stages", module.stagesPipelineTaskHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
 
