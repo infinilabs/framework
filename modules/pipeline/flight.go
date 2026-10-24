@@ -1,6 +1,6 @@
 /* Copyright © INFINI Ltd. All rights reserved.
  * Web: https://infinilabs.com
- * Email: hello#infini.ltd */
+ * Email: hello#infinilabs.com */
 
 package pipeline
 
@@ -22,17 +22,10 @@ const flightSample = 100
 // It installs globally at PipeModule setup — the empty-registry fast
 // path applies before installation, and the per-step cost after is one
 // counter increment plus the sampled append.
-// Loss is counted, never silent: sampledOut tracks OK steps skipped by
-// the 1/N sampling, evicted tracks entries pushed out of a full ring —
-// both surfaced through the flight endpoint so consumers know how much
-// of the picture they are not seeing.
 type flightRecorder struct {
 	mu    sync.Mutex
 	rings map[string][]pipeline.StepEvent
 	seq   int64
-
-	sampledOut atomic.Int64
-	evicted    atomic.Int64
 }
 
 func newFlightRecorder() *flightRecorder {
@@ -44,7 +37,6 @@ func (f *flightRecorder) OnStep(e *pipeline.StepEvent) {
 	if !keep {
 		n := atomic.AddInt64(&f.seq, 1)
 		if n%flightSample != 0 {
-			f.sampledOut.Add(1)
 			return
 		}
 	}
@@ -52,35 +44,10 @@ func (f *flightRecorder) OnStep(e *pipeline.StepEvent) {
 	f.mu.Lock()
 	ring := append(f.rings[e.Pipeline], cp)
 	if len(ring) > flightRing {
-		f.evicted.Add(int64(len(ring) - flightRing))
 		ring = ring[len(ring)-flightRing:]
 	}
 	f.rings[e.Pipeline] = ring
 	f.mu.Unlock()
-}
-
-// FlightLostStats is the loss accounting of the flight recorder,
-// cumulative since process start.
-type FlightLostStats struct {
-	// OK steps skipped by the 1/N sampling (by design, still a cost
-	// consumers should see).
-	SampledOut int64 `json:"sampled_out"`
-	// Oldest entries pushed out of a full ring (oldest-first eviction).
-	Evicted int64 `json:"evicted"`
-}
-
-// flightLostStats reads the recorder's loss counters; zero values when
-// no recorder is installed.
-func flightLostStats() FlightLostStats {
-	f := globalFlight.Load()
-	if f == nil {
-		return FlightLostStats{}
-	}
-	rec := f.(*flightRecorder)
-	return FlightLostStats{
-		SampledOut: rec.sampledOut.Load(),
-		Evicted:    rec.evicted.Load(),
-	}
 }
 
 // flightQuery filters a pipeline's ring: by trace id, errors-only, newest

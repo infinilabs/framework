@@ -191,24 +191,16 @@ func (module *PipeModule) deletePipelineTaskHandler(w http.ResponseWriter, req *
 // curl -XPOST http://localhost:2900/pipeline/task/echo-test/_start
 // stagesPipelineTaskHandler — GET /pipeline/task/:id/stages
 // Standard per-stage metrics: processor invocations/errors/latency plus
-// live lane carriers (depth-derived). persist_errors counts stage
-// snapshot rows the metrics exporter failed to write — a non-zero value
-// means the persisted history has holes.
+// live lane carriers (depth-derived).
 func (module *PipeModule) stagesPipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.MustGetParameter("id")
-	module.WriteJSON(w, util.MapStr{
-		"stages":         stageStats(id),
-		"persist_errors": metricsPersistFailures.Load(),
-	}, http.StatusOK)
+	module.WriteJSON(w, util.MapStr{"stages": stageStats(id)}, http.StatusOK)
 }
 
 // flightPipelineTaskHandler — GET /pipeline/task/:id/flight
 // Sampled execution trace of a pipeline: ?trace_id= for one record's
 // journey, ?errors=1 for recent failures, &limit= (default 50, newest
 // first). Memory-only (ring); persistence rides the metrics exporter.
-// The `lost` block counts what the view does not show: OK steps skipped
-// by the 1/N sampling and entries evicted from the full ring (cumulative
-// since process start).
 func (module *PipeModule) flightPipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.MustGetParameter("id")
 	q := req.URL.Query()
@@ -219,7 +211,7 @@ func (module *PipeModule) flightPipelineTaskHandler(w http.ResponseWriter, req *
 		}
 	}
 	events := flightQuery(id, q.Get("trace_id"), q.Get("errors") == "1", limit)
-	module.WriteJSON(w, util.MapStr{"events": events, "lost": flightLostStats()}, http.StatusOK)
+	module.WriteJSON(w, util.MapStr{"events": events}, http.StatusOK)
 }
 
 // pausePipelineTaskHandler — POST /pipeline/task/:id/_pause
