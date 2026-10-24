@@ -185,6 +185,11 @@ func (module *PipeModule) Setup() {
 	// provide the runtime snapshot for the configs _sync client
 	// (deployment reconciler reads it for health status)
 	configs_client.SetPipelineRuntimeSnapshotProvider(module.RuntimeSnapshot)
+	// instance-level maintenance flags ride the same _sync report (#128):
+	// the control plane mirrors the local cordon state onto the Instance
+	configs_client.SetInstanceFlagsProvider(func() map[string]interface{} {
+		return map[string]interface{}{"cordoned": module.cordoned.Load()}
+	})
 	// ORM schema registration (table/index auto-creation on startup)
 	orm.MustRegisterSchemaWithIndexName(pipeline.PipelineConfigV2{}, "pipeline-configs")
 	orm.MustRegisterSchemaWithIndexName(PipelineVersion{}, "pipeline-versions")

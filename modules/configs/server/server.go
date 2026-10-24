@@ -555,15 +555,28 @@ func (h *APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, _ htt
 		log.Warnf("configs server: heartbeat upsert failed for %s: %v", obj.Client.ID, err)
 	}
 
-	// Runtime report: persist the instance's pipeline state for the
-	// deployment reconciler (desired-vs-reported comparison).
-	if obj.Runtime != nil && len(obj.Runtime.Pipelines) > 0 {
-		rtJSON, rerr := json.Marshal(obj.Runtime.Pipelines)
-		if rerr == nil {
-			obj.Client.RuntimePipelines = string(rtJSON)
-			_, _ = upsertInstance(&obj.Client) // second upsert with runtime
+		// Runtime report: persist the instance's pipeline state for the
+		// deployment reconciler (desired-vs-reported comparison). The
+		// cordon flag rides the same report (#128) — the upsert must run
+		// even when no pipelines are running, or the un-cordon transition
+		// would never reach the control plane.
+		if obj.Runtime != nil {
+			updated := false
+			if len(obj.Runtime.Pipelines) > 0 {
+				rtJSON, rerr := json.Marshal(obj.Runtime.Pipelines)
+				if rerr == nil {
+					obj.Client.RuntimePipelines = string(rtJSON)
+					updated = true
+				}
+			}
+			if obj.Runtime.Cordoned != obj.Client.Cordoned {
+				obj.Client.Cordoned = obj.Runtime.Cordoned
+				updated = true
+			}
+			if updated {
+				_, _ = upsertInstance(&obj.Client) // second upsert with runtime
+			}
 		}
-	}
 
 	assigned, aerr := loadAssignedConfigs(obj.Client.ID)
 	if aerr != nil {

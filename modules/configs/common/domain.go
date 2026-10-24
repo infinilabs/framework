@@ -96,6 +96,12 @@ type RuntimeReport struct {
 	// Pipelines maps task name → state + the managed-config version the
 	// instance last loaded (0 = unknown/not from managed config).
 	Pipelines map[string]PipelineRuntimeState `json:"pipelines,omitempty"`
+	// Cordoned mirrors the instance-local maintenance flag (#121/#128):
+	// running tasks drain but nothing starts. Reported so the control
+	// plane can see WHO is cordoned without a proxy round-trip — the
+	// placement side keeps configs flowing (a cordoned instance still
+	// syncs; recall-on-cordon would strand its running tasks).
+	Cordoned bool `json:"cordoned,omitempty"`
 }
 
 type PipelineRuntimeState struct {

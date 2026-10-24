@@ -118,9 +118,28 @@ type InstanceReport struct {
 	// Stale marks an instance that still runs the pipeline although the
 	// deployment scope no longer includes it (recall in flight/failed)
 	Stale bool `json:"stale,omitempty"`
+	// Cordoned mirrors the instance's maintenance flag (reported via
+	// _sync, #128): running tasks drain, nothing new starts there
+	Cordoned bool `json:"cordoned,omitempty"`
 }
 
 // ─── reconciler ──────────────────────────────────────────────────────────
+
+// reconcilePoke requests an immediate reconciler pass outside the 15s tick.
+// Buffered so pokers never block; a poke landing while a pass is already
+// running just coalesces into one follow-up pass.
+var reconcilePoke = make(chan struct{}, 1)
+
+// RequestReconcile asks the deployment reconciler to run a pass as soon as
+// possible (async, best-effort). Publishers call it after upserting
+// PipelineDeployment/PipelineConfigV2 so convergence starts immediately
+// instead of on the next tick (#128).
+func RequestReconcile() {
+	select {
+	case reconcilePoke <- struct{}{}:
+	default:
+	}
+}
 
 // reconcileDeployments runs on a ticker: for each enabled deployment,
 // compare desired state with the managed-config rows that exist, and
@@ -132,11 +151,12 @@ func (module *PipeModule) startDeploymentReconciler() {
 		for {
 			select {
 			case <-ticker.C:
-				if module.closed.Load() {
-					return
-				}
-				module.reconcileOnce()
+			case <-reconcilePoke:
 			}
+			if module.closed.Load() {
+				return
+			}
+			module.reconcileOnce()
 		}
 	}()
 	log.Debugf("deployment reconciler started (interval 15s)")
@@ -628,7 +648,8 @@ func (h *PipeModule) getDeploymentStatus(dep *PipelineDeployment) DeploymentStat
 				// stale = the instance still runs the pipeline but the
 				// scope no longer includes it (config recall in flight,
 				// or a recall that failed — visible instead of silent)
-				Stale: !inScope,
+				Stale:    !inScope,
+				Cordoned: inst.Cordoned,
 			})
 		}
 	}

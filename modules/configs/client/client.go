@@ -59,6 +59,15 @@ func SetPipelineRuntimeSnapshotProvider(fn func() map[string]interface{}) {
 	getPipelineRuntimeSnapshot = fn
 }
 
+// SetInstanceFlagsProvider wires instance-level maintenance flags into the
+// sync client's runtime report (called from PipeModule.Setup; the pipeline
+// module owns the cordon flag).
+func SetInstanceFlagsProvider(fn func() map[string]interface{}) {
+	getInstanceFlags = fn
+}
+
+var getInstanceFlags func() map[string]interface{}
+
 const bucketName = "instance_registered"
 const configRegisterEnvKey = "CONFIG_MANAGED_SUCCESS"
 const legacyManagedRegisterCompatMaxVersion = "1.30.4"
@@ -597,6 +606,11 @@ func runtimePipelineSnapshot() *common.RuntimeReport {
 		return nil
 	}
 	report := &common.RuntimeReport{Pipelines: map[string]common.PipelineRuntimeState{}}
+	if flags := getInstanceFlags(); flags != nil {
+		if v, ok := flags["cordoned"].(bool); ok {
+			report.Cordoned = v
+		}
+	}
 	for name, state := range snapshot {
 		m, _ := state.(map[string]interface{})
 		stateStr, _ := m["state"].(string)

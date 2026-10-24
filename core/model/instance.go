@@ -91,6 +91,12 @@ type Instance struct {
 	// a JSON string (map[string]PipelineRuntimeState).
 	RuntimePipelines string `json:"runtime_pipelines,omitempty" elastic_mapping:"runtime_pipelines:{type:text}"`
 
+	// Cordoned mirrors the instance-local maintenance flag (#121): running
+	// tasks drain but nothing starts. Reported with every _sync (#128) so
+	// the control plane can surface it; placement deliberately keeps
+	// flowing configs to cordoned instances (recall would strand tasks).
+	Cordoned bool `json:"cordoned,omitempty" elastic_mapping:"cordoned:{type:boolean}"`
+
 	//SearchText string   `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 }
 
