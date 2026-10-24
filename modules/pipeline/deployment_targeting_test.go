@@ -26,14 +26,15 @@ import (
 // is process-global, so every env gets unique instance/label/pipeline
 // IDs and tests stay isolated.
 type deployTestEnv struct {
-	t      *testing.T
-	pid    string
-	instA  string
-	instB  string
-	instC  string
-	prod   string // label value shared by instA+instC
-	stage  string // label value of instB
-	edge   string // extra label of instC
+	t        *testing.T
+	pid      string
+	pipeName string // the pipeline's config NAME (what instances run it under)
+	instA    string
+	instB    string
+	instC    string
+	prod     string // label value shared by instA+instC
+	stage    string // label value of instB
+	edge     string // extra label of instC
 }
 
 var (
@@ -64,7 +65,7 @@ func newDeployTestEnv(t *testing.T) *deployTestEnv {
 	})
 
 	env := &deployTestEnv{
-		t: t, pid: "pipe-" + sfx,
+		t: t, pid: "pipe-" + sfx, pipeName: "deploy-test-pipeline-" + sfx,
 		instA: "gw-a-" + sfx, instB: "gw-b-" + sfx, instC: "gw-c-" + sfx,
 		prod: "prod-" + sfx, stage: "staging-" + sfx, edge: "edge-" + sfx,
 	}
@@ -76,7 +77,7 @@ func newDeployTestEnv(t *testing.T) *deployTestEnv {
 	orm.WithModel(octx, &pipeline.PipelineConfigV2{})
 	cfg := pipeline.PipelineConfigV2{}
 	cfg.ID = env.pid
-	cfg.Name = "deploy-test-pipeline-" + sfx
+	cfg.Name = env.pipeName
 	cfg.Processors = []map[string]interface{}{
 		{"validate_test_echo": map[string]interface{}{"message": "hi"}},
 	}

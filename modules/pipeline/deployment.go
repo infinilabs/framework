@@ -40,6 +40,11 @@ type PipelineDeployment struct {
 	// Version increments on every spec change (reconciler compares with
 	// the last-pushed version to detect drift).
 	Version int `json:"version" elastic_mapping:"version:{type:integer}"`
+
+	// State is the reconciler-owned progress of a staged rollout (#125):
+	// which content digest is being staged, who already carries it and
+	// what a rollback would fall back to. Managed by rollout.go.
+	State RolloutState `json:"rollout_state,omitempty" elastic_mapping:"rollout_state:{type:object}"`
 }
 
 // PlacementSpec declares WHERE and HOW the pipeline runs.
@@ -75,6 +80,31 @@ type DeploymentStatus struct {
 	Instances    []InstanceReport `json:"instances"`
 	DesiredCount int              `json:"desired_count"`
 	ReadyCount   int              `json:"ready_count"`
+	// Rollout mirrors the staged-delivery progress when one is (or was)
+	// active — the rollout progress block of the cluster overview.
+	Rollout *RolloutState `json:"rollout,omitempty"`
+}
+
+// runtimePipelineReport is one pipeline entry of an instance's
+// RuntimePipelines JSON (what _sync upserts on every heartbeat).
+type runtimePipelineReport struct {
+	State        string `json:"state"`
+	Reason       string `json:"reason"`
+	ConfigDigest string `json:"config_digest"`
+}
+
+// runtimePipelineStates parses the instance's reported pipeline states;
+// absent/invalid JSON yields an empty map (unreported, blocks readiness).
+func runtimePipelineStates(raw string) map[string]runtimePipelineReport {
+	out := map[string]runtimePipelineReport{}
+	if raw == "" {
+		return out
+	}
+	var parsed map[string]runtimePipelineReport
+	if json.Unmarshal([]byte(raw), &parsed) != nil {
+		return out
+	}
+	return parsed
 }
 
 type InstanceReport struct {
@@ -275,7 +305,73 @@ func (module *PipeModule) reconcilePipeline(octx *orm.Context, pipelineID string
 		}
 	}
 
+	// staged rollout gate (#125): a rollout-bearing deployment stages the
+	// content — only the current wave (canary first, then batches once
+	// the wave reports running it, see rollout.go) may receive it.
+	var gateAllowed map[string]bool
+	if owner := rolloutGateOwner(deps, desired); owner != nil {
+		var sampleSpec renderSpec
+		for _, spec := range desired {
+			sampleSpec = spec
+			break
+		}
+		content := string(renderDeployedPipeline(&cfg, sampleSpec))
+		digest := deployedContentDigest(deployedPipelineMap(&cfg, sampleSpec))
+		// the fallback a rollback would restore: what rows that do not
+		// carry the new content still hold ("" when none exist yet)
+		prevContent := ""
+		for _, row := range existingRows {
+			if row.Content != content {
+				prevContent = row.Content
+				break
+			}
+		}
+		byID := map[string]model.Instance{}
+		for i := range instances {
+			byID[instances[i].ID] = instances[i]
+		}
+		singleton := owner.Placement.Strategy == "singleton"
+		ready := func(id string) bool {
+			inst, ok := byID[id]
+			if !ok {
+				return false
+			}
+			st, reported := runtimePipelineStates(inst.RuntimePipelines)[cfg.Name]
+			if !reported || st.State == "FAILED" {
+				return false
+			}
+			if st.ConfigDigest != digest {
+				return false // still running the old content
+			}
+			if singleton {
+				return true // non-FAILED holders count: the lock picks the runner
+			}
+			return st.State == "STARTED"
+		}
+		targets := make([]string, 0, len(desired))
+		for id := range desired {
+			targets = append(targets, id)
+		}
+		module.rolloutMu.Lock()
+		allowed, next, changed := rolloutPlan(owner.Placement.Rollout, owner.State, targets, digest, prevContent, ready, false)
+		if changed {
+			owner.State = next
+			dctx := orm.NewContext().DirectAccess()
+			orm.WithModel(dctx, &PipelineDeployment{})
+			if serr := orm.Save(dctx, owner); serr != nil {
+				log.Warnf("reconciler: persist rollout state of %s failed: %v (gate held this pass)", owner.Name, serr)
+			} else {
+				log.Debugf("reconciler: rollout of %s now at %d/%d targets (active=%v)", owner.Name, len(next.Rolled), len(targets), next.Active)
+			}
+		}
+		module.rolloutMu.Unlock()
+		gateAllowed = allowed
+	}
+
 	for instID, spec := range desired {
+		if gateAllowed != nil && !gateAllowed[instID] {
+			continue // staged rollout: this instance's wave has not opened yet
+		}
 		content := string(renderDeployedPipeline(&cfg, spec))
 		row, ok := existing[instID]
 		// converged: the pushed content already matches — skip the
@@ -335,6 +431,16 @@ func deploymentNames(deps []*PipelineDeployment) string {
 // the enabled→disabled transition while keeping the file for instant
 // re-enable.
 func renderDeployedPipeline(cfg *pipeline.PipelineConfigV2, spec renderSpec) []byte {
+	return util.MustToJSONBytes(map[string]interface{}{
+		"pipeline": []interface{}{deployedPipelineMap(cfg, spec)},
+	})
+}
+
+// deployedPipelineMap is the inner object a deployment renders — the six
+// fields that define the deployed behavior. The same shape is digested on
+// BOTH sides (control plane here, instance in RuntimeSnapshot), so a
+// digest comparison proves which content an instance actually runs.
+func deployedPipelineMap(cfg *pipeline.PipelineConfigV2, spec renderSpec) map[string]interface{} {
 	pipelineEnabled := cfg.Enabled
 	pipelineAutoStart := cfg.AutoStart
 	if !spec.enabled {
@@ -344,16 +450,119 @@ func renderDeployedPipeline(cfg *pipeline.PipelineConfigV2, spec renderSpec) []b
 		pipelineEnabled = &f
 		pipelineAutoStart = false
 	}
-	return util.MustToJSONBytes(map[string]interface{}{
-		"pipeline": []interface{}{map[string]interface{}{
-			"name":         cfg.Name,
-			"enabled":      pipelineEnabled,
-			"auto_start":   pipelineAutoStart,
-			"keep_running": cfg.KeepRunning,
-			"singleton":    spec.singleton,
-			"processor":    cfg.Processors,
-		}},
-	})
+	return map[string]interface{}{
+		"name":         cfg.Name,
+		"enabled":      pipelineEnabled,
+		"auto_start":   pipelineAutoStart,
+		"keep_running": cfg.KeepRunning,
+		"singleton":    spec.singleton,
+		"processor":    cfg.Processors,
+	}
+}
+
+// deployedContentDigest digests a rendered pipeline map — the identity the
+// staged rollout compares instance reports against.
+func deployedContentDigest(m map[string]interface{}) string {
+	return util.MD5digest(string(util.MustToJSONBytes(m)))
+}
+
+// deployedContentDigestOf digests FULL rendered config bytes (the
+// {"pipeline":[{...}]} wrapper a managed-config row carries) by
+// re-canonicalizing the inner object — comparable with
+// deployedContentDigest.
+func deployedContentDigestOf(rendered []byte) string {
+	var wrapper struct {
+		Pipeline []map[string]interface{} `json:"pipeline"`
+	}
+	if err := util.FromJSONBytes(rendered, &wrapper); err != nil || len(wrapper.Pipeline) == 0 {
+		return ""
+	}
+	return deployedContentDigest(wrapper.Pipeline[0])
+}
+
+// loadRegisteredInstances lists the instance universe selectors and
+// explicit targeting resolve against.
+func (h *PipeModule) loadRegisteredInstances(octx *orm.Context) []model.Instance {
+	orm.WithModel(octx, &model.Instance{})
+	res, err := orm.SearchV2(octx, orm.NewQuery().Size(500))
+	if err != nil {
+		return nil
+	}
+	instances, _, _ := elastic.DecodeHits[model.Instance](res)
+	return instances
+}
+
+// deploymentTargetIDs resolves a deployment's scope to concrete instance
+// IDs (broadcast = every registered instance).
+func deploymentTargetIDs(dep *PipelineDeployment, instances []model.Instance) []string {
+	targets, broadcast := resolveTargets(dep, instances)
+	if broadcast {
+		ids := make([]string, 0, len(instances))
+		for i := range instances {
+			ids = append(ids, instances[i].ID)
+		}
+		return ids
+	}
+	ids := make([]string, 0, len(targets))
+	for id := range targets {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+// rollbackDeploymentContent rewrites EVERY target's managed-config row to
+// the deployment's recorded fallback content at once — a rollback is
+// urgent, no staging (#125 _rollout action=rollback).
+func (h *PipeModule) rollbackDeploymentContent(octx *orm.Context, dep *PipelineDeployment) error {
+	instances := h.loadRegisteredInstances(octx)
+	targets, broadcast := resolveTargets(dep, instances)
+	if broadcast {
+		targets = map[string]bool{}
+		for i := range instances {
+			targets[instances[i].ID] = true
+		}
+	}
+	if len(targets) == 0 {
+		return fmt.Errorf("deployment %s has no targets in scope right now", dep.Name)
+	}
+
+	configName := fmt.Sprintf("pipeline-deploy-%s.yml", dep.PipelineID)
+	orm.WithModel(octx, &configs_server.ManagedConfig{})
+	rowsRes, rerr := orm.SearchV2(octx, orm.NewQuery().
+		Filter(orm.TermQuery("name", configName)).Size(500))
+	if rerr != nil {
+		return fmt.Errorf("query managed config %s: %w", configName, rerr)
+	}
+	rows, _, _ := elastic.DecodeHits[configs_server.ManagedConfig](rowsRes)
+	existing := map[string]configs_server.ManagedConfig{}
+	maxVersion := int64(0)
+	for _, row := range rows {
+		existing[row.InstanceID] = row
+		if row.Version > maxVersion {
+			maxVersion = row.Version
+		}
+	}
+
+	for instID := range targets {
+		row := existing[instID]
+		row.Name = configName
+		row.InstanceID = instID
+		row.Content = dep.State.RollbackContent
+		row.Version = maxVersion + 1
+		row.Readonly = true
+		if row.ID == "" {
+			if instID == configs_server.AllInstancesID {
+				row.ID = fmt.Sprintf("deploy-%s", dep.PipelineID)
+			} else {
+				row.ID = fmt.Sprintf("deploy-%s-%s", dep.PipelineID, instID)
+			}
+		}
+		if err := orm.Save(octx, &row); err != nil {
+			return fmt.Errorf("rollback row %s→%s: %w", configName, instID, err)
+		}
+		maxVersion = row.Version
+	}
+	return nil
 }
 
 // getDeploymentStatus builds the REPORTED state from instance runtime
@@ -438,6 +647,10 @@ func (h *PipeModule) getDeploymentStatus(dep *PipelineDeployment) DeploymentStat
 		if ir.State == "STARTED" {
 			status.ReadyCount++
 		}
+	}
+	if dep.State.Active || len(dep.State.Rolled) > 0 {
+		st := dep.State
+		status.Rollout = &st
 	}
 	return status
 }

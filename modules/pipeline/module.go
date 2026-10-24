@@ -72,6 +72,10 @@ type PipeModule struct {
 	// to completion, but no task starts (auto_start/_start/_resume, and
 	// tasks recreated by hot reload park STOPPED) until uncordoned
 	cordoned atomic.Bool
+	// rolloutMu serializes staged-rollout state transitions between the
+	// reconciler tick and the _rollout endpoint (both read-modify-write
+	// the deployment's RolloutState)
+	rolloutMu sync.Mutex
 }
 
 // recordFailure stores a pipeline compile/load failure for the runtime
@@ -117,6 +121,13 @@ func (module *PipeModule) RuntimeSnapshot() map[string]interface{} {
 		entry := map[string]interface{}{
 			"state": state,
 		}
+		// the running config's content digest — same canonical shape the
+		// deployment renderer produces, so the control plane can verify a
+		// staged rollout wave actually runs the pushed content (#125)
+		entry["config_digest"] = deployedContentDigest(deployedPipelineMap(&ctx.Config, renderSpec{
+			enabled:   isPipelineEnabled(ctx.Config.Enabled),
+			singleton: ctx.Config.Singleton,
+		}))
 		if taskID, ok := k.(string); ok {
 			entry["generation"] = module.generationOf(taskID)
 		}
@@ -261,6 +272,30 @@ func (module *PipeModule) Setup() {
 	api.HandleUIMethod(api.DELETE, "/pipeline/deployments/:id", module.deleteDeploymentHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineDelete))
 	api.HandleAPIMethod(api.GET, "/pipeline/deployments/:id/status", module.getDeploymentStatusHandler)
 	api.HandleUIMethod(api.GET, "/pipeline/deployments/:id/status", module.getDeploymentStatusHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
+	// staged rollout control (#125): manual advance / content rollback
+	api.HandleAPIMethod(api.POST, "/pipeline/deployments/:id/_rollout", module.rolloutActionHandler)
+	api.HandleUIMethod(api.POST, "/pipeline/deployments/:id/_rollout", module.rolloutActionHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+
+	// cluster broadcast of transient commands (#125): forwarded per target
+	// over the reverse channel; ?generation=N carries the #120 split-brain
+	// guard — instances on another config generation answer 409
+	for _, action := range []string{"pause", "resume", "stop"} {
+		path := "/pipeline/deployments/:id/_" + action
+		api.HandleAPIMethod(api.POST, path, module.broadcastDeploymentActionHandler(action))
+		api.HandleUIMethod(api.POST, path, module.broadcastDeploymentActionHandler(action), api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	}
+
+	// per-instance maintenance over the reverse channel (#125): the
+	// instance-side primitives are #121's _drain/_cordon/_uncordon
+	for _, action := range []string{"drain", "cordon", "uncordon"} {
+		path := "/pipeline/instances/:id/_" + action
+		api.HandleAPIMethod(api.POST, path, module.instanceActionHandler(action))
+		api.HandleUIMethod(api.POST, path, module.instanceActionHandler(action), api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineUpdate))
+	}
+	// read-only passthrough onto an instance's own pipeline API
+	api.HandleAPIMethod(api.GET, "/pipeline/instances/:id/proxy", module.instanceProxyHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/instances/:id/proxy", module.instanceProxyHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
 
 	api.HandleAPIMethod(api.GET, "/pipeline/cluster/overview", module.getClusterOverviewHandler)
 	api.HandleUIMethod(api.GET, "/pipeline/cluster/overview", module.getClusterOverviewHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))

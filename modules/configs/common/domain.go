@@ -102,6 +102,11 @@ type PipelineRuntimeState struct {
 	State         string `json:"state"`                    // STARTED|STOPPED|FAILED|...
 	ConfigSource  string `json:"config_source,omitempty"`  // managed config name
 	ConfigVersion int64  `json:"config_version,omitempty"` // managed config version loaded
+	// ConfigDigest is the running task's content digest (the six fields a
+	// deployment renders). The control plane compares it against the digest
+	// it pushed to verify rollout readiness — state alone cannot prove the
+	// instance runs the NEW content (#125).
+	ConfigDigest string `json:"config_digest,omitempty"`
 	// Reason explains a FAILED state (e.g. the config references a
 	// processor missing from this instance's catalog) — surfaced in the
 	// deployment status so operators see why without instance shell access

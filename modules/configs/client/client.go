@@ -602,9 +602,11 @@ func runtimePipelineSnapshot() *common.RuntimeReport {
 		stateStr, _ := m["state"].(string)
 		source, _ := m["config_source"].(string)
 		reason, _ := m["reason"].(string)
+		digest, _ := m["config_digest"].(string)
 		report.Pipelines[name] = common.PipelineRuntimeState{
 			State:        stateStr,
 			ConfigSource: source,
+			ConfigDigest: digest,
 			Reason:       reason,
 		}
 	}
