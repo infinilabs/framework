@@ -47,6 +47,10 @@ type Event struct {
 	Meta       util.MapStr `json:"-"`
 	Private    interface{} `json:"-"` // for beats private use
 	TimeSeries bool        `json:"-"` // true if the event contains timeseries data
+
+	// pooled links to the record-pool wrapper while the event came from
+	// AcquireEvent; managed by pool.go, never serialized.
+	pooled *pooledEvent
 }
 
 type EventMetadata struct {

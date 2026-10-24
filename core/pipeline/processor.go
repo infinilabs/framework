@@ -222,7 +222,7 @@ func newPipelineWithScope(cfg []*config.Config, scope ScopeInfo, direct bool) (*
 	}
 
 	if len(procs.List) > 0 {
-		log.Debugf("generated new processors: %v", procs)
+		log.Debugf("generated new processors: %s", procs.String())
 	}
 	return procs, nil
 }

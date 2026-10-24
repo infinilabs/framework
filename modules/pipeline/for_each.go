@@ -233,6 +233,14 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 	for j, rec := range records {
 		active = append(active, forEachActive{rec: rec, msgIdx: decodedIdx[j]})
 	}
+	// release pooled records on every exit path — by now each record has
+	// been encoded (or dropped) and clones have joined active; non-pooled
+	// records (codec- or clone-allocated) make ReleaseEvent a no-op
+	defer func() {
+		for i := range active {
+			event.ReleaseEvent(active[i].rec)
+		}
+	}()
 
 	for _, seg := range segments {
 		if c.IsCanceled() || !c.ShouldContinue() {
