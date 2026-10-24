@@ -5,9 +5,13 @@
 package pipeline
 
 import (
+	"net/http"
+	"sort"
 	"time"
 
 	log "github.com/cihub/seelog"
+	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
@@ -95,4 +99,108 @@ func (module *PipeModule) persistStageSnapshot() {
 			}
 		}
 	}
+}
+
+// ClusterStageStat is one stage aggregated across every instance that
+// reported it: counters sum over each instance's LATEST snapshot tick,
+// latency is the invocation-weighted mean, and PerInstance carries the
+// detail rows so the cluster math stays auditable (aggregate must equal
+// the sum of the parts).
+type ClusterStageStat struct {
+	Pipeline    string                `json:"pipeline"`
+	Stage       string                `json:"stage"`
+	Carrier     string                `json:"carrier"`
+	Count       int64                 `json:"count"`
+	Errors      int64                 `json:"errors"`
+	AvgLatency  int64                 `json:"avg_latency_ns"`
+	PerInstance map[string]StageStats `json:"per_instance"`
+}
+
+// aggregateStageRows folds persisted snapshot rows (cumulative counters
+// per tick) into per-stage cluster totals. Rows are sorted newest-first
+// internally; the first row of each (instance, stage) pair is that
+// instance's latest tick — older ticks are superseded, not summed.
+func aggregateStageRows(rows []PipelineStageStat) []ClusterStageStat {
+	sort.SliceStable(rows, func(i, j int) bool { return rows[i].Ts.After(rows[j].Ts) })
+
+	type stageKey struct{ pipeline, stage, carrier string }
+	latest := map[string]map[stageKey]StageStats{} // instance -> stage -> row
+	for _, r := range rows {
+		inst := r.InstanceID
+		if inst == "" {
+			inst = "?" // pre-#127 rows: attribute to a synthetic bucket
+		}
+		key := stageKey{r.Pipeline, r.Stage, r.Carrier}
+		m := latest[inst]
+		if m == nil {
+			m = map[stageKey]StageStats{}
+			latest[inst] = m
+		}
+		if _, seen := m[key]; seen {
+			continue
+		}
+		m[key] = StageStats{
+			InstanceID: r.InstanceID, Stage: r.Stage, Carrier: r.Carrier,
+			Count: r.Count, Errors: r.Errors, AvgLatency: r.AvgLatency,
+		}
+	}
+
+	totals := map[stageKey]*ClusterStageStat{}
+	for _, m := range latest {
+		for key, st := range m {
+			agg := totals[key]
+			if agg == nil {
+				agg = &ClusterStageStat{
+					Pipeline: key.pipeline, Stage: key.stage, Carrier: key.carrier,
+					PerInstance: map[string]StageStats{},
+				}
+				totals[key] = agg
+			}
+			agg.Count += st.Count
+			agg.Errors += st.Errors
+			agg.PerInstance[st.InstanceID] = st
+		}
+	}
+	out := make([]ClusterStageStat, 0, len(totals))
+	for _, agg := range totals {
+		var totalInvocations int64
+		for _, st := range agg.PerInstance {
+			totalInvocations += st.Count
+		}
+		if totalInvocations > 0 {
+			var weighted int64
+			for _, st := range agg.PerInstance {
+				weighted += st.AvgLatency * st.Count
+			}
+			agg.AvgLatency = weighted / totalInvocations
+		}
+		out = append(out, *agg)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Pipeline != out[j].Pipeline {
+			return out[i].Pipeline < out[j].Pipeline
+		}
+		return out[i].Stage < out[j].Stage
+	})
+	return out
+}
+
+// clusterStagesHandler — GET /pipeline/cluster/stages[?pipeline=]
+// Cluster-wide stage totals from the persisted snapshots: every
+// instance's latest tick summed per stage, with the per-instance detail
+// alongside (the aggregate must equal the sum of the parts).
+func (h *PipeModule) clusterStagesHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	octx := orm.NewContextWithParent(req.Context()).DirectAccess()
+	orm.WithModel(octx, &PipelineStageStat{})
+	q := orm.NewQuery().Size(4000)
+	if p := req.URL.Query().Get("pipeline"); p != "" {
+		q = q.Filter(orm.TermQuery("pipeline", p))
+	}
+	res, err := orm.SearchV2(octx, q)
+	if err != nil {
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	rows, _, _ := elastic.DecodeHits[PipelineStageStat](res)
+	h.WriteJSON(w, util.MapStr{"stages": aggregateStageRows(rows)}, http.StatusOK)
 }

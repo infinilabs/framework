@@ -265,6 +265,10 @@ func (module *PipeModule) Setup() {
 	api.HandleAPIMethod(api.GET, "/pipeline/cluster/overview", module.getClusterOverviewHandler)
 	api.HandleUIMethod(api.GET, "/pipeline/cluster/overview", module.getClusterOverviewHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
 
+	// cluster-wide stage totals from the persisted snapshots (#127/#130)
+	api.HandleAPIMethod(api.GET, "/pipeline/cluster/stages", module.clusterStagesHandler)
+	api.HandleUIMethod(api.GET, "/pipeline/cluster/stages", module.clusterStagesHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
+
 	// pipeline version history + rollback
 	api.HandleAPIMethod(api.GET, "/pipelines/:id/versions", module.listPipelineVersionsHandler)
 	api.HandleUIMethod(api.GET, "/pipelines/:id/versions", module.listPipelineVersionsHandler, api.RequireLogin(), api.RequirePermission(security.PermissionSystemPipelineRead))
