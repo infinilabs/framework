@@ -111,6 +111,17 @@ type PipelineConfigV2 struct {
 	// Labels are arbitrary metadata attached to the pipeline.
 	Labels map[string]interface{} `config:"labels" json:"labels"`
 
+	// CanvasLayout persists the orchestration UI's node positions: an
+	// arbitrary, UI-owned mapping (processor-entry key → {x, y}). Pure
+	// presentation state — never read by execution; stored with the
+	// config so any client editing the pipeline restores the same
+	// arrangement. Not indexed (arbitrary JSON shapes).
+	//
+	// Keys must NOT be purely numeric: ucfg reads digit-only keys as
+	// array indices and silently drops them from map unpacking, so "0"
+	// unpacks to nothing. Clients use a prefixed form such as "n0", "n1".
+	CanvasLayout map[string]interface{} `config:"canvas_layout" json:"canvas_layout,omitempty" elastic_mapping:"canvas_layout: { enabled: false }"`
+
 	// Transient, if false, marks that this pipeline config shpuld be persisted.
 	//
 	// In the current implementation, only the pipeline configs created with the
