@@ -68,6 +68,16 @@ func SetInstanceFlagsProvider(fn func() map[string]interface{}) {
 
 var getInstanceFlags func() map[string]interface{}
 
+// SetStageStatsProvider wires the pipeline module's per-stage counters
+// into the sync report (called from PipeModule.Setup). The manager
+// persists them so cluster aggregation covers instances that do not
+// share its datastore.
+func SetStageStatsProvider(fn func() []common.StageStat) {
+	getStageStats = fn
+}
+
+var getStageStats func() []common.StageStat
+
 const bucketName = "instance_registered"
 const configRegisterEnvKey = "CONFIG_MANAGED_SUCCESS"
 const legacyManagedRegisterCompatMaxVersion = "1.30.4"
@@ -622,6 +632,13 @@ func runtimePipelineSnapshot() *common.RuntimeReport {
 			ConfigSource: source,
 			ConfigDigest: digest,
 			Reason:       reason,
+		}
+	}
+	// per-stage counters ride the same heartbeat — cumulative rows the
+	// manager snapshots; zero rows are noise, skip them
+	if getStageStats != nil {
+		if rows := getStageStats(); len(rows) > 0 {
+			report.StageStats = rows
 		}
 	}
 	return report

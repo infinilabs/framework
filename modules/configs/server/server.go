@@ -44,6 +44,17 @@ import (
 	"infini.sh/framework/modules/configs/common"
 )
 
+// persistStageStatsSink stores an instance's reported per-stage counters.
+// Registered by the pipeline module (which owns the pipeline-stage-stats
+// schema); nil on apps that don't load it.
+var persistStageStatsSink func(octx *orm.Context, rows []common.StageStat)
+
+// SetStageStatsSink installs the reported-stage-stats persistence hook
+// (called from the pipeline module's Setup).
+func SetStageStatsSink(fn func(octx *orm.Context, rows []common.StageStat)) {
+	persistStageStatsSink = fn
+}
+
 // Config holds the server-side settings (configs.server.* in YAML).
 // Disabled by default; products opt in via Setup().
 type Config struct {
@@ -575,6 +586,14 @@ func (h *APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, _ htt
 			}
 			if updated {
 				_, _ = upsertInstance(&obj.Client) // second upsert with runtime
+			}
+
+			// Stage stats: the instance's cumulative counters snapshot into
+			// the manager's store — fleet-wide cluster aggregation without
+			// every instance sharing the datastore. The pipeline module
+			// registers the sink; nil on apps without it.
+			if persistStageStatsSink != nil && len(obj.Runtime.StageStats) > 0 {
+				persistStageStatsSink(orm.NewContext().DirectAccess(), obj.Runtime.StageStats)
 			}
 		}
 

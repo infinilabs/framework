@@ -13,8 +13,11 @@ import (
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/env"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/configs/common"
 )
 
 // PipelineStageStat is the persisted snapshot row of one stage at one
@@ -41,8 +44,18 @@ type metricsPersistConfig struct {
 	Persistence struct {
 		Enabled  bool `config:"enabled"`
 		Interval int  `config:"interval_seconds"`
+		// RetentionSeconds bounds the snapshot table: rows older than the
+		// cutoff are pruned on every persist pass. The cluster fold only
+		// reads each instance's LATEST tick, so history beyond a window is
+		// dead weight (and would eventually crowd the aggregation query).
+		// Default 3600; 0 also means the default; negative disables.
+		Retention int `config:"retention_seconds"`
 	} `config:"persistence"`
 }
+
+// stageStatsRetention is the resolved retention window (shared by the
+// local exporter and the sync-report sink — one table, one policy).
+var stageStatsRetention = time.Hour
 
 // startMetricsPersist runs the snapshot exporter when enabled
 // (default interval 10s). Snapshots are cumulative counters; consumers
@@ -56,6 +69,11 @@ func (module *PipeModule) startMetricsPersist() {
 	interval := time.Duration(cfg.Persistence.Interval) * time.Second
 	if interval <= 0 {
 		interval = 10 * time.Second
+	}
+	if cfg.Persistence.Retention > 0 {
+		stageStatsRetention = time.Duration(cfg.Persistence.Retention) * time.Second
+	} else if cfg.Persistence.Retention < 0 {
+		stageStatsRetention = 0 // disabled
 	}
 	go func() {
 		ticker := time.NewTicker(interval)
@@ -73,35 +91,109 @@ func (module *PipeModule) startMetricsPersist() {
 	log.Debugf("pipeline metrics persistence enabled (interval %v)", interval)
 }
 
-func (module *PipeModule) persistStageSnapshot() {
-	names := []string{}
+// reportedStageRows collects every running pipeline's processor counters
+// plus the lane carriers once, in the shared wire shape (common.StageStat):
+// rows are non-zero-collectable, tagged with the pipeline they belong to
+// (Config.Name, falling back to the context key for id-less configs —
+// same resolution rule as RuntimeSnapshot). Lane rows are cross-pipeline
+// and carry an empty Pipeline tag.
+func (module *PipeModule) reportedStageRows() []common.StageStat {
+	self := global.Env().SystemConfig.NodeConfig.ID
+	toRow := func(pipelineName string, st StageStats) common.StageStat {
+		return common.StageStat{
+			Pipeline: pipelineName, InstanceID: st.InstanceID, Stage: st.Stage, Carrier: st.Carrier,
+			Count: st.Count, Errors: st.Errors, AvgLatency: st.AvgLatency,
+		}
+	}
+	out := []common.StageStat{}
+	seen := map[string]bool{}
 	module.contexts.Range(func(k, v interface{}) bool {
-		if name, ok := k.(string); ok {
-			names = append(names, name)
+		ctx, ok := v.(*pipeline.Context)
+		if !ok {
+			return true
+		}
+		name := ctx.Config.Name
+		if name == "" {
+			if s, ok := k.(string); ok {
+				name = s
+			}
+		}
+		if name == "" || seen[name] {
+			return true
+		}
+		seen[name] = true
+		for _, st := range processorStageStats(name) {
+			out = append(out, toRow(name, st))
 		}
 		return true
 	})
+	for _, st := range laneStageStats() {
+		out = append(out, toRow("", st))
+	}
+	// self-tag rows whose recorder ran before node config resolved
+	for i := range out {
+		if out[i].InstanceID == "" {
+			out[i].InstanceID = self
+		}
+	}
+	return out
+}
+
+// saveStageStatRows writes one snapshot tick of counters — shared by the
+// local exporter and the configs _sync sink (same table, same row shape).
+func saveStageStatRows(octx *orm.Context, rows []common.StageStat, now time.Time, src string) {
+	for _, st := range rows {
+		if st.Count == 0 && st.Errors == 0 {
+			continue
+		}
+		row := PipelineStageStat{
+			InstanceID: st.InstanceID, Pipeline: st.Pipeline, Stage: st.Stage, Carrier: st.Carrier,
+			Count: st.Count, Errors: st.Errors, AvgLatency: st.AvgLatency,
+			Ts: now,
+		}
+		row.ID = util.GetUUID()
+		if err := orm.Save(octx, &row); err != nil {
+			log.Warnf("%s: save %s/%s failed: %v", src, st.Pipeline, st.Stage, err)
+		}
+	}
+}
+
+// PersistReportedStageStats is the configs-server sink: an instance's
+// _sync-reported counters snapshot into the manager's store so cluster
+// aggregation covers instances that do not share its datastore. Same
+// row shape as the local exporter (cumulative; the fold takes each
+// instance's latest tick) and the same retention policy.
+func PersistReportedStageStats(octx *orm.Context, rows []common.StageStat) {
+	if len(rows) == 0 {
+		return
+	}
 	now := time.Now().UTC()
+	saveStageStatRows(octx, rows, now, "stage stats report")
+	pruneStageStats(now)
+}
+
+func (module *PipeModule) persistStageSnapshot() {
 	// DirectAccess: this is a background system writer (no request user);
 	// the security orm hooks require either a session user or the direct
 	// read/write flags — a bare context panics on the first save under
 	// security-enabled apps (coco) and takes the process down
 	octx := orm.NewContext().DirectAccess()
-	for _, name := range names {
-		for _, st := range stageStats(name) {
-			if st.Count == 0 && st.Errors == 0 {
-				continue
-			}
-			row := PipelineStageStat{
-				InstanceID: st.InstanceID, Pipeline: name, Stage: st.Stage, Carrier: st.Carrier,
-				Count: st.Count, Errors: st.Errors, AvgLatency: st.AvgLatency,
-				Ts: now,
-			}
-			row.ID = util.GetUUID()
-			if err := orm.Save(octx, &row); err != nil {
-				log.Warnf("metrics persist: save %s/%s failed: %v", name, st.Stage, err)
-			}
-		}
+	now := time.Now().UTC()
+	saveStageStatRows(octx, module.reportedStageRows(), now, "metrics persist")
+	pruneStageStats(now)
+}
+
+// pruneStageStats drops snapshot rows older than the retention window.
+// No-op when retention is disabled.
+func pruneStageStats(now time.Time) {
+	if stageStatsRetention <= 0 {
+		return
+	}
+	octx := orm.NewContext().DirectAccess()
+	orm.WithModel(octx, &PipelineStageStat{})
+	qb := orm.NewQuery().Filter(orm.Range("ts").Lt(now.Add(-stageStatsRetention)))
+	if _, err := orm.DeleteByQuery(octx, qb); err != nil {
+		log.Debugf("stage stats prune: %v", err)
 	}
 }
 

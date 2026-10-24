@@ -71,6 +71,17 @@ func (s *statsRecorder) OnStep(e *pipeline.StepEvent) {
 // stageStats snapshots one pipeline's processor stages plus every lane
 // carrier (depth from the live registry).
 func stageStats(pipelineName string) []StageStats {
+	out := processorStageStats(pipelineName)
+	out = append(out, laneStageStats()...)
+	return out
+}
+
+// processorStageStats snapshots one pipeline's processor rows only —
+// the per-pipeline slice of stageStats. Persistence and the sync report
+// call this per pipeline and add lane rows once globally (stageStats'
+// lane section is per-CALL, so folding it into a per-pipeline loop would
+// duplicate every lane under every pipeline).
+func processorStageStats(pipelineName string) []StageStats {
 	self := global.Env().SystemConfig.NodeConfig.ID
 	out := []StageStats{}
 	if rec := globalStats.Load(); rec != nil {
@@ -87,6 +98,14 @@ func stageStats(pipelineName string) []StageStats {
 		}
 		s.mu.Unlock()
 	}
+	return out
+}
+
+// laneStageStats snapshots the cross-pipeline lane carrier rows — lanes
+// live in a global registry, they belong to no single pipeline.
+func laneStageStats() []StageStats {
+	self := global.Env().SystemConfig.NodeConfig.ID
+	out := make([]StageStats, 0, len(lane.List()))
 	for _, l := range lane.List() {
 		out = append(out, StageStats{
 			InstanceID: self,

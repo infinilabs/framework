@@ -48,6 +48,7 @@ import (
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
 	configs_client "infini.sh/framework/modules/configs/client"
+	configs_server "infini.sh/framework/modules/configs/server"
 )
 
 type PipeModule struct {
@@ -202,6 +203,12 @@ func (module *PipeModule) Setup() {
 	configs_client.SetInstanceFlagsProvider(func() map[string]interface{} {
 		return map[string]interface{}{"cordoned": module.cordoned.Load()}
 	})
+	// per-stage counters ride the same heartbeat: instances without a
+	// shared datastore still land in the manager's cluster aggregation.
+	// The sink half runs only on apps that embed the configs server
+	// (coco/logpilot managers); on agent-only processes it is inert.
+	configs_client.SetStageStatsProvider(module.reportedStageRows)
+	configs_server.SetStageStatsSink(PersistReportedStageStats)
 	// ORM schema registration (table/index auto-creation on startup)
 	orm.MustRegisterSchemaWithIndexName(pipeline.PipelineConfigV2{}, "pipeline-configs")
 	orm.MustRegisterSchemaWithIndexName(PipelineVersion{}, "pipeline-versions")

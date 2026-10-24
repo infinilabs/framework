@@ -42,12 +42,14 @@ var (
 	deployORMOnce sync.Once
 )
 
-func newDeployTestEnv(t *testing.T) *deployTestEnv {
-	deployEnvSeq++
-	sfx := fmt.Sprintf("%d", deployEnvSeq)
-	// ONE handler for the whole test binary: the ORM registry is a
-	// process-global, and a per-test DB would be closed under the next
-	// test's feet. Each env isolates via unique IDs instead.
+// ensureDeployORMHandler installs the ONE sqlite handler for the whole
+// test binary (orm.Register is a process-global last-wins registry — a
+// second registration anywhere would flip later tests onto a handler
+// missing their schemas). Every schema any test in this package needs
+// registers here; side-effect-free so stats tests can call it without
+// minting instances.
+func ensureDeployORMHandler(t *testing.T) {
+	t.Helper()
 	deployORMOnce.Do(func() {
 		handler := &sqlite.SQLiteORM{Config: sqlite.SQLiteConfig{Enabled: true,
 			DBPath: filepath.Join(os.TempDir(), fmt.Sprintf("pipeline-deploy-test-%d.db", time.Now().UnixNano()))}}
@@ -59,10 +61,17 @@ func newDeployTestEnv(t *testing.T) *deployTestEnv {
 		orm.MustRegisterSchemaWithIndexName(PipelineDeployment{}, "pipeline-deployments-test")
 		orm.MustRegisterSchemaWithIndexName(model.Instance{}, "instance-test")
 		orm.MustRegisterSchemaWithIndexName(server.ManagedConfig{}, "managed-configs-test")
+		orm.MustRegisterSchemaWithIndexName(PipelineStageStat{}, "pipeline-stage-stats-test")
 		if err := orm.InitSchema(); err != nil {
 			t.Fatal(err)
 		}
 	})
+}
+
+func newDeployTestEnv(t *testing.T) *deployTestEnv {
+	deployEnvSeq++
+	sfx := fmt.Sprintf("%d", deployEnvSeq)
+	ensureDeployORMHandler(t)
 
 	env := &deployTestEnv{
 		t: t, pid: "pipe-" + sfx, pipeName: "deploy-test-pipeline-" + sfx,

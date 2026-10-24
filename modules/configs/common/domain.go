@@ -102,6 +102,25 @@ type RuntimeReport struct {
 	// placement side keeps configs flowing (a cordoned instance still
 	// syncs; recall-on-cordon would strand its running tasks).
 	Cordoned bool `json:"cordoned,omitempty"`
+	// StageStats carries the instance's cumulative per-stage counters on
+	// the same heartbeat — the same rows the local metrics exporter
+	// persists. Instances without a shared datastore (gateway-type, local
+	// sqlite) still appear in the manager's cluster aggregation.
+	StageStats []StageStat `json:"stage_stats,omitempty"`
+}
+
+// StageStat is one per-stage counter row in the sync report — the wire
+// shape of the pipeline module's StageStats (cumulative counters since
+// process start; the manager persists them as pipeline-stage-stats
+// snapshots and the cluster fold takes each instance's latest tick).
+type StageStat struct {
+	Pipeline   string `json:"pipeline"`
+	InstanceID string `json:"instance_id"`
+	Stage      string `json:"stage"`   // processor name or lane name
+	Carrier    string `json:"carrier"` // "processor" | "lane:<name>"
+	Count      int64  `json:"count"`
+	Errors     int64  `json:"errors"`
+	AvgLatency int64  `json:"avg_latency_ns"`
 }
 
 type PipelineRuntimeState struct {
