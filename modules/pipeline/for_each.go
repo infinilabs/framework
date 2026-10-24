@@ -186,13 +186,6 @@ func (p *ForEachProcessor) ApplyScope(scope pipeline.ScopeInfo) error {
 }
 
 func (p *ForEachProcessor) Process(c *pipeline.Context) error {
-	v := c.Get(param.ParaKey(p.cfg.MessageField))
-	msgs, ok := v.([]queue.Message)
-	if !ok {
-		log.Debugf("for_each: no batch found under context key [%s], skip", p.cfg.MessageField)
-		return nil
-	}
-
 	// The record convention is only valid inside the sub-chain; save and
 	// restore the previous values so the batch's last record (and its
 	// failure tags) does not leak to processors downstream of for_each,
@@ -203,6 +196,24 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 		c.Set(pipeline.RecordContextKey, previous)
 		c.Set(pipeline.FailureTagsKey, previousTags)
 	}()
+
+	v := c.Get(param.ParaKey(p.cfg.MessageField))
+	msgs, ok := v.([]queue.Message)
+	if !ok {
+		// Dry-run replay: the harness binds one decoded record instead of
+		// a message batch. Adopt it as the single input record — the same
+		// zero-decode typed entry lane_consumer uses at runtime — so the
+		// sub-chain really executes and step diffs show its effect. There
+		// is no message to encode back into; the harness owns the record
+		// (runOnRecords skips release and encode for adopted records).
+		if pipeline.InDryRun(c) {
+			if rec, has := pipeline.CurrentRecord(c); has {
+				return p.runOnRecords(c, []*event.Event{rec}, nil, nil)
+			}
+		}
+		log.Debugf("for_each: no batch found under context key [%s], skip", p.cfg.MessageField)
+		return nil
+	}
 
 	// Decode pass: build the record slice; undecodable payloads keep their
 	// original bytes and are passed through untouched (payload transparency
@@ -221,7 +232,15 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 		records = append(records, rec)
 		decodedIdx = append(decodedIdx, i)
 	}
+	return p.runOnRecords(c, records, msgs, decodedIdx)
+}
 
+// runOnRecords executes the sub-chain stage-wise over records. With msgs
+// non-nil (normal runtime) originals encode back into their message slot,
+// clones append messages, and pooled records are released. With msgs nil
+// (dry-run adoption) the caller owns the records: serial execution only
+// (deterministic diffs), no encode pass, no release.
+func (p *ForEachProcessor) runOnRecords(c *pipeline.Context, records []*event.Event, msgs []queue.Message, decodedIdx []int) error {
 	segments := buildSegments(p.sub.List)
 
 	// Stage-wise execution: segments run in WRITTEN order (record runs,
@@ -231,16 +250,30 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 	// segments.
 	active := make([]forEachActive, 0, len(records))
 	for j, rec := range records {
-		active = append(active, forEachActive{rec: rec, msgIdx: decodedIdx[j]})
+		idx := -1
+		if msgs != nil {
+			idx = decodedIdx[j]
+		}
+		active = append(active, forEachActive{rec: rec, msgIdx: idx})
+	}
+	// offsetOf is for logging only; adopted records carry no message.
+	offsetOf := func(ar *forEachActive) interface{} {
+		if msgs == nil || ar.msgIdx < 0 {
+			return -1
+		}
+		return msgs[ar.msgIdx].Offset
 	}
 	// release pooled records on every exit path — by now each record has
 	// been encoded (or dropped) and clones have joined active; non-pooled
-	// records (codec- or clone-allocated) make ReleaseEvent a no-op
-	defer func() {
-		for i := range active {
-			event.ReleaseEvent(active[i].rec)
-		}
-	}()
+	// records (codec- or clone-allocated) make ReleaseEvent a no-op.
+	// Adopted dry-run records belong to the harness — never released here.
+	if msgs != nil {
+		defer func() {
+			for i := range active {
+				event.ReleaseEvent(active[i].rec)
+			}
+		}()
+	}
 
 	for _, seg := range segments {
 		if c.IsCanceled() || !c.ShouldContinue() {
@@ -274,7 +307,8 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 		}
 
 		// record segment: per active record, run the segment's sub-chain
-		if p.cfg.Parallel > 1 {
+		// (dry-run adoption stays serial for deterministic diffs)
+		if p.cfg.Parallel > 1 && msgs != nil {
 			runRecordSegmentParallel(c, seg.chain, active, p.cfg, func(cl *event.Event, idx int) {
 				active = append(active, forEachActive{rec: cl, msgIdx: idx, isClone: true})
 			})
@@ -302,7 +336,7 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 							tagged = true
 						}
 						log.Warnf("for_each: sub-chain error tagged %q on record at offset %v: %v",
-							p.cfg.FailureTag, msgs[ar.msgIdx].Offset, err)
+							p.cfg.FailureTag, offsetOf(ar), err)
 					}
 				}
 				mergeFailureTags(ar.rec, tags)
@@ -318,6 +352,12 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 				active = append(active, forEachActive{rec: cl, msgIdx: ar.msgIdx, isClone: true})
 			}
 		}
+	}
+
+	// Adopted dry-run records have no message to encode back into — the
+	// harness snapshots the record directly.
+	if msgs == nil {
+		return nil
 	}
 
 	// Encode pass: originals write their message slot, clones append new

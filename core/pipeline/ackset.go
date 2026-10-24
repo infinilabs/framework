@@ -213,6 +213,16 @@ func EnableDryRun(ctx *Context, sink *[]DryRunWrite, capture bool) {
 	ctx.Set(dryRunKey, &dryRunState{sink: sink, capture: capture})
 }
 
+// InDryRun reports whether this context runs under a dry-run replay
+// (EnableDryRun was called), regardless of capture mode.
+func InDryRun(ctx *Context) bool {
+	if ctx == nil {
+		return false
+	}
+	st, _ := ctx.Get(dryRunKey).(*dryRunState)
+	return st != nil
+}
+
 type dryRunState struct {
 	sink    *[]DryRunWrite
 	capture bool
