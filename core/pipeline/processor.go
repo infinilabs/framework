@@ -204,6 +204,17 @@ func newPipelineWithScope(cfg []*config.Config, scope ScopeInfo, direct bool) (*
 				}
 				log.Warnf("contract (non-strict): %v", err)
 			}
+			// hosts with nested chains (for_each, lane_consumer) compile
+			// them warn-only at construction; hand them the enclosing
+			// scope so a strict compile reaches the sub-chain as well
+			if sa, isScopeAware := p.(ScopeAwareProcessor); isScopeAware {
+				if err := sa.ApplyScope(scope); err != nil {
+					if scope.Strict {
+						return nil, err
+					}
+					log.Warnf("contract (non-strict): %v", err)
+				}
+			}
 			procs.AddProcessor(p)
 		} else {
 			return nil, errors.Errorf("invalid processor: [%v]", plugin.Name())

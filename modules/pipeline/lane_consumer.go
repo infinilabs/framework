@@ -95,6 +95,26 @@ func NewLaneConsumerProcessor(c *config.Config) (pipeline.Processor, error) {
 
 func (p *LaneConsumerProcessor) Name() string { return laneConsumerName }
 
+// ApplyScope recompiles the sub-chain under the enclosing compile scope:
+// the registry constructor takes no scope, so the initial compile is
+// warn-only — a strict parent demands the strict view of the sub-chain
+// (pipeline.ScopeAwareProcessor; idempotent by replacement).
+func (p *LaneConsumerProcessor) ApplyScope(scope pipeline.ScopeInfo) error {
+	if !scope.Strict {
+		return nil
+	}
+	sub, err := pipeline.NewPipelineWithScope(p.cfg.Processors, pipeline.ScopeInfo{
+		Kind:      pipeline.ScopeRecord,
+		Namespace: p.lane.Config().Namespace,
+		Strict:    true,
+	}, true)
+	if err != nil {
+		return fmt.Errorf("failed to compile %s sub-chain: %s", laneConsumerName, err)
+	}
+	p.sub = sub
+	return nil
+}
+
 // Process subscribes (once) and blocks until the pipeline task cancels —
 // the host drives the lane for its whole lifetime.
 func (p *LaneConsumerProcessor) Process(ctx *pipeline.Context) error {

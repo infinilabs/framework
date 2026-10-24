@@ -165,6 +165,26 @@ func recordCodecNames() []string {
 
 func (p *ForEachProcessor) Name() string { return "for_each" }
 
+// ApplyScope recompiles the sub-chain under the enclosing compile scope:
+// the registry constructor takes no scope, so the initial compile is
+// warn-only — a strict parent demands the strict view of the sub-chain
+// (pipeline.ScopeAwareProcessor; idempotent by replacement).
+func (p *ForEachProcessor) ApplyScope(scope pipeline.ScopeInfo) error {
+	if !scope.Strict {
+		return nil
+	}
+	sub, err := pipeline.NewPipelineWithScope(p.cfg.Processors, pipeline.ScopeInfo{
+		Kind:      pipeline.ScopeRecord,
+		Namespace: p.codec.Namespace(),
+		Strict:    true,
+	}, true)
+	if err != nil {
+		return fmt.Errorf("failed to compile for_each sub-chain: %s", err)
+	}
+	p.sub = sub
+	return nil
+}
+
 func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 	v := c.Get(param.ParaKey(p.cfg.MessageField))
 	msgs, ok := v.([]queue.Message)

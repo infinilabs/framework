@@ -64,15 +64,32 @@ type ContractProvider interface {
 	RecordContract() RecordContract
 }
 
+// ScopeAwareProcessor is implemented by hosts that compile nested chains
+// of their own (for_each, lane_consumer). The registry constructor takes
+// no scope, so those hosts compile their sub-chains warn-only; after
+// construction the enclosing compile hands them its ScopeInfo so
+// strictness reaches the nested chain too. ApplyScope must be
+// idempotent — a host may be constructed and scoped more than once.
+type ScopeAwareProcessor interface {
+	ApplyScope(scope ScopeInfo) error
+}
+
 // validatePlacement checks one constructed processor against the compile
-// scope. Returns a descriptive error; the caller decides error-vs-warning
-// (strict mode) — this function stays pure.
+// scope. The contract comes from the instance (ContractProvider) or from
+// the registry (RegisterProcessorContract — the path every product
+// processor takes); without the registry fallback the placement check
+// would silently pass for all of them. Returns a descriptive error; the
+// caller decides error-vs-warning (strict mode) — this function stays pure.
 func validatePlacement(p Processor, stepIdx int, scope ScopeInfo, direct bool) error {
-	cp, ok := p.(ContractProvider)
-	if !ok {
-		return nil
+	var c RecordContract
+	if cp, ok := p.(ContractProvider); ok {
+		c = cp.RecordContract()
+	} else {
+		c = RecordContractOf(p.Name())
 	}
-	c := cp.RecordContract()
+	if c.Scope == ScopeAny && c.Namespace == "" && c.Granularity == GranularityRecord && len(c.RequiredFields) == 0 {
+		return nil // unconstrained
+	}
 	where := fmt.Sprintf("processor [%s] at step %d", p.Name(), stepIdx+1)
 
 	if c.Scope == ScopeRecord && scope.Kind != ScopeRecord {
