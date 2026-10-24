@@ -727,6 +727,7 @@ func (h *PipeModule) createDeploymentHandler(w http.ResponseWriter, req *http.Re
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	RequestReconcile()
 	h.WriteJSON(w, dep, http.StatusCreated)
 }
 
@@ -807,6 +808,7 @@ func (h *PipeModule) updateDeploymentHandler(w http.ResponseWriter, req *http.Re
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	RequestReconcile()
 	h.WriteJSON(w, newDep, http.StatusOK)
 }
 
@@ -853,6 +855,7 @@ func (h *PipeModule) deleteDeploymentHandler(w http.ResponseWriter, req *http.Re
 			}
 		}
 	}
+	RequestReconcile()
 	h.WriteJSON(w, util.MapStr{"deleted": true, "id": id}, http.StatusOK)
 }
 
