@@ -105,7 +105,21 @@ func NewPipelineList() *Processors {
 	return &Processors{}
 }
 
+// NewPipeline compiles a chain at the default batch scope with contract
+// validation for unconstrained processors only (legacy-compatible).
 func NewPipeline(cfg []*config.Config) (*Processors, error) {
+	return newPipelineWithScope(cfg, ScopeInfo{Kind: ScopeBatch}, false)
+}
+
+// NewPipelineWithScope compiles a chain under an explicit scope: record
+// hosts (for_each/lane_consumer) pass their codec/lane namespace so
+// processor contracts are placement-checked at compile time. `direct`
+// marks the host's own processor array (gates batch_only granularity).
+func NewPipelineWithScope(cfg []*config.Config, scope ScopeInfo, direct bool) (*Processors, error) {
+	return newPipelineWithScope(cfg, scope, direct)
+}
+
+func newPipelineWithScope(cfg []*config.Config, scope ScopeInfo, direct bool) (*Processors, error) {
 
 	if cfg == nil || len(cfg) == 0 {
 		return nil, errors.Errorf("invalid processor config")
@@ -113,12 +127,38 @@ func NewPipeline(cfg []*config.Config) (*Processors, error) {
 
 	procs := NewPipelineList()
 
-	for _, procConfig := range cfg {
+	for stepIdx, procConfig := range cfg {
 		// Handle if/then/else processor which has multiple top-level keys.
 		if procConfig.HasField("if") {
-			p, err := NewIfElseThenProcessor(procConfig)
+			p, err := NewIfElseThenProcessorWithScope(procConfig, scope)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to make if/then/else processor")
+			}
+			// an if/else entry itself is not a BatchProcessor member; its
+			// contract (if any) still validates against this scope
+			if err := validatePlacement(p, stepIdx, scope, false); err != nil {
+				if scope.Strict {
+					return nil, err
+				}
+				log.Warnf("contract (non-strict): %v", err)
+			}
+			procs.AddProcessor(p)
+			continue
+		}
+
+		// Handle the case/branches multi-way dispatch: like if/then/else it
+		// owns its step and its arm chains must compile under the enclosing
+		// scope for contract placement.
+		if procConfig.HasField("case") {
+			p, err := NewCaseProcessorWithScope(procConfig, scope)
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to make case/branches processor")
+			}
+			if err := validatePlacement(p, stepIdx, scope, false); err != nil {
+				if scope.Strict {
+					return nil, err
+				}
+				log.Warnf("contract (non-strict): %v", err)
 			}
 			procs.AddProcessor(p)
 			continue
@@ -157,6 +197,24 @@ func NewPipeline(cfg []*config.Config) (*Processors, error) {
 
 		p, ok := plugin.(Processor)
 		if ok {
+			cacheProcessorContract(p)
+			if err := validatePlacement(p, stepIdx, scope, direct); err != nil {
+				if scope.Strict {
+					return nil, err
+				}
+				log.Warnf("contract (non-strict): %v", err)
+			}
+			// hosts with nested chains (for_each, lane_consumer) compile
+			// them warn-only at construction; hand them the enclosing
+			// scope so a strict compile reaches the sub-chain as well
+			if sa, isScopeAware := p.(ScopeAwareProcessor); isScopeAware {
+				if err := sa.ApplyScope(scope); err != nil {
+					if scope.Strict {
+						return nil, err
+					}
+					log.Warnf("contract (non-strict): %v", err)
+				}
+			}
 			procs.AddProcessor(p)
 		} else {
 			return nil, errors.Errorf("invalid processor: [%v]", plugin.Name())
@@ -164,7 +222,7 @@ func NewPipeline(cfg []*config.Config) (*Processors, error) {
 	}
 
 	if len(procs.List) > 0 {
-		log.Debugf("generated new processors: %v", procs)
+		log.Debugf("generated new processors: %s", procs.String())
 	}
 	return procs, nil
 }
@@ -248,7 +306,7 @@ func (procs *Processors) Process(ctx *Context) error {
 		}()
 	}
 
-	for _, p := range procs.List {
+	for stepIdx, p := range procs.List {
 		if !ctx.ShouldContinue() {
 			if global.Env().IsDebug {
 				log.Debugf("filter [%v] not continued", p.Name())
@@ -263,6 +321,14 @@ func (procs *Processors) Process(ctx *Context) error {
 			}
 			ctx.AddFlowProcess("canceled")
 			return nil
+		}
+
+		// Scope derivation for observability: the same loop drives batch
+		// chains and for_each/lane_consumer record sub-chains; the current
+		// record's presence distinguishes them.
+		scope := ScopeInfo{Kind: ScopeBatch}
+		if _, hasRec := CurrentRecord(ctx); hasRec {
+			scope = ScopeInfo{Kind: ScopeRecord}
 		}
 
 		log.Trace("pipeline: ", ctx.Config.Name, ", start processing:", ctx.processHistory, "->", p.Name())
@@ -280,7 +346,21 @@ func (procs *Processors) Process(ctx *Context) error {
 		if err != nil {
 			stats.Increment("pipeline", ctx.Config.Name, "processor", p.Name(), "total_error")
 			log.Error("error on processing:", p.Name(), ",", err)
+			if hasObservers() {
+				emitStep(&StepEvent{
+					Pipeline: ctx.Config.Name, Step: stepIdx, Processor: p.Name(),
+					Scope: scope, Duration: time.Since(start),
+					Outcome: OutcomeError, Err: err.Error(),
+				}, ctx)
+			}
 			return err
+		}
+		if hasObservers() {
+			emitStep(&StepEvent{
+				Pipeline: ctx.Config.Name, Step: stepIdx, Processor: p.Name(),
+				Scope: scope, Duration: time.Since(start),
+				Outcome: OutcomeOK,
+			}, ctx)
 		}
 		//if event == nil {
 		//	// Drop.

@@ -38,6 +38,11 @@ import (
 	"infini.sh/framework/core/util"
 )
 
+// ErrEmptyQueue: the queue holds no data yet (no written segment) —
+// browse/sample flows treat it as "no messages", not an error. Returned by
+// the DiskQueue advanced processor on AcquireConsumer.
+var ErrEmptyQueue = errors.New("empty queue")
+
 type QueueAPI interface {
 	Name() string
 	Init(string) error

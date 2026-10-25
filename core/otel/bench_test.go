@@ -1,16 +1,16 @@
 package otel
 
 import (
-	"testing"
-	"time"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/util"
+	"testing"
+	"time"
 )
 
 func benchEvent() *event.Event {
 	return &event.Event{
 		Timestamp: time.Date(2026, 8, 15, 10, 0, 0, 0, time.UTC),
-		Fields: util.MapStr{"message": "ERROR payment-svc: connection refused to db-1:5432, retry 3", "log_level": "ERROR", "service_name": "payment-svc"},
+		Fields:    util.MapStr{"message": "ERROR payment-svc: connection refused to db-1:5432, retry 3", "log_level": "ERROR", "service_name": "payment-svc"},
 	}
 }
 

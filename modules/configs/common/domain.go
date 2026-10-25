@@ -83,6 +83,59 @@ type ConfigSyncRequest struct {
 	Hash      string         `json:"hash"`
 	Client    model.Instance `json:"client"`
 	Configs   ConfigList     `json:"configs"`
+
+	// Runtime reports the instance's live pipeline state (which tasks are
+	// running, what config version they loaded). The deployment reconciler
+	// reads this to compute DeploymentStatus (desired vs reported).
+	Runtime *RuntimeReport `json:"runtime,omitempty"`
+}
+
+// RuntimeReport is the pipeline execution state an instance reports on
+// every sync — the "reported" half of the reconcile loop.
+type RuntimeReport struct {
+	// Pipelines maps task name → state + the managed-config version the
+	// instance last loaded (0 = unknown/not from managed config).
+	Pipelines map[string]PipelineRuntimeState `json:"pipelines,omitempty"`
+	// Cordoned mirrors the instance-local maintenance flag (#121/#128):
+	// running tasks drain but nothing starts. Reported so the control
+	// plane can see WHO is cordoned without a proxy round-trip — the
+	// placement side keeps configs flowing (a cordoned instance still
+	// syncs; recall-on-cordon would strand its running tasks).
+	Cordoned bool `json:"cordoned,omitempty"`
+	// StageStats carries the instance's cumulative per-stage counters on
+	// the same heartbeat — the same rows the local metrics exporter
+	// persists. Instances without a shared datastore (gateway-type, local
+	// sqlite) still appear in the manager's cluster aggregation.
+	StageStats []StageStat `json:"stage_stats,omitempty"`
+}
+
+// StageStat is one per-stage counter row in the sync report — the wire
+// shape of the pipeline module's StageStats (cumulative counters since
+// process start; the manager persists them as pipeline-stage-stats
+// snapshots and the cluster fold takes each instance's latest tick).
+type StageStat struct {
+	Pipeline   string `json:"pipeline"`
+	InstanceID string `json:"instance_id"`
+	Stage      string `json:"stage"`   // processor name or lane name
+	Carrier    string `json:"carrier"` // "processor" | "lane:<name>"
+	Count      int64  `json:"count"`
+	Errors     int64  `json:"errors"`
+	AvgLatency int64  `json:"avg_latency_ns"`
+}
+
+type PipelineRuntimeState struct {
+	State         string `json:"state"`                    // STARTED|STOPPED|FAILED|...
+	ConfigSource  string `json:"config_source,omitempty"`  // managed config name
+	ConfigVersion int64  `json:"config_version,omitempty"` // managed config version loaded
+	// ConfigDigest is the running task's content digest (the six fields a
+	// deployment renders). The control plane compares it against the digest
+	// it pushed to verify rollout readiness — state alone cannot prove the
+	// instance runs the NEW content (#125).
+	ConfigDigest string `json:"config_digest,omitempty"`
+	// Reason explains a FAILED state (e.g. the config references a
+	// processor missing from this instance's catalog) — surfaced in the
+	// deployment status so operators see why without instance shell access
+	Reason string `json:"reason,omitempty"`
 }
 
 type ConfigSyncResponse struct {

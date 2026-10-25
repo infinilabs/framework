@@ -105,7 +105,9 @@ func TestForEach_UnknownCodecRejected(t *testing.T) {
 }
 
 func TestForEach_CustomCodec(t *testing.T) {
-	RegisterRecordCodec(rawCodec{})
+	if err := RegisterRecordCodecOrReplace(rawCodec{}); err != nil {
+		t.Fatal(err)
+	}
 	p := buildForEach(t, map[string]interface{}{"codec": "raw"})
 	ctx := &pipeline.Context{Context: t.Context()}
 	msgs := []queue.Message{{Data: []byte("raw-bytes"), Size: 9, Offset: queue.AcquireOffset(0, 7)}}
@@ -130,7 +132,8 @@ func TestForEach_EmptyBatchNoop(t *testing.T) {
 // rawCodec decodes arbitrary bytes as message-only events (test fixture).
 type rawCodec struct{}
 
-func (rawCodec) Name() string { return "raw" }
+func (rawCodec) Name() string      { return "raw" }
+func (rawCodec) Namespace() string { return "" }
 func (rawCodec) Decode(data []byte) (*event.Event, error) {
 	e := &event.Event{Fields: util.MapStr{"message": string(data)}}
 	return e, nil

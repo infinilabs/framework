@@ -204,8 +204,12 @@ func ReplayLines(req *fasthttp.Request, res *fasthttp.Response, ctx *pipeline.Co
 					err := execute(req, res, buffer)
 					if err != nil {
 						log.Error(err, req.String())
+						req.Reset()
+						res.Reset()
 						panic(err)
 					}
+					req.Reset()
+					res.Reset()
 					buffer.Reset()
 					requestIsSet = false
 				}
@@ -256,18 +260,20 @@ func ReplayLines(req *fasthttp.Request, res *fasthttp.Response, ctx *pipeline.Co
 		err := execute(req, res, buffer)
 		if err != nil {
 			log.Error(err, req.String())
+			req.Reset()
+			res.Reset()
 			panic(err)
 		}
+		req.Reset()
+		res.Reset()
 	}
 
 	return count, nil, false
 }
 
 func execute(req *fasthttp.Request, res *fasthttp.Response, buffer *bytebufferpool.ByteBuffer) error {
-	defer func() {
-		req.Reset()
-		res.Reset()
-	}()
+	// reset is the caller's job: it logs the request when execute fails,
+	// and must do so while the request is still intact.
 	if buffer.Len() > 0 {
 		if util.ContainStr(string(req.Header.RequestURI()), "_bulk") {
 			buffer.WriteString(newline)

@@ -40,6 +40,9 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
+	gcpu "github.com/shirou/gopsutil/v4/cpu"
+	gmem "github.com/shirou/gopsutil/v4/mem"
+	gnet "github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/process"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
@@ -386,6 +389,21 @@ func (s *Stats) StatsAll() string {
 		result["disk"] = diskStats
 		storage, _ := status.DirSize(global.Env().GetDataDir())
 		systemStats["store"] = int64(storage) //maybe too heavy to call frequently
+	}
+
+	// host-level utilization + network counters (cumulative since boot,
+	// consumers compute rates from deltas between polls). Best-effort:
+	// any failure just omits the keys, never fails the whole response.
+	if hostPercents, err := gcpu.Percent(0, false); err == nil && len(hostPercents) > 0 {
+		systemStats["host_cpu_percent"] = int64(hostPercents[0])
+	}
+	if vm, err := gmem.VirtualMemory(); err == nil && vm != nil {
+		systemStats["host_mem_total_bytes"] = int64(vm.Total)
+		systemStats["host_mem_used_bytes"] = int64(vm.Used)
+	}
+	if ioCounters, err := gnet.IOCounters(false); err == nil && len(ioCounters) > 0 {
+		systemStats["net_in_bytes"] = int64(ioCounters[0].BytesRecv)
+		systemStats["net_out_bytes"] = int64(ioCounters[0].BytesSent)
 	}
 
 	result["system"] = systemStats

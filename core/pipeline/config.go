@@ -44,7 +44,8 @@ type PipelineConfigV2 struct {
 
 	// Human-readable identifier for this pipeline.
 	// Required when creating a pipeline via the API.
-	Name string `config:"name" json:"name,omitempty"`
+	// Keyword so the pipeline list API can term-query and sort on it.
+	Name string `config:"name" json:"name,omitempty" elastic_mapping:"name: { type: keyword }"`
 
 	// A disabled pipeline is treated as if it does not exist. Nil means
 	// "use the module default".
@@ -98,10 +99,28 @@ type PipelineConfigV2 struct {
 	// Processors is the ordered chain of processor definitions that makes
 	// up the actual work the pipeline performs. Each entry is a single
 	// processor config keyed by processor type.
-	Processors []map[string]interface{} `config:"processor" json:"processor"`
+	// Indexing is disabled: processor configs are arbitrary per-processor
+	// JSON and would otherwise be dynamically mapped, risking field-type
+	// conflicts between pipelines on the same index.
+	Processors []map[string]interface{} `config:"processor" json:"processor" elastic_mapping:"processor: { enabled: false }"`
+
+	// StrictContract turns record-contract mismatches into compile errors
+	// instead of warnings. Absent = legacy warn-only (P8 flips the default).
+	StrictContract *bool `config:"strict_contract" json:"strict_contract,omitempty"`
 
 	// Labels are arbitrary metadata attached to the pipeline.
 	Labels map[string]interface{} `config:"labels" json:"labels"`
+
+	// CanvasLayout persists the orchestration UI's node positions: an
+	// arbitrary, UI-owned mapping (processor-entry key → {x, y}). Pure
+	// presentation state — never read by execution; stored with the
+	// config so any client editing the pipeline restores the same
+	// arrangement. Not indexed (arbitrary JSON shapes).
+	//
+	// Keys must NOT be purely numeric: ucfg reads digit-only keys as
+	// array indices and silently drops them from map unpacking, so "0"
+	// unpacks to nothing. Clients use a prefixed form such as "n0", "n1".
+	CanvasLayout map[string]interface{} `config:"canvas_layout" json:"canvas_layout,omitempty" elastic_mapping:"canvas_layout: { enabled: false }"`
 
 	// Transient, if false, marks that this pipeline config shpuld be persisted.
 	//

@@ -29,9 +29,9 @@ package elastic
 
 import (
 	"infini.sh/framework/core/api"
-	"infini.sh/framework/core/security"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
 	"net/http"
 )

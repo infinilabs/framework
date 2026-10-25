@@ -115,6 +115,33 @@ func isTooBroadReadRoot(c string) bool {
 	return false
 }
 
+// ValidateReadRoot applies the read policy to a configured root without
+// requiring it to exist yet: system trees are never allowed and a
+// wholesale top-level tree is treated as misconfiguration. Collection
+// roots (agent file intake) may legitimately appear after startup, so
+// unlike NewReadGuard existence is left to the caller.
+func ValidateReadRoot(root string) error {
+	c := canonicalReadPath(root)
+	if IsSystemReadPath(c) {
+		return fmt.Errorf("refusing to read from system path: %s", c)
+	}
+	if isTooBroadReadRoot(c) {
+		return fmt.Errorf("path %s is too broad, use a specific log directory instead", c)
+	}
+	return nil
+}
+
+// IsConfinedUnder reports whether path stays at or below root once both
+// sides are canonicalized (symlink-resolved). It is the collection-side
+// counterpart of ReadGuard's containment rule: a file reached through a
+// symlink that jumps out of the collection root is not confined,
+// whatever spelling the walk handed over.
+func IsConfinedUnder(root, path string) bool {
+	r := canonicalReadPath(root)
+	c := canonicalReadPath(path)
+	return c == r || strings.HasPrefix(c, r+string(filepath.Separator))
+}
+
 // readPathComponent keeps all AST fragments belonging to one path component.
 //
 // A name such as node-* must be removed as one component by dot-dot, rather than

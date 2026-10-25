@@ -376,7 +376,13 @@ func (c cfgSub) reify(opts *options) (interface{}, error) {
 		// preserve empty arrays
 		return []interface{}{}, nil
 	case len(fields) == 0 && len(arr) == 0:
-		return nil, nil
+		// preserve empty dicts: returning nil here used to drop the KEY
+		// entirely when the parent unpacked into map[string]interface{}
+		// (reflect.ValueOf(nil) is invalid, so reifyMap skipped
+		// SetMapIndex) — pipeline configs like `processor: [{echo: {}}]`
+		// lost the processor name and failed to load. An empty dict must
+		// reify to an empty map, mirroring the empty-array case above.
+		return map[string]interface{}{}, nil
 	case len(fields) > 0 && len(arr) == 0:
 		m := make(map[string]interface{})
 		for k, v := range fields {

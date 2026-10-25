@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	log "github.com/cihub/seelog"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/orm"
@@ -27,6 +28,12 @@ func (h *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
+	// compile gate: reject configs that reference unknown processors or
+	// carry invalid parameters BEFORE they are persisted and distributed
+	if !h.validateAndReject(w, obj) {
+		return
+	}
+
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.Refresh = orm.WaitForRefresh
 
@@ -35,6 +42,10 @@ func (h *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http.Requ
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// a local task may already run under this ID (e.g. a deployment-
+	// rendered config) — swap it to the freshly created definition
+	h.reloadPipelineTaskAsync(obj.ID, obj)
 
 	h.WriteCreatedOKJSON(w, obj.ID)
 }
@@ -103,6 +114,20 @@ func (h *PipeModule) updatePipelineHandler(w http.ResponseWriter, req *http.Requ
 	// Ensure ID is set even if the client omitted it from the request body
 	newConfig.ID = id
 
+	// compile gate: an update that breaks the chain must not overwrite a
+	// working config (nor trigger a version snapshot of a rejected edit)
+	if !h.validateAndReject(w, &newConfig) {
+		return
+	}
+
+	// auto-snapshot the PREVIOUS config before overwriting (every edit is
+	// a version — no explicit publish step; transient pipelines skip)
+	if !oldConfig.Transient {
+		if err := h.saveVersion(ctx, &oldConfig, "auto-snapshot on update"); err != nil {
+			log.Warnf("pipeline %s: version snapshot failed: %v", id, err)
+		}
+	}
+
 	ctx.Refresh = orm.WaitForRefresh
 	err = orm.Save(ctx, &newConfig)
 	if err != nil {
@@ -110,11 +135,26 @@ func (h *PipeModule) updatePipelineHandler(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
+	// hot-reload any local task running this pipeline — the edit used to
+	// only persist, leaving a running chain stale until restart
+	h.reloadPipelineTaskAsync(newConfig.ID, &newConfig)
+
 	h.WriteUpdatedOKJSON(w, newConfig.ID)
 }
 
 func (h *PipeModule) deletePipelineHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.MustGetParameter("id")
+
+	// archive before delete — the version history survives pipeline removal
+	// (transient pipelines skip archiving)
+	octx := orm.NewContextWithParent(req.Context()).DirectAccess()
+	old := pipeline.PipelineConfigV2{}
+	old.ID = id
+	if exists, _ := orm.GetWithSystemFields(octx, &old); exists && !old.Transient {
+		if err := h.saveVersion(octx, &old, "archived on delete"); err != nil {
+			log.Warnf("pipeline %s: delete archive failed: %v", id, err)
+		}
+	}
 
 	obj := pipeline.PipelineConfigV2{}
 	obj.ID = id
@@ -137,6 +177,9 @@ func (h *PipeModule) deletePipelineHandler(w http.ResponseWriter, req *http.Requ
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// stop and remove any local task running this pipeline
+	h.reloadPipelineTaskAsync(id, nil)
 
 	h.WriteDeletedOKJSON(w, id)
 }

@@ -31,16 +31,22 @@ func TestNormalizeDataStreamDoc(t *testing.T) {
 		t.Fatalf("payload key should not survive: %v", doc)
 	}
 
-	// @timestamp: payload 无显式 timestamp 时 observed_timestamp 优先于信封级;
-	// timestamp 镜像之。
-	if doc["@timestamp"] != "2026-08-23T14:38:32.982744Z" || doc["timestamp"] != "2026-08-23T14:38:32.982744Z" {
-		t.Fatalf("timestamp fields: @=%v ts=%v", doc["@timestamp"], doc["timestamp"])
+	// @timestamp: when the payload carries no explicit timestamp,
+	// observed_timestamp wins over the envelope-level one. @timestamp is
+	// the only real timestamp — the legacy "timestamp" mirror is no longer
+	// written.
+	if doc["@timestamp"] != "2026-08-23T14:38:32.982744Z" {
+		t.Fatalf("@timestamp = %v", doc["@timestamp"])
+	}
+	if _, ok := doc["timestamp"]; ok {
+		t.Fatalf("timestamp mirror must not be written: %v", doc["timestamp"])
 	}
 
-	// metadata promotion.
-	file, ok := doc["file"].(map[string]interface{})
-	if !ok || file["path"] != "/var/log/system.log" {
-		t.Fatalf("file metadata not promoted: %v", doc["file"])
+	// metadata promotion: file origin no longer promotes to a top-level
+	// "file" (collection provenance lives on @agent.file_*); only the
+	// log_type/log_kind labels promote.
+	if _, ok := doc["file"]; ok {
+		t.Fatalf("top-level file promotion is gone: %v", doc["file"])
 	}
 	if doc["log_type"] != "text" || doc["log_kind"] != "server" {
 		t.Fatalf("label fields not promoted: %v", doc)
@@ -64,11 +70,14 @@ func TestNormalizeDataStreamDocTimestampPriority(t *testing.T) {
 		if doc["@timestamp"] != tc.want {
 			t.Fatalf("%s: @timestamp = %v, want %v", tc.name, doc["@timestamp"], tc.want)
 		}
+		if _, ok := doc["timestamp"]; ok {
+			t.Fatalf("%s: payload/envelope timestamp must fold into @timestamp only: %v", tc.name, doc)
+		}
 	}
 }
 
 // TestNormalizeDataStreamDocBareDoc: non-envelope docs keep their fields
-// and only get the @timestamp stamp.
+// and only get the @timestamp stamp (single truth — no mirror).
 func TestNormalizeDataStreamDocBareDoc(t *testing.T) {
 	out := normalizeDataStreamDoc([]byte(`{"message":"raw","level":"info"}`))
 	var doc util.MapStr
@@ -76,8 +85,19 @@ func TestNormalizeDataStreamDocBareDoc(t *testing.T) {
 	if doc["message"] != "raw" || doc["level"] != "info" {
 		t.Fatalf("bare doc fields lost: %v", doc)
 	}
-	if doc["timestamp"] == "" || doc["@timestamp"] == "" {
-		t.Fatalf("bare doc missing timestamp stamps: %v", doc)
+	if doc["@timestamp"] == "" {
+		t.Fatalf("bare doc missing @timestamp: %v", doc)
+	}
+	if _, ok := doc["timestamp"]; ok {
+		t.Fatalf("bare doc must not gain a timestamp mirror: %v", doc)
+	}
+
+	// bare doc already carrying @timestamp keeps it (no re-stamp)
+	keep := normalizeDataStreamDoc([]byte(`{"message":"kept","@timestamp":"2026-05-05T00:00:00Z"}`))
+	var kd util.MapStr
+	_ = json.Unmarshal(keep, &kd)
+	if kd["@timestamp"] != "2026-05-05T00:00:00Z" {
+		t.Fatalf("bare doc @timestamp must be kept: %v", kd["@timestamp"])
 	}
 }
 
