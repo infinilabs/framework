@@ -38,7 +38,7 @@ type deployTestEnv struct {
 }
 
 var (
-	deployEnvSeq int
+	deployEnvSeq  int
 	deployORMOnce sync.Once
 )
 
@@ -158,7 +158,7 @@ func (e *deployTestEnv) module() *PipeModule { return &PipeModule{} }
 
 func TestResolveTargetsModes(t *testing.T) {
 	instances := []model.Instance{
-			{ORMObjectBase: orm.ORMObjectBase{ID: "a"}, Labels: map[string]string{"env": "prod"}},
+		{ORMObjectBase: orm.ORMObjectBase{ID: "a"}, Labels: map[string]string{"env": "prod"}},
 		{ORMObjectBase: orm.ORMObjectBase{ID: "b"}, Labels: map[string]string{"env": "staging"}},
 	}
 	// no selector + no instances → broadcast
@@ -171,6 +171,28 @@ func TestResolveTargetsModes(t *testing.T) {
 	if broadcast || len(targets) != 1 || !targets["a"] {
 		t.Fatalf("expected {a}, got %v broadcast=%v", targets, broadcast)
 	}
+	// group membership: the reserved `group` selector key matches
+	// console-assigned groups, comma-separated values act as OR
+	grouped := []model.Instance{
+		{ORMObjectBase: orm.ORMObjectBase{ID: "g1"}, Groups: []string{"edge", "cn"}},
+		{ORMObjectBase: orm.ORMObjectBase{ID: "g2"}, Labels: map[string]string{"group": "edge"}},
+		{ORMObjectBase: orm.ORMObjectBase{ID: "g3"}},
+	}
+	targets, _ = resolveTargets(&PipelineDeployment{Placement: PlacementSpec{Selector: map[string]string{"group": "edge"}}}, grouped)
+	if len(targets) != 1 || !targets["g1"] {
+		t.Fatalf("group selector should match membership only, got %v", targets)
+	}
+	targets, _ = resolveTargets(&PipelineDeployment{Placement: PlacementSpec{Selector: map[string]string{"group": "edge,cn , missing"}}}, grouped)
+	if len(targets) != 1 || !targets["g1"] {
+		t.Fatalf("multi-group OR should still match only g1, got %v", targets)
+	}
+	// labels and groups are separate namespaces: a label named group
+	// cannot satisfy the group selector, and vice versa
+	targets, _ = resolveTargets(&PipelineDeployment{Placement: PlacementSpec{Selector: map[string]string{"group": "edge", "env": "prod"}}}, grouped)
+	if len(targets) != 0 {
+		t.Fatalf("group + unrelated label must AND to nothing here, got %v", targets)
+	}
+
 	// multi-label AND
 	targets, _ = resolveTargets(&PipelineDeployment{Placement: PlacementSpec{Selector: map[string]string{"env": "prod", "tier": "edge"}}}, instances)
 	if len(targets) != 0 {

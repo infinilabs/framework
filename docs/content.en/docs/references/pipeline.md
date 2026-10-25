@@ -630,7 +630,7 @@ Every update auto-snapshots the previous config as a `PipelineVersion` — there
 
 | Field | Semantics |
 |-------|-----------|
-| `selector` | Label match (AND across entries) — an instance is in scope when its labels carry every key=value. |
+| `selector` | Label match (AND across entries) — an instance is in scope when its labels carry every key=value. The reserved `group` key matches console-assigned group membership instead: values are comma-separated group names, any of which puts the instance in scope. |
 | `instances` | Explicit instance IDs (union with the selector match; unknown IDs are ignored until they register). |
 | *(neither set)* | Broadcast: a single `*` row every instance pulls. |
 

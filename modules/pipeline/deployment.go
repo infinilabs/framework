@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -240,13 +241,41 @@ func resolveTargets(dep *PipelineDeployment, instances []model.Instance) (map[st
 	return targets, false
 }
 
+// instanceMatchesLabels resolves one selector entry per instance: plain
+// keys match Labels; the reserved `group` key matches console-assigned
+// group membership instead (any of the comma-separated groups), since
+// groups are server-owned data that instances never report as labels.
 func instanceMatchesLabels(inst *model.Instance, selector map[string]string) bool {
 	for k, v := range selector {
+		if k == "group" {
+			if !instanceInAnyGroup(inst, v) {
+				return false
+			}
+			continue
+		}
 		if inst.Labels[k] != v {
 			return false
 		}
 	}
 	return true
+}
+
+// instanceInAnyGroup reports whether the instance belongs to any of the
+// comma-separated group names. Empty segments are ignored so "a,, b"
+// behaves like "a,b"; an empty list matches nothing (never broadcast).
+func instanceInAnyGroup(inst *model.Instance, groupsCSV string) bool {
+	for _, g := range strings.Split(groupsCSV, ",") {
+		g = strings.TrimSpace(g)
+		if g == "" {
+			continue
+		}
+		for _, member := range inst.Groups {
+			if member == g {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // reconcilePipeline converges ONE pipeline's deployments into the EXACT
@@ -351,19 +380,19 @@ func (module *PipeModule) reconcilePipeline(octx *orm.Context, pipelineID string
 			byID[instances[i].ID] = instances[i]
 		}
 		singleton := owner.Placement.Strategy == "singleton"
-			ready := func(id string) bool {
-				inst, ok := byID[id]
-				if !ok {
-					return false
-				}
-				// a frozen report must not count forever: an instance that
-				// died keeps its last STARTED+digest — require a heartbeat
-				// within 3 default sync intervals (30s each) or the wave
-				// holds until a live holder proves the content
-				if inst.Updated != nil && time.Since(*inst.Updated) > 90*time.Second {
-					return false
-				}
-				st, reported := runtimePipelineStates(inst.RuntimePipelines)[cfg.Name]
+		ready := func(id string) bool {
+			inst, ok := byID[id]
+			if !ok {
+				return false
+			}
+			// a frozen report must not count forever: an instance that
+			// died keeps its last STARTED+digest — require a heartbeat
+			// within 3 default sync intervals (30s each) or the wave
+			// holds until a live holder proves the content
+			if inst.Updated != nil && time.Since(*inst.Updated) > 90*time.Second {
+				return false
+			}
+			st, reported := runtimePipelineStates(inst.RuntimePipelines)[cfg.Name]
 			if !reported || st.State == "FAILED" {
 				return false
 			}
