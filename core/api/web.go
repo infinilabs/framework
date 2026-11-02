@@ -178,6 +178,7 @@ func StartWeb(cfg config.WebAppConfig) {
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
 		cfg.NetworkConfig.SetEffectiveBinding(bindAddress)
+		global.Env().SystemConfig.WebAppConfig.NetworkConfig = cfg.NetworkConfig
 		log.Infof("web server listening on %s (effective binding)", bindAddress)
 
 		http2.ConfigureServer(srv, &http2.Server{
@@ -212,6 +213,7 @@ func StartWeb(cfg config.WebAppConfig) {
 	} else {
 		srv = &http.Server{Addr: bindAddress, Handler: globalInterceptorHandler.Handler(RecoveryHandler()(StripPrefix(cfg.BasePath, handler)))}
 		cfg.NetworkConfig.SetEffectiveBinding(bindAddress)
+		global.Env().SystemConfig.WebAppConfig.NetworkConfig = cfg.NetworkConfig
 		log.Infof("web server listening on %s (effective binding)", bindAddress)
 		go func(srv *http.Server) {
 			defer func() {
