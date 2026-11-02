@@ -350,13 +350,16 @@ func localBaseURL() string {
 		if web.TLSConfig.TLSEnabled {
 			schema = "https"
 		}
-		addr = web.NetworkConfig.GetBindingAddr()
+		// GetEffectiveAddr prefers the runtime listen address — when
+		// skip_occupied_port moved the port, the loopback must dial the
+		// real one or it reaches whatever occupies the configured port.
+		addr = web.NetworkConfig.GetEffectiveAddr()
 	} else if api := global.Env().SystemConfig.APIConfig; api.Enabled && (api.NetworkConfig.Port > 0 || api.NetworkConfig.Binding != "" || api.NetworkConfig.Host != "") {
 		schema = "http"
 		if api.TLSConfig.TLSEnabled {
 			schema = "https"
 		}
-		addr = api.NetworkConfig.GetBindingAddr()
+		addr = api.NetworkConfig.GetEffectiveAddr()
 	} else {
 		return "http://127.0.0.1"
 	}

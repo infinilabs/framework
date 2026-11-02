@@ -68,7 +68,7 @@ func init() {
 }
 
 func whoisAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	w.Write([]byte(global.Env().SystemConfig.APIConfig.NetworkConfig.GetPublishAddr()))
+	w.Write([]byte(global.Env().SystemConfig.APIConfig.NetworkConfig.GetEffectiveAddr()))
 	w.Write([]byte("\n"))
 	w.WriteHeader(200)
 }
