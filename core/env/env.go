@@ -400,7 +400,18 @@ func (env *Env) loadConfig() error {
 }
 
 func (env *Env) RefreshConfig() error {
-	return env.loadEnvFromConfigFile(env.GetConfigFile())
+	// A config reload replaces SystemConfig wholesale; the listener keeps
+	// serving and the runtime binding does not change with the file —
+	// preserve it, or instance reporting falls back to the configured
+	// value (possibly the port abandoned as occupied).
+	prevWeb := env.SystemConfig.WebAppConfig.NetworkConfig.EffectiveBinding
+	prevAPI := env.SystemConfig.APIConfig.NetworkConfig.EffectiveBinding
+	if err := env.loadEnvFromConfigFile(env.GetConfigFile()); err != nil {
+		return err
+	}
+	env.SystemConfig.WebAppConfig.NetworkConfig.SetEffectiveBinding(prevWeb)
+	env.SystemConfig.APIConfig.NetworkConfig.SetEffectiveBinding(prevAPI)
+	return nil
 }
 
 var configObject *config.Config
