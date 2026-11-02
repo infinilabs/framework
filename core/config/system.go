@@ -73,6 +73,44 @@ type NetworkConfig struct {
 	//ReusePort is nil when reuse_port is not configured, so applications can
 	//tell "unset" apart from an explicit false and apply their own default.
 	ReusePort *bool `config:"reuse_port" json:"reuse_port,omitempty" elastic_mapping:"reuse_port: { type: boolean }"`
+
+	// EffectiveBinding is the runtime listen address, backfilled once the
+	// listener opens (in-process only, never persisted): with
+	// skip_occupied_port moves or a random :0 port it differs from the
+	// configured Binding/Publish values. External surfaces (instance
+	// reporting, the /config API) must go through GetEffectiveAddr/
+	// GetEffectivePort — they prefer the runtime value and fall back to
+	// the static config while nothing is listening.
+	EffectiveBinding string `config:"-" json:"-"`
+}
+
+// SetEffectiveBinding is called by the listener after a successful bind to
+// record the runtime address. An empty address is ignored.
+func (cfg *NetworkConfig) SetEffectiveBinding(addr string) {
+	if addr != "" {
+		cfg.EffectiveBinding = addr
+	}
+}
+
+// GetEffectiveAddr returns the runtime listen address, falling back to
+// Publish/Binding while nothing has been recorded.
+func (cfg NetworkConfig) GetEffectiveAddr() string {
+	if cfg.EffectiveBinding != "" {
+		return cfg.EffectiveBinding
+	}
+	return cfg.GetPublishAddr()
+}
+
+// GetEffectivePort returns the runtime listen port, falling back to the
+// config-derived port while nothing has been recorded.
+func (cfg NetworkConfig) GetEffectivePort() int {
+	if cfg.EffectiveBinding != "" {
+		array := strings.Split(strings.TrimSpace(cfg.EffectiveBinding), ":")
+		if port, err := util.ToInt(array[len(array)-1]); err == nil {
+			return port
+		}
+	}
+	return cfg.GetBindingPort()
 }
 
 // Helper function to report whether SO_REUSEPORT is explicitly enabled.
@@ -88,6 +126,12 @@ func (cfg NetworkConfig) GetPublishAddr() string {
 }
 
 func (cfg NetworkConfig) GetBindingPort() int {
+	// The runtime port wins (skip_occupied_port moves, random :0 ports):
+	// reporters and loopback callers need the real port, not the
+	// configured intent.
+	if cfg.EffectiveBinding != "" {
+		return cfg.GetEffectivePort()
+	}
 	if cfg.Port > 0 {
 		return cfg.Port
 	}
@@ -454,7 +498,7 @@ type S3BucketConfig struct {
 }
 
 func (config *WebAppConfig) GetEndpoint() string {
-	return fmt.Sprintf("%s://%s", config.GetSchema(), config.NetworkConfig.GetPublishAddr())
+	return fmt.Sprintf("%s://%s", config.GetSchema(), config.NetworkConfig.GetEffectiveAddr())
 }
 
 func (config *WebAppConfig) GetSchema() string {
@@ -490,7 +534,7 @@ type APIConfig struct {
 }
 
 func (config *APIConfig) GetEndpoint() string {
-	return fmt.Sprintf("%s://%s", config.GetSchema(), config.NetworkConfig.GetPublishAddr())
+	return fmt.Sprintf("%s://%s", config.GetSchema(), config.NetworkConfig.GetEffectiveAddr())
 }
 
 func (config *APIConfig) GetSchema() string {

@@ -176,7 +176,7 @@ func GetInstanceInfo() Instance {
 		if sysCfg.WebAppConfig.TLSConfig.TLSEnabled {
 			schema = "https"
 		}
-		instance.Endpoint = fmt.Sprintf("%s://%s", schema, sysCfg.WebAppConfig.NetworkConfig.GetPublishAddr())
+		instance.Endpoint = fmt.Sprintf("%s://%s", schema, sysCfg.WebAppConfig.NetworkConfig.GetEffectiveAddr())
 	}
 
 	ips := util.GetLocalIPs()
