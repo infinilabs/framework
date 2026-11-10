@@ -14,6 +14,7 @@ package lane
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -127,7 +128,12 @@ func (l *laneImpl) Emit(rec *event.Event) error {
 			if err := l.spill(rec); err == nil {
 				l.mu.Lock()
 				l.stats.Spills++
+				r := l.pending[rec]
+				delete(l.pending, rec)
 				l.mu.Unlock()
+				if r != nil {
+					r.settle(nil) // durable diversion is a settlement
+				}
 				return nil
 			} // spill failure falls through to block
 		}
@@ -223,19 +229,35 @@ func (l *laneImpl) TryEmit(rec *event.Event) bool {
 	}
 }
 
+// overflowPolicy classifies the configured policy by prefix: "block",
+// "drop" or "spill" (the spill:<queue> form carries its target separately).
+// An unknown value degrades to block — the safest default (Emit waits) —
+// rather than silently matching no branch.
 func (l *laneImpl) overflowPolicy() string {
-	if l.cfg.Overflow != "" {
-		return l.cfg.Overflow
+	p := util.TrimSpaces(l.cfg.Overflow)
+	switch {
+	case p == "" || p == "block":
+		return "block"
+	case p == "drop":
+		return "drop"
+	case p == "spill" || strings.HasPrefix(p, "spill:"):
+		return "spill"
+	default:
+		return "block"
 	}
-	return "block"
 }
 
 // spill encodes the record (three-level codec resolution, mirroring the
 // lane_consumer output bridge) and degrades it to the disk queue.
 func (l *laneImpl) spill(rec *event.Event) error {
 	if l.spillQ == nil {
-		qname := util.TrimSpaces(l.cfg.Overflow[len("spill:"):])
+		qname := ""
+		if p := util.TrimSpaces(l.cfg.Overflow); strings.HasPrefix(p, "spill:") {
+			qname = util.TrimSpaces(p[len("spill:"):])
+		}
 		if qname == "" {
+			// bare "spill" carries no target: report the misconfiguration,
+			// Emit degrades to block instead of slicing out of range
 			return fmt.Errorf("lane %s: spill target missing", l.cfg.Name)
 		}
 		cfg := &queue.QueueConfig{Name: qname}
@@ -473,6 +495,9 @@ func Delete(name string, force bool) error {
 	regMu.Lock()
 	l, ok := registry[name]
 	if !ok {
+		// absent is success (idempotent delete) — but NEVER while holding
+		// the write lock: every later registry op would block forever
+		regMu.Unlock()
 		return nil
 	}
 	regMu.Unlock()
