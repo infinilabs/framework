@@ -329,8 +329,12 @@ func (module *PipeModule) reconcilePipeline(octx *orm.Context, pipelineID string
 	// staged rollout demands concrete instance targets: a "*" row reaches
 	// every instance in ONE wave, defeating canary/batch staging entirely,
 	// so resolve broadcast scope into the registered instance set while
-	// any rollout spec is active
-	if haveBroadcast && rolloutBearer(deps) != nil {
+	// any rollout spec is active. With NO registered instances (empty
+	// fleet or a transient registry read failure) the expansion is
+	// skipped: an empty desired set would recall every row and stop the
+	// whole fleet's tasks — the wildcard row (legacy behavior) is the
+	// safe fallback until the registry recovers.
+	if haveBroadcast && rolloutBearer(deps) != nil && len(instances) > 0 {
 		for i := range instances {
 			prev := targeted[instances[i].ID]
 			prev.enabled = prev.enabled || broadcastBase.enabled

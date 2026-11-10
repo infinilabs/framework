@@ -111,6 +111,33 @@ func TestReconcileOnceDisabledBroadcastStaysScoped(t *testing.T) {
 	}
 }
 
+// A broadcast rollout with NO registered instances (empty fleet or a
+// transient registry read failure) must fall back to the wildcard row
+// instead of recalling every row — an empty desired set would stop the
+// whole fleet's tasks on a control-plane glitch.
+func TestBroadcastCanaryEmptyRegistryKeepsWildcard(t *testing.T) {
+	e := newDeployTestEnv(t)
+	t.Cleanup(func() { e.deleteDeployments(t) })
+	dep := &PipelineDeployment{Name: "bcast", PipelineID: e.pid, Enabled: true}
+	dep.ID = "pr433-bcast"
+	e.saveDeployment(dep)
+	if err := e.module().reconcilePipeline(orm.NewContext().DirectAccess(), e.pid, []*PipelineDeployment{dep}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := e.rows()["*"]; !ok {
+		t.Fatalf("pure broadcast must converge a wildcard row, got %v", e.rows())
+	}
+	armed := loadDeployment(t, dep.ID)
+	armed.Placement.Rollout = RolloutSpec{Canary: 1, Batch: 1}
+	e.saveDeployment(&armed)
+	if err := e.module().reconcilePipeline(orm.NewContext().DirectAccess(), e.pid, []*PipelineDeployment{&armed}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := e.rows()["*"]; !ok {
+		t.Fatal("broadcast rollout with an empty registry recalled the wildcard row — a transient registry failure would stop every task")
+	}
+}
+
 // The deployment-creation API must accept a broadcast canary and the
 // reconciler must stage it per instance (PR #433 review).
 func TestCreateBroadcastCanaryViaAPIStages(t *testing.T) {
