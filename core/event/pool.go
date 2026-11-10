@@ -105,6 +105,41 @@ func PoolStats() (acquired, released int64) {
 	return poolAcquires.Load(), poolReleases.Load()
 }
 
+// DetachFromPool returns an event whose lifetime is independent of the
+// record pool: a pooled event is copied with privately owned field maps
+// (release of the original no longer clears the copy's contents), a
+// non-pooled event passes through unchanged. Emitting a record across an
+// asynchronous boundary (lane) requires this — the emitting host recycles
+// the original pooled record once its own scope ends, while the boundary
+// still delivers the pointer.
+func DetachFromPool(e *Event) *Event {
+	if e == nil {
+		return nil
+	}
+	if _, ok := e.pooled.(*pooledEvent); !ok {
+		return e
+	}
+	cp := *e
+	cp.pooled = nil
+	// resetForPool clears these maps IN PLACE on release — the copy must
+	// not share them with the original
+	cp.Fields = copyMapStr(e.Fields)
+	cp.Metadata.Labels = copyMapStr(e.Metadata.Labels)
+	cp.Meta = copyMapStr(e.Meta)
+	return &cp
+}
+
+func copyMapStr(m map[string]interface{}) map[string]interface{} {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]interface{}, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
 // resetForPool clears an event for reuse; see the pool doc for the
 // map-retention policy.
 func (e *Event) resetForPool() {

@@ -118,6 +118,11 @@ func (p *LaneConsumerProcessor) ApplyScope(scope pipeline.ScopeInfo) error {
 // Process subscribes (once) and blocks until the pipeline task cancels —
 // the host drives the lane for its whole lifetime.
 func (p *LaneConsumerProcessor) Process(ctx *pipeline.Context) error {
+	// Re-bind per run: the previous run's exit DELETED this name, and the
+	// task's _start/_resume reuses this compiled processor without calling
+	// the constructor — a stale handle would subscribe to the dead lane
+	// while the producers' GetOrCreate already rebuilt a fresh one.
+	p.lane = lane.GetOrCreate(lane.LaneConfig{Name: p.cfg.Lane})
 	segments := buildSegments(p.sub.List)
 	batchFn := func(recs []*event.Event) {
 		p.runBatch(ctx, segments, recs)

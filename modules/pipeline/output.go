@@ -122,6 +122,11 @@ func (p *OutputProcessor) emitLane(ctx *pipeline.Context) error {
 	if l == nil {
 		l = lane.GetOrCreate(lane.LaneConfig{Name: p.laneName})
 	}
+	// ownership hand-off: the emitting host (for_each) recycles pooled
+	// records once this call returns, but the lane delivers the pointer
+	// asynchronously — a pooled record must cross the boundary as a
+	// pool-independent copy, or the subscriber reads a reset event
+	rec = event.DetachFromPool(rec)
 	if !p.ack {
 		return l.Emit(rec)
 	}

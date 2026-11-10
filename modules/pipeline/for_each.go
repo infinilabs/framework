@@ -309,9 +309,17 @@ func (p *ForEachProcessor) runOnRecords(c *pipeline.Context, records []*event.Ev
 		// record segment: per active record, run the segment's sub-chain
 		// (dry-run adoption stays serial for deterministic diffs)
 		if p.cfg.Parallel > 1 && msgs != nil {
-			runRecordSegmentParallel(c, seg.chain, active, p.cfg, func(cl *event.Event, idx int) {
+			perr := runRecordSegmentParallel(c, seg.chain, active, p.cfg, func(cl *event.Event, idx int) {
 				active = append(active, forEachActive{rec: cl, msgIdx: idx, isClone: true})
 			})
+			if perr != nil {
+				// parallel workers cannot abort mid-record like the serial
+				// loop — in-flight records finish, then the fail strategy
+				// aborts the batch exactly as the serial path would
+				if err2 := p.handleFailure(c, perr); err2 != nil {
+					return err2
+				}
+			}
 			continue
 		}
 		for i := range active {
@@ -445,10 +453,12 @@ type forEachActive struct {
 // worker derives its own context (per-record state like RecordContextKey
 // is goroutine-local; cancellation still propagates from the parent), so
 // processors only ever touch their own record — the concurrency contract
-// for parallel record processing.
-func runRecordSegmentParallel(c *pipeline.Context, chain *pipeline.Processors, active []forEachActive, cfg ForEachConfig, addClone func(cl *event.Event, idx int)) {
+// for parallel record processing. It returns the first sub-chain error so
+// the caller can apply its on_failure strategy (fail must abort the batch
+// exactly as the serial path does).
+func runRecordSegmentParallel(c *pipeline.Context, chain *pipeline.Processors, active []forEachActive, cfg ForEachConfig, addClone func(cl *event.Event, idx int)) error {
 	if len(active) == 0 {
-		return
+		return nil
 	}
 	workers := cfg.Parallel
 	if workers > len(active) {
@@ -456,6 +466,7 @@ func runRecordSegmentParallel(c *pipeline.Context, chain *pipeline.Processors, a
 	}
 	var next int64
 	var mu sync.Mutex
+	var firstErr error
 	var wg sync.WaitGroup
 	for w := 0; w < workers; w++ {
 		wg.Add(1)
@@ -491,6 +502,11 @@ func runRecordSegmentParallel(c *pipeline.Context, chain *pipeline.Processors, a
 				} else {
 					if err := chain.Process(wc); err != nil {
 						log.Warnf("for_each: record error (parallel, on_failure=%s): %v", cfg.OnFailure, err)
+						mu.Lock()
+						if firstErr == nil {
+							firstErr = err
+						}
+						mu.Unlock()
 					}
 				}
 				for _, cl := range pipeline.TakeClones(wc) {
@@ -502,4 +518,5 @@ func runRecordSegmentParallel(c *pipeline.Context, chain *pipeline.Processors, a
 		}()
 	}
 	wg.Wait()
+	return firstErr
 }
