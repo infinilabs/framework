@@ -25,7 +25,8 @@ type Receipt interface {
 }
 
 // doner is implemented by receipts that expose their settle signal for
-// non-consuming polling (lane receipts and the internal receiptImpl do).
+// immediate settlement checks (lane receipts and the internal
+// receiptImpl do).
 type doner interface{ Done() <-chan error }
 
 type receiptImpl struct{ done chan error }
@@ -66,9 +67,10 @@ type AckSet struct {
 }
 
 // ackItem tracks one receipt's outcome so results are readable repeatedly:
-// Pending() peeks without consuming the settle signal, Wait() records each
-// outcome exactly once and re-reads it on later calls — polling between
-// waits can never eat a settlement error or hang a later Wait.
+// reading a settle signal CONSUMES it (channels have no peek), so every
+// read — Pending's check or Wait's block — records the outcome on the
+// item the moment it happens; later calls re-read the record. Polling
+// between waits can never eat a settlement error or hang a later Wait.
 type ackItem struct {
 	mu      sync.Mutex
 	receipt Receipt
@@ -174,8 +176,9 @@ func (s *AckSet) snapshot() []*ackItem {
 	return out
 }
 
-// Pending reports the unsettled receipt count. It only PEEKS at the settle
-// signals — consuming them here would starve a later Wait of its results.
+// Pending reports the unsettled receipt count. Settle signals read here
+// are recorded on the item (not lost) — a later Wait re-reads the record
+// instead of draining an empty channel.
 func (s *AckSet) Pending() int {
 	if s == nil {
 		return 0
