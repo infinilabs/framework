@@ -43,6 +43,19 @@ func rolloutSpecActive(spec RolloutSpec) bool {
 	return spec.Canary > 0 || spec.Batch > 0
 }
 
+// rolloutBearer returns the first deployment carrying an active rollout
+// spec, or nil. The broadcast-scope expansion consults it BEFORE the
+// desired set exists; the full gate decision (one bearer, uniform specs)
+// still goes through rolloutGateOwner.
+func rolloutBearer(deps []*PipelineDeployment) *PipelineDeployment {
+	for _, dep := range deps {
+		if rolloutSpecActive(dep.Placement.Rollout) {
+			return dep
+		}
+	}
+	return nil
+}
+
 // rolloutGateOwner picks the deployment whose rollout spec stages this
 // pipeline's content: exactly one rollout bearer AND one uniform render
 // spec across the merged targets. Two bearers, or a merge that produces

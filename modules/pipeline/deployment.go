@@ -301,31 +301,63 @@ func (module *PipeModule) reconcilePipeline(octx *orm.Context, pipelineID string
 
 	// merge the target set + render flags across all deployments of this
 	// pipeline: an enabled deployment outranks a disabled one targeting
-	// the same instance; singleton wins over all. Any broadcast
-	// deployment subsumes targeting (a "*" row already reaches everyone).
-	broadcast := false
-	desired := map[string]renderSpec{}
+	// the same instance; singleton wins over all. Broadcast deployments
+	// form the BASE spec for every registered instance and targeted
+	// deployments overlay their own instances — flags OR within a scope
+	// but never leak across scopes (a targeted enable must not re-enable
+	// a disabled broadcast for everyone else).
+	broadcastBase := renderSpec{}
+	haveBroadcast := false
+	targeted := map[string]renderSpec{}
 	for _, dep := range deps {
 		targets, bcast := resolveTargets(dep, instances)
+		spec := renderSpec{enabled: dep.Enabled, singleton: dep.Placement.Strategy == "singleton"}
 		if bcast {
-			broadcast = true
+			haveBroadcast = true
+			broadcastBase.enabled = broadcastBase.enabled || spec.enabled
+			broadcastBase.singleton = broadcastBase.singleton || spec.singleton
 			continue
 		}
-		spec := renderSpec{enabled: dep.Enabled, singleton: dep.Placement.Strategy == "singleton"}
 		for id := range targets {
-			prev := desired[id]
+			prev := targeted[id]
 			prev.enabled = prev.enabled || spec.enabled
 			prev.singleton = prev.singleton || spec.singleton
-			desired[id] = prev
+			targeted[id] = prev
 		}
 	}
-	if broadcast {
-		spec := renderSpec{}
-		for _, dep := range deps {
-			spec.enabled = spec.enabled || dep.Enabled
-			spec.singleton = spec.singleton || dep.Placement.Strategy == "singleton"
+
+	// staged rollout demands concrete instance targets: a "*" row reaches
+	// every instance in ONE wave, defeating canary/batch staging entirely,
+	// so resolve broadcast scope into the registered instance set while
+	// any rollout spec is active
+	if haveBroadcast && rolloutBearer(deps) != nil {
+		for i := range instances {
+			prev := targeted[instances[i].ID]
+			prev.enabled = prev.enabled || broadcastBase.enabled
+			prev.singleton = prev.singleton || broadcastBase.singleton
+			targeted[instances[i].ID] = prev
 		}
-		desired = map[string]renderSpec{configs_server.AllInstancesID: spec}
+		haveBroadcast = false
+	}
+
+	desired := map[string]renderSpec{}
+	switch {
+	case haveBroadcast && len(targeted) == 0:
+		// pure broadcast keeps the legacy wildcard row (no row explosion)
+		desired[configs_server.AllInstancesID] = broadcastBase
+	case haveBroadcast:
+		// broadcast base applies to every registered instance; targeted
+		// overlays only their own instances
+		for i := range instances {
+			spec := broadcastBase
+			if t, ok := targeted[instances[i].ID]; ok {
+				spec.enabled = spec.enabled || t.enabled
+				spec.singleton = spec.singleton || t.singleton
+			}
+			desired[instances[i].ID] = spec
+		}
+	default:
+		desired = targeted
 	}
 
 	configName := fmt.Sprintf("pipeline-deploy-%s.yml", pipelineID)

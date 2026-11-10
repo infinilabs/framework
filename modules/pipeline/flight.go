@@ -81,13 +81,17 @@ func flightQuery(pipelineName, traceID string, errorsOnly bool, limit int) []pip
 
 var globalFlight atomic.Value
 
-// installFlight wires the recorder once (idempotent).
+// installFlight wires the recorder once (idempotent). ONE instance is
+// both the registered observer and the query source — two separate
+// recorders would file real processor steps into the one flightQuery
+// can never read.
 func installFlight() {
 	if globalFlight.Load() != nil {
 		return
 	}
-	pipeline.RegisterObserver(newFlightRecorder())
-	globalFlight.Store(newFlightRecorder())
+	f := newFlightRecorder()
+	pipeline.RegisterObserver(f)
+	globalFlight.Store(f)
 }
 
 // recordPipelineEvent files a control-plane lifecycle event (singleton
