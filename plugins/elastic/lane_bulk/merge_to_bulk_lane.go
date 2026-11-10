@@ -279,6 +279,12 @@ func (processor *MergeToBulkLaneProcessor) newBulkWorker(ctx *pipeline.Context, 
 		defer laneCancel()
 	}
 
+	// input_lane flush timer: armed once when the buffer goes non-empty
+	// (the deadline is fixed at lastCommit+idleDuration until the next
+	// flush — re-arming per doc would just allocate timers on the hot
+	// path); nil while the buffer is empty or after CLEAN_BUFFER
+	var flushC <-chan time.Time
+
 READ_DOCS:
 	for {
 
@@ -292,8 +298,7 @@ READ_DOCS:
 			// buffered record below bulk size must still flush on the
 			// idle timeout, not wait for the next doc (PopTimeout already
 			// gives the queue branch that behavior)
-			var flushC <-chan time.Time
-			if mainBuf.Len() > 0 {
+			if mainBuf.Len() > 0 && flushC == nil {
 				if remaining := idleDuration - time.Since(lastCommit); remaining > 0 {
 					flushC = time.After(remaining)
 				} else {
@@ -375,6 +380,7 @@ READ_DOCS:
 CLEAN_BUFFER:
 
 	lastCommit = time.Now()
+	flushC = nil // the flush cycle ended; the next buffered doc re-arms it
 
 	if mainBuf.Len() > 0 {
 		mainBuf.WriteByte('\n')
