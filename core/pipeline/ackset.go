@@ -24,6 +24,10 @@ type Receipt interface {
 	Wait(ctx context.Context) error
 }
 
+// doner is implemented by receipts that expose their settle signal for
+// non-consuming polling (lane receipts and the internal receiptImpl do).
+type doner interface{ Done() <-chan error }
+
 type receiptImpl struct{ done chan error }
 
 func newReceipt() *receiptImpl { return &receiptImpl{done: make(chan error, 1)} }
@@ -33,6 +37,10 @@ func (r *receiptImpl) settle(err error) {
 	default:
 	}
 }
+
+// Done exposes the settle signal for non-consuming polling (AckSet.Pending).
+func (r *receiptImpl) Done() <-chan error { return r.done }
+
 func (r *receiptImpl) Wait(ctx context.Context) error {
 	select {
 	case err := <-r.done:
@@ -49,11 +57,78 @@ const ackSetKey param.ParaKey = "__ack_set"
 // consumer waits for all of them before committing its offset. Unsettled
 // receipts (crash downstream, stuck chain) surface as ErrAckTimeout —
 // the offset stays put and the batch replays (at-least-once across the
-// lane hop; duplicates are absorbed by idempotent sinks).
+// lane hop; duplicates are absorbed by idempotent sinks). Settlement
+// ERRORS surface as Wait's return so a failed delivery fails the gate
+// instead of committing the offset.
 type AckSet struct {
-	mu       sync.Mutex
-	receipts []*receiptImpl
-	external []Receipt
+	mu    sync.Mutex
+	items []*ackItem
+}
+
+// ackItem tracks one receipt's outcome so results are readable repeatedly:
+// Pending() peeks without consuming the settle signal, Wait() records each
+// outcome exactly once and re-reads it on later calls — polling between
+// waits can never eat a settlement error or hang a later Wait.
+type ackItem struct {
+	mu      sync.Mutex
+	receipt Receipt
+	waited  bool
+	err     error
+}
+
+// settled reports whether the receipt has finished. Reading a settle
+// signal CONSUMES it (channels have no peek), so the outcome is recorded
+// on the item the moment it is read — every later Pending/Wait re-reads
+// the record instead of draining an empty channel. Implementations
+// without a Done signal count as unsettled until Wait records them.
+func (it *ackItem) settled() bool {
+	it.mu.Lock()
+	defer it.mu.Unlock()
+	if it.waited {
+		return true
+	}
+	if d, ok := it.receipt.(doner); ok {
+		select {
+		case err := <-d.Done():
+			it.waited, it.err = true, err
+			return true
+		default:
+			return false
+		}
+	}
+	return false
+}
+
+// waitOnce blocks for the receipt's outcome under ctx and records it. A
+// ctx expiry/cancel is NOT a settlement (the item stays unwaited so a
+// later Wait still observes the real outcome), and an already-settled
+// receipt is read even when ctx is already done.
+func (it *ackItem) waitOnce(ctx context.Context) error {
+	it.mu.Lock()
+	defer it.mu.Unlock()
+	if it.waited {
+		return it.err
+	}
+	if d, ok := it.receipt.(doner); ok {
+		select {
+		case err := <-d.Done():
+			it.waited, it.err = true, err
+			return err
+		default:
+		}
+	}
+	err := it.receipt.Wait(ctx)
+	if ctx.Err() != nil && (errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)) {
+		return err
+	}
+	it.waited, it.err = true, err
+	return err
+}
+
+func (it *ackItem) outcome() error {
+	it.mu.Lock()
+	defer it.mu.Unlock()
+	return it.err
 }
 
 // AttachAckSet installs a fresh set on the context (idempotent).
@@ -79,115 +154,72 @@ func AckSetOf(ctx *Context) *AckSet {
 }
 
 // Add registers a receipt with this set.
-func (s *AckSet) Add(r *receiptImpl) {
-	if s == nil || r == nil {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.receipts = append(s.receipts, r)
-}
+func (s *AckSet) Add(r *receiptImpl) { s.AddReceipt(r) }
 
 // AddReceipt registers any Receipt implementation (lane receipts et al).
 func (s *AckSet) AddReceipt(r Receipt) {
 	if s == nil || r == nil {
 		return
 	}
-	if own, ok := r.(*receiptImpl); ok {
-		s.Add(own)
-		return
-	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.external = append(s.external, r)
+	s.items = append(s.items, &ackItem{receipt: r})
 }
 
-// Pending reports the unsettled receipt count.
+func (s *AckSet) snapshot() []*ackItem {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]*ackItem, len(s.items))
+	copy(out, s.items)
+	return out
+}
+
+// Pending reports the unsettled receipt count. It only PEEKS at the settle
+// signals — consuming them here would starve a later Wait of its results.
 func (s *AckSet) Pending() int {
 	if s == nil {
 		return 0
 	}
 	n := 0
-	for _, r := range s.snapshot() {
-		select {
-		case <-r.done:
-		default:
-			n++
-		}
-	}
-	for _, r := range s.externalList() {
-		if !receiptSettled(r) {
+	for _, it := range s.snapshot() {
+		if !it.settled() {
 			n++
 		}
 	}
 	return n
 }
 
-// Wait blocks until every receipt settles or the timeout expires.
+// Wait blocks until every receipt settles, the timeout expires or ctx is
+// canceled. The timeout bounds EVERY wait — external receipts included —
+// so a stuck downstream cannot outlive the caller's ack deadline. Once all
+// receipts settle it returns the first settlement error (nil when every
+// delivery succeeded), re-reading recorded outcomes on repeated calls.
 func (s *AckSet) Wait(ctx context.Context, timeout time.Duration) error {
 	if s == nil {
 		return nil
 	}
-	s.mu.Lock()
-	ext := append([]Receipt(nil), s.external...)
-	s.mu.Unlock()
-	for _, r := range ext {
-		if err := r.Wait(ctx); err != nil {
+	wctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	items := s.snapshot()
+	for _, it := range items {
+		if err := it.waitOnce(wctx); err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+				return ErrAckTimeout
+			}
 			return err
 		}
-		s.mu.Lock()
-		for i, e := range s.external {
-			if e == r {
-				s.external = append(s.external[:i], s.external[i+1:]...)
-				break
-			}
-		}
-		s.mu.Unlock()
 	}
-	deadline := time.After(timeout)
-	for {
-		pending := s.Pending()
-		if pending == 0 {
-			return nil
-		}
-		select {
-		case <-deadline:
-			return ErrAckTimeout
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(time.Millisecond):
+	// everything settled: surface the first failed delivery
+	for _, it := range items {
+		if err := it.outcome(); err != nil {
+			return err
 		}
 	}
-}
-
-func (s *AckSet) externalList() []Receipt {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return append([]Receipt(nil), s.external...)
-}
-
-func (s *AckSet) snapshot() []*receiptImpl {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make([]*receiptImpl, len(s.receipts))
-	copy(out, s.receipts)
-	return out
-}
-
-// receiptSettled reports whether an external Receipt has settled when
-// the implementation exposes its signal (lane receipts do); unresolved
-// implementations count as pending.
-func receiptSettled(r Receipt) bool {
-	type doner interface{ Done() <-chan error }
-	if d, ok := r.(doner); ok {
-		select {
-		case <-d.Done():
-			return true
-		default:
-			return false
-		}
-	}
-	return false
+	return nil
 }
 
 // ─── dry-run interception ────────────────────────────────────────────────────
