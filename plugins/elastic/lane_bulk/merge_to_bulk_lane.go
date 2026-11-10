@@ -288,10 +288,24 @@ READ_DOCS:
 
 		var pop []byte
 		if processor.config.InputLane != "" {
+			// wake at the flush deadline even without new input: a lone
+			// buffered record below bulk size must still flush on the
+			// idle timeout, not wait for the next doc (PopTimeout already
+			// gives the queue branch that behavior)
+			var flushC <-chan time.Time
+			if mainBuf.Len() > 0 {
+				if remaining := idleDuration - time.Since(lastCommit); remaining > 0 {
+					flushC = time.After(remaining)
+				} else {
+					goto CLEAN_BUFFER
+				}
+			}
 			select {
 			case <-ctx.Done():
 				goto CLEAN_BUFFER
 			case pop = <-docs:
+			case <-flushC:
+				goto CLEAN_BUFFER
 			}
 		} else {
 			var err error

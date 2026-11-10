@@ -164,6 +164,13 @@ func (processor *BulkIndexingLaneProcessor) Process(ctx *pipeline.Context) error
 		return nil
 	}
 
+	// Re-bind per run: the previous run's exit DELETED this name, and the
+	// task's _start/_resume reuses this compiled processor without calling
+	// the constructor — subscribing to the dead handle while the merge
+	// side's GetOrCreate already rebuilt a fresh lane would permanently
+	// disconnect the pair. Capacity matches the constructor's auto-create.
+	processor.inputLane = lane.GetOrCreate(lane.LaneConfig{Name: processor.config.Lane, Capacity: autoLaneCapacity})
+
 	// batch width tracks the worker fan-out: batch_max payloads are picked
 	// up per flush (size trigger, or batch_flush_ms idle trigger — lone
 	// records below batch_max rely on the timer) and sent
@@ -197,12 +204,15 @@ func (processor *BulkIndexingLaneProcessor) sendBatch(ctx *pipeline.Context, met
 	var wg sync.WaitGroup
 	for w := 0; w < workers; w++ {
 		wg.Add(1)
-		go func(chunk []*event.Event) {
+		go func(offset int) {
 			defer wg.Done()
-			for _, rec := range chunk {
-				processor.sendRecord(ctx, meta, rec)
+			// stride dealing: worker w takes records w, w+workers, ... —
+			// every record is sent exactly once across the fan-out (a
+			// suffix slice would overlap workers and double-send)
+			for i := offset; i < len(recs); i += workers {
+				processor.sendRecord(ctx, meta, recs[i])
 			}
-		}(recs[w:])
+		}(w)
 	}
 	wg.Wait()
 }
