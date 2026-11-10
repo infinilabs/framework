@@ -181,15 +181,22 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		runner.config.MaxWorkers = 1
 	}
 
-	processor, err := pipeline.NewPipeline(runner.config.MessageProcessors)
-	if err != nil {
-		// config error, not a runtime fault — surface it so the compile
-		// gate rejects the pipeline instead of the host panicking
-		return nil, fmt.Errorf("%s processor requires a non-empty inner processor chain: %w", name, err)
+	// exactly one execution mode: the standalone output_lane bridge OR a
+	// compiled inner processor chain (the bridge skips the chain entirely,
+	// so an empty chain is valid there — but not anywhere else)
+	if runner.config.OutputLane != "" && len(runner.config.MessageProcessors) > 0 {
+		return nil, fmt.Errorf("%s processor accepts either output_lane bridging or an inner processor chain, not both", name)
 	}
-
-	processor.SkipCatchError = true //skip catch internal error
-	runner.processors = processor
+	if runner.config.OutputLane == "" {
+		processor, err := pipeline.NewPipeline(runner.config.MessageProcessors)
+		if err != nil {
+			// config error, not a runtime fault — surface it so the compile
+			// gate rejects the pipeline instead of the host panicking
+			return nil, fmt.Errorf("%s processor requires a non-empty inner processor chain: %w", name, err)
+		}
+		processor.SkipCatchError = true //skip catch internal error
+		runner.processors = processor
+	}
 
 	pool, err := pipeline.NewPoolWithTag(name, runner.config.MaxWorkers)
 	if err != nil {
@@ -731,15 +738,25 @@ READ_DOCS:
 			}
 
 			//log.Error("start processing message:",len(messages),",",qConfig.Name)
-			err = processor.processors.Process(&newCtx)
+			if processor.config.OutputLane != "" {
+				// standalone bridge: decode each payload and emit it into
+				// the lane with ack receipts — replacing the consumer +
+				// for_each + output{lane} sandwich in one block
+				err = processor.bridgeToLane(&newCtx, messages)
+			} else {
+				err = processor.processors.Process(&newCtx)
+			}
 			cancelSub()
 			//log.Error("end processing message:",len(messages),",",qConfig.Name,",",err)
 			if err != nil {
 				panic(err)
 			}
 			// commit gate: lane receipts must settle before the offset
-			// advances; a timeout is a sub-chain failure (redelivery)
-			if ackSet := pipeline.AckSetOf(&newCtx); ackSet != nil && ackSet.Pending() > 0 {
+			// advances; a timeout or settlement error is a sub-chain
+			// failure (redelivery). Wait runs even when nothing is
+			// pending — a settled-with-error receipt must fail the gate,
+			// not slip past a Pending()==0 short-circuit
+			if ackSet := pipeline.AckSetOf(&newCtx); ackSet != nil {
 				if werr := ackSet.Wait(context.Background(), time.Duration(processor.config.AckTimeoutInMs)*time.Millisecond); werr != nil {
 					panic(werr)
 				}
