@@ -611,14 +611,22 @@ func saveKeystore(k string, v string) error {
 // runtimePipelineSnapshot builds the RuntimeReport for the sync request.
 // It delegates to the PipeModule if loaded; nil when not (agent-only etc).
 func runtimePipelineSnapshot() *common.RuntimeReport {
+	// the pipeline module is OPTIONAL — these providers are wired by
+	// PipeModule.Setup and stay nil on hosts that disable it; calling one
+	// unconditionally would panic the whole config sync
+	if getPipelineRuntimeSnapshot == nil {
+		return nil
+	}
 	snapshot := getPipelineRuntimeSnapshot()
 	if snapshot == nil {
 		return nil
 	}
 	report := &common.RuntimeReport{Pipelines: map[string]common.PipelineRuntimeState{}}
-	if flags := getInstanceFlags(); flags != nil {
-		if v, ok := flags["cordoned"].(bool); ok {
-			report.Cordoned = v
+	if getInstanceFlags != nil {
+		if flags := getInstanceFlags(); flags != nil {
+			if v, ok := flags["cordoned"].(bool); ok {
+				report.Cordoned = v
+			}
 		}
 	}
 	for name, state := range snapshot {
