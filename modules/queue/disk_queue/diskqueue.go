@@ -60,6 +60,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -90,6 +91,10 @@ type DiskBasedQueue struct {
 
 	exitFlag int32
 	needSync bool
+
+	//last time a consumer parked at the write head logged a warning,
+	//rate-limited because idle workers re-acquire (and re-park) regularly
+	parkWarnAt atomic.Int64
 
 	consumerMode bool
 

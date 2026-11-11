@@ -144,7 +144,20 @@ READ_MSG:
 
 	// check reader
 	if d.reader == nil {
-		return messages, false, errors.New("reader is nil")
+		//parked at the write head (offset's data files are gone): the
+		//write segment file may exist by now, re-open it and continue;
+		//otherwise report an empty fetch so the consumer keeps waiting
+		//instead of erroring out
+		fileName, exists, _ := SmartGetFileName(d.mCfg, d.queue, d.segment)
+		if !exists && !util.FileExists(fileName) {
+			if len(messages) == 0 && d.cCfg.EOFRetryDelayInMs > 0 {
+				time.Sleep(time.Duration(d.cCfg.EOFRetryDelayInMs) * time.Millisecond)
+			}
+			return messages, false, nil
+		}
+		if rerr := d.ResetOffset(d.segment, d.readPos); rerr != nil || d.reader == nil {
+			return messages, false, nil
+		}
 	}
 	//read message size
 	err = binary.Read(d.reader, binary.BigEndian, &msgSize)
@@ -477,13 +490,15 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 	}
 
 	if segment > d.diskQueue.writeSegmentNum {
-		log.Errorf("reading segment [%v] is greater than writing segment [%v]", segment, d.diskQueue.writeSegmentNum)
-		return io.EOF
+		log.Warnf("queue:%v,%v, consumer:%v, offset [%v,%v] is beyond the write segment [%v], the queue's data was likely wiped or recreated, reset to the earliest retained data",
+			d.qCfg.Name, d.queue, d.cCfg.Key(), segment, readPos, d.diskQueue.writeSegmentNum)
+		return d.resetToEarliestRetainedData()
 	}
 
 	if segment == d.diskQueue.writeSegmentNum && readPos > d.diskQueue.writePos {
-		log.Errorf("reading position [%v] is greater than writing position [%v]", readPos, d.diskQueue.writePos)
-		return io.EOF
+		log.Warnf("queue:%v,%v, consumer:%v, read position [%v] is beyond the write position [%v] on segment [%v], restart the segment from the beginning",
+			d.qCfg.Name, d.queue, d.cCfg.Key(), readPos, d.diskQueue.writePos, segment)
+		readPos = 0
 	}
 
 	if d.segment != segment {
@@ -512,13 +527,16 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 			if d.mCfg.AutoSkipCorruptFile {
 				nextSegment := d.segment + 1
 				if nextSegment > d.diskQueue.writeSegmentNum {
-					return errors.Errorf("%v not found and next segment(%v) greater than current write segment(%v)", fileName, nextSegment, d.diskQueue.writeSegmentNum)
+					log.Debugf("queue:%v,%v, consumer:%v, offset:%v,%v, file %v is missing and no later segment exists, park at the write head",
+						d.qCfg.Name, d.queue, d.cCfg.Key(), d.segment, d.readPos, fileName)
+					d.parkAtWriteHead()
+					return nil
 				}
 				log.Warnf("queue:%v,%v, consumer:%v, offset:%v,%v, file missing: %v, auto skip to next file",
 					d.qCfg.Name, d.queue, d.cCfg.Key(), d.segment, d.readPos, fileName)
 			RETRY_NEXT_FILE:
-				// there are segments in the middle
-				if nextSegment < d.diskQueue.writeSegmentNum {
+				// there are segments in the middle, or the write segment itself
+				if nextSegment <= d.diskQueue.writeSegmentNum {
 					fileName, exists, next_file_exists = SmartGetFileName(d.mCfg, d.queue, nextSegment)
 					if exists || util.FileExists(fileName) {
 						log.Debugf("retry skip to next file: %v, exists", fileName)
@@ -532,7 +550,10 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 						goto RETRY_NEXT_FILE
 					}
 				} else {
-					return errors.New(fileName + " not found, next segment greater than current write segment")
+					log.Debugf("queue:%v,%v, consumer:%v, offset:%v,%v, no segment file exists up to the write segment %v, park at the write head",
+						d.qCfg.Name, d.queue, d.cCfg.Key(), d.segment, d.readPos, d.diskQueue.writeSegmentNum)
+					d.parkAtWriteHead()
+					return nil
 				}
 			} else {
 				return errors.New(fileName + " not found and auto_skip_corrupt_file not enabled.")
@@ -543,13 +564,19 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 
 FIND_NEXT_FILE:
 	//if next file exists, and current file is not the last file, the file should be completed loaded
-	if next_file_exists || d.diskQueue.writeSegmentNum > segment {
+	if next_file_exists || d.diskQueue.writeSegmentNum > d.segment {
 		d.fileLoadCompleted = true
 	} else {
 		d.fileLoadCompleted = false
 	}
 
-	var err error
+	return d.openReadFile(fileName)
+}
+
+// openReadFile points the consumer's reader at an existing segment file,
+// seeking to the current read position. It is the shared tail of
+// ResetOffset and the self-healing reset paths below.
+func (d *Consumer) openReadFile(fileName string) error {
 	readFile, err := os.OpenFile(fileName, os.O_RDONLY, 0600)
 	if err != nil {
 		log.Error(err)
@@ -581,4 +608,71 @@ FIND_NEXT_FILE:
 	}
 	d.fileName = fileName
 	return nil
+}
+
+// resetToEarliestRetainedData re-anchors the consumer onto the earliest
+// segment file that still exists on disk. It runs when the requested
+// offset segment is beyond the current write segment: the queue's data
+// files were wiped (or the queue was deleted and recreated) while the
+// consumer's persisted offset still references the removed segments.
+// Returning an error there used to wedge pipeline consumers in an
+// acquire-retry panic loop; instead, consume whatever data survives
+// (at-least-once), and when nothing is retained park at the write head
+// and report EOF so the owning worker retries once data arrives.
+func (d *Consumer) resetToEarliestRetainedData() error {
+	for seg := int64(0); seg <= d.diskQueue.writeSegmentNum; seg++ {
+		fileName, exists, nextFileExists := SmartGetFileName(d.mCfg, d.queue, seg)
+		if !exists && !util.FileExists(fileName) {
+			continue
+		}
+		log.Warnf("queue:%v,%v, consumer:%v, reset to the earliest retained segment: %v", d.qCfg.Name, d.queue, d.cCfg.Key(), fileName)
+		if d.readFile != nil {
+			//potential file handler leak
+			d.readFile.Close()
+		}
+		d.segment = seg
+		d.readPos = 0
+		d.maxBytesPerFileRead = 0
+		d.diskQueue.UpdateSegmentConsumerInReading(d.ID, d.segment)
+		if nextFileExists || d.diskQueue.writeSegmentNum > seg {
+			d.fileLoadCompleted = true
+		} else {
+			d.fileLoadCompleted = false
+		}
+		return d.openReadFile(fileName)
+	}
+
+	//nothing retained on disk: park at the write head and wait for new data
+	log.Debugf("queue:%v,%v, consumer:%v, no retained data on disk, park at the write head: segment %v",
+		d.qCfg.Name, d.queue, d.cCfg.Key(), d.diskQueue.writeSegmentNum)
+	d.parkAtWriteHead()
+	return nil
+}
+
+// parkAtWriteHead leaves the consumer waiting for new data at the current
+// write position, with no reader attached: every data file the offset
+// referenced is gone, so there is nothing to read until the writer
+// creates the write segment file. FetchMessages re-opens the segment as
+// soon as it appears, so callers see a healthy (if idle) consumer
+// instead of an error that would panic-loop the owning worker.
+func (d *Consumer) parkAtWriteHead() {
+	if d.readFile != nil {
+		d.readFile.Close()
+		d.readFile = nil
+	}
+	d.reader = nil
+	d.segment = d.diskQueue.writeSegmentNum
+	d.readPos = 0
+	d.maxBytesPerFileRead = 0
+	d.lastFileSize = 0
+	d.fileLoadCompleted = false
+	d.diskQueue.UpdateSegmentConsumerInReading(d.ID, d.segment)
+
+	//idle workers get recycled and re-acquire on a regular cadence, which
+	//would replay this warning forever — rate-limit it to once a minute
+	if now := time.Now().UnixMilli(); now-d.diskQueue.parkWarnAt.Load() > 60*1000 {
+		d.diskQueue.parkWarnAt.Store(now)
+		log.Warnf("queue:%v,%v, consumer:%v, offset:%v,%v, data files are missing (queue wiped or recreated), park at the write head: segment %v, waiting for new data",
+			d.qCfg.Name, d.queue, d.cCfg.Key(), d.segment, d.readPos, d.diskQueue.writeSegmentNum)
+	}
 }

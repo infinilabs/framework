@@ -210,6 +210,7 @@ responses. Agent implementations should always terminate via
 The reverse channel is a **transport**, not an authenticator. Compose it with the framework's existing security layers:
 
 - **Control plane → agent authorization**: the agent's own API authentication applies to the proxied request. The `AccessToken` field carries the caller's bearer token end-to-end, so the agent's API layer can validate it exactly as if the call were direct.
+- **Loopback token (managed agents)**: the framework's reverse client (`modules/managed/reverseclient`) executes proxied requests as loopback HTTP calls against the agent's own web port, authenticated with an `AGENT_API_ACCESS_TOKEN` from the keystore. When no token is provisioned — or the stored one has no matching record in the security KV bucket (stale from a wiped data dir or an earlier build) — the client mints one automatically: an `AccessToken` carrying every instance-ops permission plus all registered permissions, never expiring, cached in the keystore for restart reuse. The declared instance-ops permission keys are registered at reverse-channel setup, so route-level permission resolution succeeds even though those keys are constants that no route registers itself.
 - **Agent → control plane**: the outbound websocket rides the agent's existing authenticated channel to the control plane (e.g. Console's managed websocket with instance credentials).
 - **Session binding**: the handshake check (`RegisterPendingSession` → `HandleHelloPayload`) prevents an agent from claiming another peer's session slot.
 

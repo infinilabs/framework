@@ -308,6 +308,65 @@ processor:
           message: "non-POST request"
 ```
 
+### Multi-branch Dispatch with `case`
+
+Chaining `if`/`then`/`else` blocks gets unwieldy once the same input routes to three or more destinations. The `case` block is an ordered multi-way dispatch: the **first** matching branch runs (exactly one arm executes), and an optional `default` chain handles everything else.
+
+```yaml
+processor:
+  - case:
+      field: log_level
+      branches:
+        - values: [error, fatal]
+          then:
+            - echo:
+                message: "route to the alerting pipeline"
+        - values: [warn]
+          then:
+            - echo:
+                message: "route to the warning pipeline"
+      default:
+        - echo:
+            message: "keep on the default route"
+```
+
+Branch arms support two match styles, freely mixed within one block:
+
+| Field | Matches when |
+|-------|--------------|
+| `values` | The current value of the case block's `field` equals any entry (same semantics as the [`in`](conditions/in/) condition). Requires `field` on the case block. |
+| `when` | Any condition operator from the table above (`equals`, `regexp`, `and`, ...). |
+| both on one branch | Both must hold (AND). |
+| `then` | The processor (or list of processors) to run when the branch matches — required on every branch. |
+
+Branches without `values` do not need `field`, so a `case` block also works as a pure ordered condition ladder:
+
+```yaml
+processor:
+  - case:
+      branches:
+        - when:
+            and:
+              - equals:
+                  env: prod
+              - regexp:
+                  file.path: '\.json$'
+          then:
+            - echo:
+                message: "structured prod logs"
+        - when:
+            exists:
+              - file.path
+          then:
+            - echo:
+                message: "plain file logs"
+      default:
+        - echo:
+            message: "everything else"
+```
+
+Value resolution follows `if`/`then`/`else`: inside a per-record sub-chain (e.g. `for_each`) branches see the current record's fields; at pipeline level they read the context through the `_ctx.` prefix. Which arm ran is recorded in the flow trace as `case:1`, `case:2`, ..., `case:default`, or `case:no-match`.
+
 ## Error Handling
 
 Pipeline error handling follows these rules:
@@ -446,8 +505,200 @@ import _ "your_app/plugins/health"
 
 ## Built-in Processors
 
-The framework ships with a growing set of built-in processors registered via `RegisterProcessorPlugin` / `RegisterDomainProcessor` — framework primitives (`echo`, `dag`, `for_each`), queue bridges (`consumer`, `queue_output`), Elasticsearch indexing (`bulk_indexing`, `json_indexing`, `indexing_merge`, `merge_to_bulk`), output transports (`otlp_export`), general-purpose helpers (`http`, `smtp`, `replay`), and a wide catalog of record processors for parsing, transforming, enriching, routing and governing records inside `for_each` sub-chains (`dissect`, `grok`, `mutate`, `geoip`, `throttle`, `script`, ...).
+The framework ships with a growing set of built-in processors registered via `RegisterProcessorPlugin` / `RegisterDomainProcessor` — framework primitives (`echo`, `dag`, `for_each`), queue bridges (`consumer`, `queue_output`, `lane_consumer`), Elasticsearch indexing (`bulk_indexing`, `json_indexing`, `indexing_merge`, `merge_to_bulk`, and the in-memory tail `merge_to_bulk_lane` + `bulk_indexing_lane`), unified output (`output` — exactly one of queue/lane), output transports (`otlp_export`), general-purpose helpers (`http`, `smtp`, `replay`), and a wide catalog of record processors for parsing, transforming, enriching, routing and governing records inside `for_each` sub-chains (`dissect`, `grok`, `mutate`, `geoip`, `throttle`, `script`, ...).
 
 Every processor has its own reference page — description, configuration parameters with types and defaults, and an example — under the **Processor Reference** section. Record processors operate on the current record inside `for_each` sub-chains (most are no-ops outside a record scope); they are registered by domain category, the bare name is the YAML key, and `category:name` is an explicit alias.
 
 The same catalog is discoverable at runtime via the `GET /pipeline/processors` API (`?grouped=1` groups the catalog by category).
+
+## Configuration Validation
+
+Invalid pipeline configs — unknown processors, missing required parameters, malformed DSL — are rejected **before** they are persisted or distributed, not discovered on the instance after deployment. `ValidatePipelineConfig` (`modules/pipeline/validate.go`) compiles the chain without running it and returns structured findings:
+
+```go
+type ConfigError struct {
+    Stage     int    `json:"stage"`               // 0-based processor index; -1 = chain/config level
+    Processor string `json:"processor,omitempty"` // offending processor key
+    Field     string `json:"field,omitempty"`
+    Message   string `json:"message"`
+}
+```
+
+The compile pass covers:
+
+- **DSL shape** — exactly one action per step, well-formed `if`/`then`/`else` and `case`/`branches` blocks, nested sub-chains (`for_each`, `lane_consumer` inner chains compile recursively);
+- **Registry existence** — unknown processor names fail with the list of valid names;
+- **Parameter legality** — each constructor's own validation runs (missing required fields, bad enum values, out-of-range numbers);
+- **Record contracts** — placement mismatches surface as warnings, or as errors when the config opts in with `strict_contract: true`.
+
+Constructor panics are recovered per step and reported as validation errors — a broken plugin can never crash the gate.
+
+### Where the gate is enforced
+
+| Entry point | Behavior on invalid config |
+|-------------|---------------------------|
+| `POST /pipelines/` (create) | `400` with the findings; nothing persisted |
+| `PUT /pipelines/:id` (update) | `400`; the working config and its version history stay untouched |
+| `POST /pipeline/tasks/` (start task) | `400` — including disabled pipelines, which would otherwise defer the failure to enable-time |
+| `POST /pipelines/:id/versions/:version/rollback` | `400`; a version referencing a processor that was renamed or removed since must not be restored |
+| `POST /pipeline/deployments/` (Fleet) | `400`; the referenced pipeline must exist **and** compile (read failures reject too — fail-closed) |
+| Deployment reconciler | Refuses to distribute a config that stopped compiling (e.g. a plugin removed after an upgrade) |
+
+Rejection bodies carry both a standard error wrapper (UIs toast `error.reason`) and the structured detail:
+
+```json
+{
+  "error": { "reason": "invalid pipeline config: http processor requires at least one host (hosts) (+1 more)" },
+  "status": 400,
+  "errors": [
+    { "stage": 1, "processor": "http", "message": "http processor requires at least one host (hosts)" }
+  ],
+  "warnings": []
+}
+```
+
+### Pre-flight endpoint
+
+`POST /pipeline/_validate` compiles a submitted config without persisting anything. Always `200`; the `valid` flag carries the verdict:
+
+```bash
+curl -X POST /pipeline/_validate -H 'Content-Type: application/json' -d '{
+  "name": "my-pipeline",
+  "processor": [{ "dissect": { "pattern": "%{a} %{b}" } }]
+}'
+```
+
+```json
+{ "valid": true, "errors": null, "warnings": null }
+```
+
+### Constructor contract for processor authors
+
+The gate is only as strong as constructor validation. Two rules, enforced by the `TestEmptyConfigAudit` test:
+
+1. **Return errors, never panic** — a config problem is not a runtime fault; `panic` in a constructor crashes the host that compiles the chain.
+2. **Either require your inputs or default them safely** — every processor is constructed with an empty config in CI; one that succeeds must land in the audit's documented allowlist (44 entries, each annotated with why empty-accept is legitimate), otherwise it must fail with a clear required-field error. Variable templates such as `$[[env.HOSTS]]` remain non-empty strings at validation time and do not conflict with required-field checks.
+
+## Stream indexing tail: lanes vs disk bridge
+
+Compiled stream pipelines (LogPilot → Gateway) choose between two tail shapes via the stream spec `sink.transport`:
+
+| `sink.transport` | Shape | Durability |
+|------------------|-------|------------|
+| `""` / `"lane"` (default) | `consumer(staging)` → `for_each(parallel)` → `output{lane}` → `merge_to_bulk_lane{input_lane}` → `bulk_indexing_lane` → ES. The staging queue is the **only** disk write. | At-most-once: in-flight records are lost if the gateway exits. |
+| `"disk"` | `consumer(staging)` → `output{queue: indexing}` → `indexing_merge` → `bulk` queue → `bulk_indexing` → ES. | At-least-once: bulk payloads survive a gateway restart. |
+
+Both tails process records in parallel (`for_each.parallel`, `worker_size`); log workloads are order-insensitive.
+
+## Pipeline Configuration API
+
+Beyond YAML files, pipelines are managed as first-class resources (`PipelineConfigV2`) over HTTP:
+
+| Method & Path | Description |
+|---------------|-------------|
+| `POST /pipelines/` | Create a config (validated, versioned). |
+| `GET /pipelines/:id` / `PUT /pipelines/:id` / `DELETE /pipelines/:id` | Read / update (validated) / delete (archives the last version first). |
+| `POST /pipelines/_search` | Search configs. |
+| `POST /pipelines/:id/_start` / `_stop` | Start / stop the pipeline task. |
+| `GET /pipelines/:id/versions` | List versions. |
+| `GET /pipelines/:id/versions/:version` | Read one version snapshot. |
+| `POST /pipelines/:id/versions/:version/rollback` | Restore a version (validated; snapshots the current config first so rollbacks are themselves revertible). |
+
+Every update auto-snapshots the previous config as a `PipelineVersion` — there is no explicit publish step; each edit is a version.
+
+## Pipeline Deployment (Fleet)
+
+`PipelineDeployment` is the control-plane desired state: which pipeline runs on which instances. A reconciler (15s interval) converges desired → reported:
+
+1. Loads the pipeline config, re-validates it compiles, and renders it as **managed config** rows — one per target instance (`singleton` marks the config for instance-side lock resolution).
+2. Instances pull the managed config on their next `_sync`, write it to their config directory, and hot-reload the pipeline.
+3. Pushes are **converged**: when the rendered content is unchanged, the reconciler skips the version bump — instances don't rewrite files every cycle.
+
+### Placement scope (targeting)
+
+`placement` decides **where** the pipeline runs — resolved against the registered instance fleet on every cycle:
+
+```json
+{
+  "placement": {
+    "strategy": "all",
+    "selector": { "env": "prod" },
+    "instances": ["gw-2"]
+  }
+}
+```
+
+| Field | Semantics |
+|-------|-----------|
+| `selector` | Label match (AND across entries) — an instance is in scope when its labels carry every key=value. The reserved `group` key matches console-assigned group membership instead: values are comma-separated group names, any of which puts the instance in scope. |
+| `instances` | Explicit instance IDs (union with the selector match; unknown IDs are ignored until they register). |
+| *(neither set)* | Broadcast: a single `*` row every instance pulls. |
+
+Convergence is **exact** — the row set always equals the desired set:
+
+- Instances that fall out of every scope get their row **deleted**; their next sync reports the file `Deleted`, the config watcher removes it and stops the task. No duplicate deployments linger after a scope change A→B.
+- Label membership is re-evaluated every cycle: an instance that gains/loses a matching label is added/removed automatically.
+- Several deployments may share one pipeline; their target sets merge (an enabled deployment outranks a disabled one on the same instance, `singleton` wins over `all`). Any broadcast deployment subsumes targeting for that pipeline.
+- Row versions are monotonic **per config name** — the instance sync applies updates strictly by version (`newest wins`), so a migrated row always lands above what clients previously pulled.
+
+| Method & Path | Description |
+|---------------|-------------|
+| `POST /pipeline/deployments/` | Create (requires pipeline exists + compiles; strategy limited to `all`\|`singleton`). |
+| `GET /pipeline/deployments/` | List. |
+| `GET/PUT/DELETE /pipeline/deployments/:id` | Read / update (name, pipeline rebind, placement, enable — re-validated) / delete (cascades managed-config recall when no other deployment references the pipeline). |
+| `GET /pipeline/deployments/:id/status` | Desired-vs-reported status (`desired_count` is the resolved scope size). |
+
+### Runtime report and failure visibility
+
+Every managed instance reports its live pipeline states with each config sync (keyed by **pipeline name**). The report persists on the instance record and feeds the deployment status:
+
+```json
+{
+  "instances": [
+    {
+      "instance_id": "agent-1",
+      "state": "FAILED",
+      "reason": "the processor nope does not exist. valid processors: ...",
+      "last_seen": "2026-10-15T04:50:54Z"
+    }
+  ],
+  "desired_count": 1,
+  "ready_count": 0
+}
+```
+
+A pipeline whose config fails to compile **on the instance** (e.g. the instance's processor catalog differs from the control plane's — a plugin missing from that binary) is reported as `FAILED` with the compile error as `reason`, instead of silently disappearing from the report. Reports carry `"stale": true` when the instance still runs the pipeline but the placement scope no longer includes it (recall in flight, or a recall that failed). Instances without an ORM backend (lightweight agents) skip the reconciler side but still report runtime state.
+
+## Runtime APIs
+
+| Method & Path | Description |
+|---------------|-------------|
+| `GET /pipeline/tasks/` | Running pipeline tasks and states. |
+| `GET /pipeline/task/:id/stages` | Per-stage metrics: invocations, errors, latency. |
+| `GET /pipeline/task/:id/flight` | Sampled execution trace (`?trace_id=`, `?errors=1`, `&limit=`). |
+| `POST /pipeline/task/:id/_inject` | Inject a test sample (raw record or batch) into a running pipeline. |
+| `POST /pipeline/task/:id/_pause` / `_resume` | Pause / resume a task. |
+| `POST /pipeline/dry-run` | Unified dry-run: execute a processor chain against sample input with side-effect capture, field diffs, and scope/contract checks. |
+| `GET /pipeline/processors` | Processor catalog (`?grouped=1`). |
+| `GET /pipeline/codecs` | Registered record codecs. |
+| `GET /pipeline/lanes` | In-process lane channels: depth, emitted/delivered counters, drops, backpressure waits. |
+| `GET /pipeline/task/:id/stages?stage=<n>` | Per-stage metrics for one stage. |
+| `DELETE /pipeline/task/:id` | Stop and remove a task (cancels consumers first, waits for release). |
+
+### Queue consumer management
+
+Queue consumers (offset registrations) are manageable per queue — stale consumer groups from removed pipelines are the typical cleanup target:
+
+| Method & Path | Description |
+|---------------|-------------|
+| `GET /queue/:id/consumer/:consumer_id/offset` | Read a consumer's committed offset. |
+| `PUT /queue/:id/consumer/:consumer_id/offset?offset=<seg>,<pos>` | Reset the offset to an explicit segment/position. Rewinds re-ingest (duplicates); jumps skip backlog. An actively committing consumer overwrites manual resets at its next commit cycle — pause the pipeline first for a sticky reset. |
+| `DELETE /queue/:id/consumer/:consumer_id` | Remove the consumer registration and its offset. Active consumers re-register at `0,0` (from head); stale registrations clear permanently. |
+
+Notes:
+
+- Address the **queue by its registry UUID** (the key in `/queue/stats`) — consumer/offset lookups walk the per-queue KV bucket and do not resolve queue names.
+- The consumer ID is the `id` field of the entry in `/queue/stats` (`?use_key=true&consumers=true`).
+- All three are surfaced in the Console queue browser per consumer (reset-to-earliest / reset-to-latest / delete).
+
+`GET /pipeline/cluster/overview` aggregates fleet-wide pipeline health for control-plane dashboards.

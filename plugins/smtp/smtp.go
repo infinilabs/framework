@@ -129,6 +129,20 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	if err := c.Unpack(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unpack the configuration of index_diff processor: %s", err)
 	}
+	if len(cfg.Servers) == 0 {
+		return nil, fmt.Errorf("smtp processor requires at least one server")
+	}
+	for name, sc := range cfg.Servers {
+		if sc == nil {
+			return nil, fmt.Errorf("smtp server %q is empty", name)
+		}
+		if sc.Server.Host == "" {
+			return nil, fmt.Errorf("smtp server %q requires host", name)
+		}
+		if sc.Server.Port <= 0 {
+			return nil, fmt.Errorf("smtp server %q requires a positive port", name)
+		}
+	}
 
 	processor := &SMTPProcessor{
 		config: &cfg,

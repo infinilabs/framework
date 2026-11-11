@@ -1,6 +1,7 @@
 ---
 weight: 40
 title: "API Development"
+bookCollapseSection: true
 ---
 
 # API Development

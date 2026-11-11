@@ -23,7 +23,7 @@ func (m *concKV) GetValue(b string, k []byte) ([]byte, error) {
 	return nil, nil
 }
 func (m *concKV) GetCompressedValue(b string, k []byte) ([]byte, error) { return m.GetValue(b, k) }
-func (m *concKV) AddValueCompress(b string, k, v []byte) error         { return m.AddValue(b, k, v) }
+func (m *concKV) AddValueCompress(b string, k, v []byte) error          { return m.AddValue(b, k, v) }
 func (m *concKV) AddValue(b string, k, v []byte) error {
 	m.data[string(k)] = append([]byte(nil), v...)
 	return nil

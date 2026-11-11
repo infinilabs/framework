@@ -62,3 +62,4 @@ generated_*.go
 
 # keystore runtime artifacts
 core/elastic/.keystore/
+.mimosa/

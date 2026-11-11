@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/env"
 	"infini.sh/framework/lib/go-ucfg"
 	"infini.sh/framework/modules/configs/common"
 )
@@ -119,7 +120,9 @@ func TestConfigsHash(t *testing.T) {
 	if h1 != h2 {
 		t.Fatal("hash must be stable")
 	}
-	// 顺序无关不应成立? 协议要求两侧列表一致 — 同序序列化, 顺序变化视为变更
+	// order-insensitivity must NOT hold: the protocol requires both sides
+	// to carry the same list — same-order marshaling, so a reorder counts
+	// as a change
 	reordered := []common.ConfigFile{files[1], files[0]}
 	if ConfigsHash(reordered) == h1 {
 		t.Log("note: hash is order-sensitive (both sides marshal the same list)")
@@ -223,5 +226,76 @@ func TestHashTokenOneWay(t *testing.T) {
 	}
 	if hashToken("my-token2") == h1 {
 		t.Fatal("different inputs must hash differently")
+	}
+}
+
+// TestDiffConfigs_HashAware — content-hash comparison (new clients):
+// version numbers are not comparable across rows (an instance variant at
+// v1 vs the base row at v12 held by the client); a different hash means
+// update, and an equal hash suppresses the resend even when the version is
+// smaller. Legacy clients (no hash) fall back to version comparison.
+func TestDiffConfigs_HashAware(t *testing.T) {
+	base := cfg("s.yml", 12)
+	base.Hash = "hash-base"
+	variant := cfg("s.yml", 1)
+	variant.Hash = "hash-variant"
+
+	t.Run("variant applied over higher-versioned base content", func(t *testing.T) {
+		client := map[string]common.ConfigFile{"s.yml": base}
+		resp := diffConfigs([]common.ConfigFile{variant}, client)
+		if !resp.Changed || resp.Configs.UpdatedConfigs["s.yml"].Hash != "hash-variant" {
+			t.Fatalf("variant must win by hash, got %+v", resp.Configs.UpdatedConfigs)
+		}
+	})
+
+	t.Run("identical hash, lower version → no churn", func(t *testing.T) {
+		same := cfg("s.yml", 3)
+		same.Hash = "hash-base"
+		client := map[string]common.ConfigFile{"s.yml": base}
+		resp := diffConfigs([]common.ConfigFile{same}, client)
+		if resp.Changed {
+			t.Fatal("same content must not re-send")
+		}
+	})
+
+	t.Run("old client without hash falls back to version", func(t *testing.T) {
+		oldClient := cfg("s.yml", 12) // no Hash
+		client := map[string]common.ConfigFile{"s.yml": oldClient}
+		resp := diffConfigs([]common.ConfigFile{variant}, client)
+		if resp.Changed {
+			t.Fatal("version 1 must not beat 12 for hashless clients (logpilot bumps row versions instead)")
+		}
+	})
+}
+
+// Instances built without version ldflags report placeholder dates ("N/A").
+// An index whose mapping predates the keyword pin maps these fields as
+// `date`, and ES rejects the placeholder — every heartbeat upsert failed
+// silently (Debug log) while syncs kept returning 200. normalizeVersionDates
+// must blank anything that is not an RFC3339 date.
+func TestNormalizeVersionDates(t *testing.T) {
+	app := env.Application{}
+	app.Version.BuildDate = "N/A"
+	app.Version.EolDate = "unknown"
+	app.Version.BuildCommitHash = "abc123"
+
+	normalizeVersionDates(&app)
+
+	if app.Version.BuildDate != "" {
+		t.Fatalf("placeholder build_date not blanked: %q", app.Version.BuildDate)
+	}
+	if app.Version.EolDate != "" {
+		t.Fatalf("placeholder eol_date not blanked: %q", app.Version.EolDate)
+	}
+	if app.Version.BuildCommitHash != "abc123" {
+		t.Fatalf("non-date field must be untouched: %q", app.Version.BuildCommitHash)
+	}
+
+	// real dates survive
+	app.Version.BuildDate = "2026-10-21T12:58:27Z"
+	app.Version.EolDate = "2027-12-31T10:10:10Z"
+	normalizeVersionDates(&app)
+	if app.Version.BuildDate != "2026-10-21T12:58:27Z" || app.Version.EolDate != "2027-12-31T10:10:10Z" {
+		t.Fatalf("real dates must survive: %+v", app.Version)
 	}
 }

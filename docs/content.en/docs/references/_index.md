@@ -17,6 +17,8 @@ Comprehensive reference documentation for the INFINI Framework's core systems an
 - [Task Scheduling](task/) — Interval-based, cron-based, and transient task execution
 - [Pipeline Record Processing](pipeline_record/) — The record-processing convention: batch splitting, pluggable payload codecs, failure strategies, and batch-aware processors
 - [Queue](queue/) — Pluggable message queue abstraction with disk, memory, Kafka, and Redis backends
+- [Lane](lane/) — In-process zero-serialization record channel: bounded capacity, overflow policies, `lane_consumer`, and the queue-vs-lane selection guide
+- [Glossary](glossary/) — Canonical terminology for the pipeline, record-processing, and lane subsystems
 - [Key-Value Store](kv/) — Pluggable KV storage with Badger, Elasticsearch, and file-based backends
 - [Statistics](stats/) — Metrics collection with counters, gauges, timings, and StatsD integration
 - [Conditions](conditions/) — Declarative condition evaluation with logical operators for pipeline control flow

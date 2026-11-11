@@ -134,9 +134,15 @@ func TestEmptyCollections(t *testing.T) {
 			to: &struct {
 				A interface{}
 			}{},
+			// an empty mapping reifies to an empty map (mirroring `a: []`
+			// → []interface{}{}), NOT nil: nil made the KEY disappear when
+			// the parent unpacked into map[string]interface{}, breaking
+			// configs like `processor: [{echo: {}}]`
 			want: &struct {
 				A interface{}
-			}{},
+			}{
+				A: map[string]interface{}{},
+			},
 		},
 		"struct with empty map into struct with map of interfaces": {
 			input: "a: {}",

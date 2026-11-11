@@ -100,7 +100,7 @@ func NewFilter(cfg []*config.Config) (*Filters, error) {
 	}
 
 	if len(procs.List) > 0 {
-		log.Debugf("generated new filters: %v", procs)
+		log.Debugf("generated new filters: %s", procs.String())
 	}
 	return procs, nil
 }
@@ -150,7 +150,7 @@ func (procs *Filters) Close() error {
 
 func (procs *Filters) Filter(ctx *fasthttp.RequestCtx) {
 	if procs == nil {
-		log.Errorf("invalid filter: %v", procs)
+		log.Errorf("invalid filter: %s", procs.String())
 		return
 	}
 	for _, p := range procs.List {

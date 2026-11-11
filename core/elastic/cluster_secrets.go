@@ -107,22 +107,25 @@ func HydrateClusterSecrets(cfg *ElasticsearchConfig) {
 		v, ok := loadClusterSecret(ClusterBasicAuthPasswordKey(cfg.ID))
 		if ok {
 			if v == "" {
-				log.Warnf("cluster [%s]'s basic auth password is empty: %v", cfg.ID)
+				log.Warnf("cluster [%s]'s basic auth password is empty", cfg.ID)
 			}
 			cfg.BasicAuth.Password = ucfg.SecretString(v)
 		} else {
-			log.Warnf("cluster [%s]'s basic auth password not found in the keystore: %v", cfg.ID)
+			log.Warnf("cluster [%s]'s basic auth password not found in the keystore", cfg.ID)
 		}
 	}
-	if !isRealSecret(cfg.Token.Get()) {
+	// Empty token = the cluster never had one (no-auth) — nothing to
+	// hydrate and nothing to warn about. Only a MASKED token (record says a
+	// token exists, value stashed elsewhere) requires the keystore lookup.
+	if tok := cfg.Token.Get(); tok != "" && !isRealSecret(tok) {
 		v, ok := loadClusterSecret(ClusterTokenKey(cfg.ID))
 		if ok {
 			if v == "" {
-				log.Warnf("cluster [%s]'s token is empty: %v", cfg.ID)
+				log.Warnf("cluster [%s]'s token is empty", cfg.ID)
 			}
 			cfg.Token = ucfg.SecretString(v)
 		} else {
-			log.Warnf("cluster [%s]'s token not found in the keystore: %v", cfg.ID)
+			log.Warnf("cluster [%s]'s token not found in the keystore", cfg.ID)
 		}
 	}
 }
@@ -169,6 +172,13 @@ func loadClusterSecret(key string) (string, bool) {
 // not the marshal mask.
 func isRealSecret(s string) bool {
 	return s != "" && s != ucfg.SecretShadowText
+}
+
+// IsRealSecret is the exported form of isRealSecret, for app-side code
+// building credential payloads from ORM-loaded cluster records (deciding
+// whether a hydrated value is safe to ship).
+func IsRealSecret(s string) bool {
+	return isRealSecret(s)
 }
 
 func asMapStr(v interface{}) map[string]interface{} {

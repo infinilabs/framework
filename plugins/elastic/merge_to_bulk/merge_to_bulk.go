@@ -86,11 +86,11 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	}
 
 	if cfg.OutputQueue.Name == "" {
-		panic(errors.New("name of output_queue can't be nil"))
+		return nil, errors.New("merge_to_bulk processor requires output_queue.name")
 	}
 
 	if cfg.IndexName == "" {
-		panic(errors.New("index name can't be nil"))
+		return nil, errors.New("merge_to_bulk processor requires index_name")
 	}
 
 	diff := &IndexingMergeToBulkProcessor{
@@ -102,8 +102,6 @@ func New(c *config.Config) (pipeline.Processor, error) {
 
 	if cfg.IndexName != "" {
 		labels["_index"] = cfg.IndexName
-	} else {
-		panic("index name is empty")
 	}
 
 	if cfg.TypeName == "" {
@@ -138,7 +136,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 
 	producer, err := queue.AcquireProducer(queueConfig)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("merge_to_bulk processor failed to acquire output queue producer: %w", err)
 	}
 
 	diff.producer = producer

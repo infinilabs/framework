@@ -89,6 +89,7 @@ type Context struct {
 	exitErr        error
 	processErrs    []error
 	processHistory []string
+	stepStats      []StepStat
 	// steps tracks the count of state transition, doesn't reset within the context lifecycle
 	id    string
 	steps int64
@@ -104,6 +105,10 @@ type Context struct {
 	pause    sync.WaitGroup
 	// Set this to true if you want to stop the pipeline, and then, pause (suspend) the goroutine.
 	isQuit    bool
+	// drainRequested asks long-running consumers to stop FETCHING new
+	// work: finish the in-flight batch, commit its offset, then return —
+	// as opposed to CancelTask, which aborts mid-batch (redelivery).
+	drainRequested bool
 	stateLock sync.Mutex
 	// Set this to true if you want to let the goroutine exit, i.e., the kill signal.
 	released bool
@@ -187,6 +192,7 @@ func (ctx *Context) ResetContext() {
 	ctx.exitErr = nil
 	ctx.processErrs = []error{}
 	ctx.processHistory = []string{}
+	ctx.stepStats = nil
 	ctx.ResetParameters()
 }
 
@@ -198,10 +204,46 @@ func (ctx *Context) GetRequestProcess() []string {
 	return ctx.processHistory
 }
 
+// maxProcessHistory bounds the flow trace: long-lived contexts run
+// unbounded record batches and the history feeds log.Trace — an uncapped
+// slice makes per-step logging cost grow linearly with total steps (and
+// the whole loop quadratic).
+const maxProcessHistory = 32
+
 func (ctx *Context) AddFlowProcess(str string) {
-	if str != "" {
-		ctx.processHistory = append(ctx.processHistory, str)
+	if str == "" {
+		return
 	}
+	if len(ctx.processHistory) >= maxProcessHistory {
+		// keep the MOST RECENT entries (drop from the head)
+		n := copy(ctx.processHistory, ctx.processHistory[len(ctx.processHistory)-maxProcessHistory+1:])
+		ctx.processHistory = ctx.processHistory[:n]
+	}
+	ctx.processHistory = append(ctx.processHistory, str)
+}
+
+// StepStat is the per-processor outcome of one executed pipeline step:
+// which processor ran, how long it took and whether it errored. Recorded by
+// the sequential runner for document-level pipeline observability.
+type StepStat struct {
+	Name   string
+	TookUs int64
+	Error  string
+}
+
+func (ctx *Context) GetStepStats() []StepStat {
+	return ctx.stepStats
+}
+
+func (ctx *Context) AddStepStat(name string, took time.Duration, err error) {
+	if name == "" {
+		return
+	}
+	s := StepStat{Name: name, TookUs: took.Microseconds()}
+	if err != nil {
+		s.Error = err.Error()
+	}
+	ctx.stepStats = append(ctx.stepStats, s)
 }
 
 func (ctx *Context) IsFailed() bool {
@@ -332,6 +374,9 @@ func (ctx *Context) Restart() {
 	defer ctx.stateLock.Unlock()
 
 	ctx.isQuit = false
+	// a fresh run is no longer draining — otherwise a consumer started
+	// after _drain would immediately drain again
+	ctx.drainRequested = false
 }
 
 // IsExit means pipeline has been manually stopped, will not running until Restart
@@ -348,6 +393,23 @@ func (ctx *Context) Exit() {
 	defer ctx.stateLock.Unlock()
 
 	ctx.isQuit = true
+}
+
+// Drain requests a graceful stop: consumers finish the current batch,
+// commit its offset, then wind down instead of fetching more work.
+func (ctx *Context) Drain() {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
+	ctx.drainRequested = true
+}
+
+// IsDraining reports whether a graceful drain was requested.
+func (ctx *Context) IsDraining() bool {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
+	return ctx.drainRequested
 }
 
 func (ctx *Context) CancelTask() {

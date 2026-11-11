@@ -43,6 +43,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -597,7 +598,30 @@ func serveFile(w http.ResponseWriter, r *http.Request, fs http.FileSystem, name 
 
 	// serveContent will check modification time
 	sizeFunc := func() (int64, error) { return d.Size(), nil }
+	if cc := spaCacheControl(r.URL.Path); cc != "" {
+		w.Header().Set("Cache-Control", cc)
+	}
 	serveContent(w, r, d.Name(), d.ModTime(), sizeFunc, f)
+}
+
+// vfsAssetHashRE matches the content-hash segment in built frontend asset
+// names (index-DPak5aSO.js, pizza_engine_bg-B2pSYpQe.wasm).
+var vfsAssetHashRE = regexp.MustCompile(`-[A-Za-z0-9_]{8,}\.[A-Za-z0-9]+$`)
+
+// spaCacheControl is the cache policy for SPA static assets: hashed build
+// outputs under /assets/ never change in place, so they are marked
+// immutable to let browsers skip revalidation (a big win on repeat visits
+// with large bundles); the HTML entry must always revalidate so a release
+// picks up the asset manifest with the new hashes. An empty return means
+// no intervention (Last-Modified negotiation as usual).
+func spaCacheControl(p string) string {
+	if strings.HasPrefix(p, "/assets/") && vfsAssetHashRE.MatchString(p) {
+		return "public, max-age=31536000, immutable"
+	}
+	if strings.HasSuffix(p, ".html") || strings.HasSuffix(p, "/") || p == "" {
+		return "no-cache"
+	}
+	return ""
 }
 
 // toHTTPError returns a non-specific HTTP error message and status code

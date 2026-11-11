@@ -1,6 +1,7 @@
 ---
 title: "Conditions"
 weight: 45
+bookCollapseSection: true
 ---
 # Conditions
 

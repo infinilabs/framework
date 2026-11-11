@@ -31,7 +31,10 @@ import (
 
 	httprouter "infini.sh/framework/core/api/router"
 
+	"infini.sh/framework/core/lane"
 	"infini.sh/framework/core/pipeline"
+	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/pipeline/dryrun"
 )
 
 // getProcessorsHandler serves GET /pipeline/processors: the registry of
@@ -46,4 +49,56 @@ func (module *PipeModule) getProcessorsHandler(w http.ResponseWriter, req *http.
 		return
 	}
 	module.WriteJSON(w, pipeline.GetProcessorMetadata(), 200)
+}
+
+// postDryRunHandler — POST /pipeline/dry-run
+// The unified dry-run (single definition): chain + inline samples +
+// options → Report (per-step snapshots, field diffs, captured writes).
+type dryRunRequest struct {
+	Processor []map[string]interface{} `json:"processor"`
+	Samples   []struct {
+		Raw   string `json:"raw"`
+		Codec string `json:"codec"`
+	} `json:"samples"`
+	Options struct {
+		ScopeCheck  bool   `json:"scope_check"`
+		SideEffects string `json:"side_effects"`
+		LLMPolicy   string `json:"llm_policy"`
+	} `json:"options"`
+}
+
+func (module *PipeModule) postDryRunHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	var body dryRunRequest
+	if err := module.DecodeJSON(req, &body); err != nil {
+		module.WriteError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	samples := make([]dryrun.Sample, 0, len(body.Samples))
+	for _, s := range body.Samples {
+		samples = append(samples, dryrun.Sample{Raw: []byte(s.Raw), Codec: s.Codec})
+	}
+	report, err := dryrun.Run(body.Processor, samples, dryrun.Options{
+		ScopeCheck:  body.Options.ScopeCheck,
+		SideEffects: body.Options.SideEffects,
+		LLMPolicy:   body.Options.LLMPolicy,
+	})
+	if err != nil {
+		module.WriteError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	module.WriteJSON(w, report, http.StatusOK)
+}
+
+// getLanesHandler — GET /pipeline/lanes
+// Live snapshot of every lane: depth/rates/drops/spills/blocked_waits —
+// the in-process counterpart of queue depth observability.
+func (module *PipeModule) getLanesHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	module.WriteJSON(w, util.MapStr{"lanes": lane.List()}, 200)
+}
+
+// getCodecsHandler — GET /pipeline/codecs
+// Discovery view of the record codec registry (name / namespace / version),
+// feeding for_each's codec picker and the canvas.
+func (module *PipeModule) getCodecsHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	module.WriteJSON(w, util.MapStr{"codecs": pipeline.ListRecordCodecs()}, 200)
 }

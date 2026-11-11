@@ -9,8 +9,8 @@ import (
 	"os"
 	"testing"
 
-	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/keystore"
+	"infini.sh/framework/core/model"
 	ucfg "infini.sh/framework/lib/go-ucfg"
 )
 

@@ -26,7 +26,10 @@
 
 package pipeline
 
-import "infini.sh/framework/core/event"
+import (
+	"infini.sh/framework/core/event"
+	"infini.sh/framework/core/util"
+)
 
 // ──────────────────────────────────────────────────────────────────────────
 // Record processing convention (framework-level; see
@@ -161,4 +164,29 @@ func TakeClones(ctx *Context) []*event.Event {
 		return out
 	}
 	return nil
+}
+
+// TraceIDLabel is the metadata label carrying the record-level trace id.
+// Entries (consumer / lane hosts / connectors) stamp it once; it then rides
+// the record across queues and lanes unchanged (D5 correlation).
+const TraceIDLabel = "_trace_id"
+
+// SetTraceID stamps the trace id onto the record's metadata labels.
+func SetTraceID(rec *event.Event, id string) {
+	if rec == nil || id == "" {
+		return
+	}
+	if rec.Metadata.Labels == nil {
+		rec.Metadata.Labels = util.MapStr{}
+	}
+	rec.Metadata.Labels[TraceIDLabel] = id
+}
+
+// TraceID reads the record's trace id ("" when unset).
+func TraceID(rec *event.Event) string {
+	if rec == nil || rec.Metadata.Labels == nil {
+		return ""
+	}
+	v, _ := rec.Metadata.Labels[TraceIDLabel].(string)
+	return v
 }

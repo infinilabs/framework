@@ -65,6 +65,11 @@ type Instance struct {
 	// registration/heartbeat upserts preserve the stored value.
 	Groups []string `json:"groups,omitempty" elastic_mapping:"groups:{type:keyword}"`
 
+	// Alias is a SERVER-OWNED display name (UI-managed, e.g. "edge-gateway-prod"):
+	// shown in the management UI in place of the auto-generated instance
+	// name. Like Groups, heartbeat upserts preserve the stored value.
+	Alias string `json:"alias,omitempty" elastic_mapping:"alias:{type:keyword,copy_to:search_text}"`
+
 	//user can pass
 	Description string `json:"description,omitempty" config:"description" elastic_mapping:"description:{type:keyword}"`
 
@@ -80,6 +85,17 @@ type Instance struct {
 	Network  NetworkInfo   `json:"network,omitempty" elastic_mapping:"network: { type: object }"`
 	Services []ServiceInfo `json:"services,omitempty" elastic_mapping:"services: { type: object }"`
 	Status   string        `json:"status,omitempty" elastic_mapping:"status: { type: keyword, copy_to:search_text }"`
+
+	// RuntimePipelines is the instance's live pipeline state, reported via
+	// configs _sync and consumed by the deployment reconciler. Stored as
+	// a JSON string (map[string]PipelineRuntimeState).
+	RuntimePipelines string `json:"runtime_pipelines,omitempty" elastic_mapping:"runtime_pipelines:{type:text}"`
+
+	// Cordoned mirrors the instance-local maintenance flag (#121): running
+	// tasks drain but nothing starts. Reported with every _sync (#128) so
+	// the control plane can surface it; placement deliberately keeps
+	// flowing configs to cordoned instances (recall would strand tasks).
+	Cordoned bool `json:"cordoned,omitempty" elastic_mapping:"cordoned:{type:boolean}"`
 
 	//SearchText string   `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 }

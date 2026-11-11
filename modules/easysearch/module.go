@@ -21,6 +21,13 @@ import (
 // registration is a later refactor.
 type Module struct {
 	moduleConfig moduleConfig
+
+	// EnabledByDefault lets the registering app opt the module in when the
+	// yml carries no `easysearch:` section. The gateway sets this: its
+	// documented role includes receiving LogPilot's sink-cluster pushes on
+	// /easysearch/ at publish time, and a missing section silently broke
+	// that flow with bare 404s (found live in #130 acceptance).
+	EnabledByDefault bool
 }
 
 type moduleConfig struct {
@@ -34,6 +41,9 @@ func (m *Module) Setup() {
 	exists, err := env.ParseConfig("easysearch", &m.moduleConfig)
 	if exists && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
+	}
+	if !exists && m.EnabledByDefault {
+		m.moduleConfig.Enabled = true
 	}
 
 	if !m.moduleConfig.Enabled {

@@ -166,11 +166,16 @@ func clauseToSQL(clause *orm.Clause, resolve FieldResolver) (string, []interface
 		}
 	}
 
-	// must_not is combined with AND NOT
+	// must_not is combined with AND NOT. A predicate over a MISSING
+	// field yields NULL under SQL three-valued logic (NOT NULL = NULL =
+	// row dropped), but Elasticsearch semantics say a missing field never
+	// matches the inner term — so must_not passes and the row survives.
+	// IFNULL folds that NULL to false before the NOT, restoring the
+	// engine's contract for sparse fields.
 	for _, sub := range clause.MustNotClauses {
 		sql, args := clauseToSQL(sub, resolve)
 		if sql != "" {
-			parts = append(parts, fmt.Sprintf("NOT (%s)", sql))
+			parts = append(parts, fmt.Sprintf("NOT (IFNULL(%s, 0))", sql))
 			allArgs = append(allArgs, args...)
 		}
 	}

@@ -35,6 +35,12 @@ func InitSchema() error {
 
 var handler ORM
 
+// IsHandlerRegistered reports whether an ORM backend is available —
+// lightweight instances (agents without sqlite/ES) have none.
+func IsHandlerRegistered() bool {
+	return handler != nil
+}
+
 func getHandler() ORM {
 	if handler == nil {
 		panic(errors.New("ORM handler is not registered"))

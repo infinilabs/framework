@@ -24,6 +24,8 @@ import (
 
 	"infini.sh/framework/core/api/websocket/reverse"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/kv"
+	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
 	common "infini.sh/framework/modules/configs/common"
 )
@@ -46,6 +48,10 @@ func Setup() {
 		if !global.Env().SystemConfig.Configs.Managed {
 			return
 		}
+		// instance-ops keys are declared as constants and never route-
+		// registered; register them now so the permission filter can
+		// resolve the system:* route options on manager callbacks
+		security.GetOrInitPermissionKeys(security.InstanceOpsPermissionKeys()...)
 		go run()
 	})
 }
@@ -246,8 +252,14 @@ func execute(reqMsg reverse.RequestMessage) (int, []byte) {
 		req.Header.Set("Content-Type", util.ContentTypeJson)
 	}
 	// Authenticate the loopback call with the agent's own API token so
-	// it passes the access_token realm.
-	if tok, _ := common.LoadTokenFromKeystore("AGENT_API_ACCESS_TOKEN"); tok != "" {
+	// it passes the access_token realm. A keystore token with no matching
+	// record in the security KV bucket (stale from a wiped data dir, or
+	// provisioned by another flow) is re-minted.
+	tok, _ := common.LoadTokenFromKeystore("AGENT_API_ACCESS_TOKEN")
+	if tok == "" || !loopbackTokenKnown(tok) {
+		tok = ensureLoopbackToken()
+	}
+	if tok != "" {
 		req.Header.Set("X-API-Token", strings.TrimSpace(tok))
 	}
 	client := &http.Client{Timeout: requestDeadline}
@@ -258,6 +270,72 @@ func execute(reqMsg reverse.RequestMessage) (int, []byte) {
 	defer func() { _ = resp.Body.Close() }()
 	data, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, data
+}
+
+// loopbackTokenKnown reports whether the token string has a usable record
+// in the "access_token" KV bucket (the security filter's X-API-TOKEN
+// lookup table — modules/security/access_token.KVAccessTokenBucket): the
+// record must exist AND carry every instance-ops permission, so tokens
+// minted by older builds get upgraded.
+func loopbackTokenKnown(tok string) bool {
+	v, err := kv.GetValue("access_token", []byte(tok))
+	if err != nil || len(v) == 0 {
+		return false
+	}
+	at := security.AccessToken{}
+	if util.FromJSONBytes(v, &at) != nil {
+		return false
+	}
+	have := map[security.PermissionKey]bool{}
+	for _, k := range at.Permissions {
+		have[k] = true
+	}
+	for _, k := range security.InstanceOpsPermissionKeys() {
+		if !have[k] {
+			return false
+		}
+	}
+	return true
+}
+
+// ensureLoopbackToken mints (once) a local API token carrying every
+// registered permission, so manager callbacks proxied onto the agent's
+// own HTTP API pass the access_token realm. The record goes into the KV
+// bucket the security filter reads; the token string is cached in the
+// keystore so restarts reuse it instead of accumulating records.
+var (
+	loopbackOnce  sync.Once
+	loopbackToken string
+)
+
+func ensureLoopbackToken() string {
+	loopbackOnce.Do(func() {
+		// union the declared instance-ops keys (registered at Setup) with
+		// everything route-registration has already added, for the widest
+		// callback compatibility
+		perms := append(security.InstanceOpsPermissionKeys(), security.GetAllPermissionKeys()...)
+
+		tok := util.GetUUID() + util.GenerateRandomString(64)
+		at := security.AccessToken{
+			Name:        "reverse-channel-loopback",
+			Description: "auto-minted local token for manager reverse-channel callbacks",
+			Permissions: perms,
+			ExpireIn:    -1, // never
+		}
+		at.ID = util.GetUUID()
+		at.SetOwnerID(global.Env().SystemConfig.NodeConfig.ID)
+		if err := kv.AddValue("access_token", []byte(tok), util.MustToJSONBytes(&at)); err != nil {
+			log.Errorf("agent reverse channel: mint loopback token failed: %v", err)
+			return
+		}
+		if err := common.SaveTokenToKeystore("AGENT_API_ACCESS_TOKEN", tok); err != nil {
+			log.Errorf("agent reverse channel: persist loopback token failed: %v", err)
+			// still usable this run; next start mints again
+		}
+		loopbackToken = tok
+		log.Info("agent reverse channel: loopback API token minted for manager callbacks")
+	})
+	return loopbackToken
 }
 
 // localBaseURL derives the agent's own serving address.

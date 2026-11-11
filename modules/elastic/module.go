@@ -423,6 +423,15 @@ var ormInited bool
 func (module *ElasticModule) Start() error {
 
 	if !moduleConfig.Enabled {
+		// The client provider and the ORM change hook are registered even
+		// when this module is disabled, so runtime cluster pushes via the
+		// /easysearch/ API work without it. A restart must not silently lose
+		// that persisted state: restore dynamic clusters as live clients
+		// here too. Best-effort — the sqlite ORM backend starts before this
+		// module, failures just log a warning.
+		if global.Env().SystemConfig.ORMConfig.Enabled {
+			LoadClustersFromORM()
+		}
 		return nil
 	}
 

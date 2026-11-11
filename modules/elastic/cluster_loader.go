@@ -23,6 +23,14 @@ import (
 // created via the /easysearch/ API (served by modules/easysearch) usable as
 // live clients after (re)start.
 func LoadClustersFromORM() {
+	// Lightweight instances (e.g. agents) run without any ORM backend —
+	// getHandler() panics when none is registered, and the agent's module
+	// start order may also reach here before the backend registers. Nothing
+	// to load in either case; skip quietly.
+	if !orm.IsHandlerRegistered() {
+		log.Debug("no ORM backend registered, skip loading clusters from ORM")
+		return
+	}
 	ctx := orm.NewContext().DirectAccess()
 	orm.WithModel(ctx, &elastic.ElasticsearchConfig{})
 	res, err := orm.SearchV2(ctx, orm.NewQuery().Size(1000))

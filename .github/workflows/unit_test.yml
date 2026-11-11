@@ -50,3 +50,69 @@ jobs:
                 cd $WORK
                 echo Testing code at $PWD ...
                 OFFLINE_BUILD=true CI=true make tidy test
+
+    enterprise-test:
+        timeout-minutes: 60
+        runs-on: ubuntu-latest
+        env:
+            GO_VERSION: 1.23.4
+        steps:
+            - name: Checkout current repository
+              uses: actions/checkout@v4
+              with:
+                path: framework
+
+            - name: Set up go toolchain
+              uses: actions/setup-go@v5
+              with:
+                go-version: ${{ env.GO_VERSION }}
+                check-latest: false
+                cache: true
+
+            # Enterprise plugins overlay (private repo): prefer the branch
+            # matching this PR's branch name, fall back to the default branch
+            # when it does not exist there; the license module is a build
+            # dependency of the overlay.
+            - name: Checkout enterprise plugins overlay
+              env:
+                CI_GH_TOKEN: ${{ secrets.CI_TOKEN || secrets.DOCS_DEPLOYMENT_TOKEN }}
+                OVERLAY_REF: ${{ github.head_ref }}
+              run: |
+                set -e
+                REPO="https://x-access-token:${CI_GH_TOKEN}@github.com/infinilabs/framework-enterprise-plugins.git"
+                if [ -n "$OVERLAY_REF" ] && git ls-remote --exit-code --heads "$REPO" "refs/heads/${OVERLAY_REF}" >/dev/null 2>&1; then
+                    git clone --depth 1 --branch "${OVERLAY_REF}" "$REPO" framework/plugins/enterprise
+                else
+                    git clone --depth 1 "$REPO" framework/plugins/enterprise
+                fi
+                git -C framework/plugins/enterprise log --oneline -1
+
+            - name: Checkout license module
+              uses: actions/checkout@v4
+              with:
+                token: ${{ secrets.CI_TOKEN || secrets.DOCS_DEPLOYMENT_TOKEN }}
+                repository: infinilabs/license
+                ref: main
+                path: license
+
+            - name: Check go toolchain
+              run: go version
+
+            - name: Unit test with enterprise overlay
+              env:
+                GOFLAGS: -tags=ci
+              run: |
+                echo Home path is $HOME
+                export WORKBASE=$HOME/go/src/infini.sh
+                export WORK=$WORKBASE/framework
+
+                # for test workspace
+                mkdir -p $HOME/go/src/
+                ln -s $GITHUB_WORKSPACE $WORKBASE
+
+                # the overlay's umbrella packages need the private infini.sh/license module (kept out of go.mod)
+                cd $WORK
+                go mod edit -replace infini.sh/license=../license
+
+                echo "Testing code at $PWD (with enterprise overlay) ..."
+                OFFLINE_BUILD=true CI=true make tidy test

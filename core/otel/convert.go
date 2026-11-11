@@ -61,6 +61,7 @@ func FromEvent(e *event.Event) *LogRecord {
 	if v, ok := resourceMap(e.Meta); ok {
 		r.Resource = v
 	}
+	r.Resource = agentToResource(e.Agent, r.Resource)
 
 	r.SeverityText, _ = r.Attributes[FieldLogLevel].(string)
 	r.Body = r.Attributes[FieldMessage]
@@ -120,7 +121,73 @@ func (r *LogRecord) ToEvent() *event.Event {
 		}
 		e.Meta[MetaResourceKey] = r.Resource.Clone()
 	}
+	if e.Agent == nil {
+		e.Agent = agentFromResource(r.Resource)
+	}
 	return e
+}
+
+// agentToResource merges the collecting agent's identity into the record's
+// Resource attributes so it survives the OTLP wire — the LogRecord model has
+// no other carrier for it. Existing keys win: a resource that already
+// describes its host (e.g. written by an upstream processor) is not
+// overwritten, which also keeps cascaded exports idempotent. The merge is
+// deterministic, so mutating a referenced resource map in place is safe.
+func agentToResource(a *event.AgentMeta, res util.MapStr) util.MapStr {
+	if a == nil {
+		return res
+	}
+	if res == nil {
+		res = util.MapStr{}
+	}
+	setIfAbsent(res, ResourceHostName, a.Hostname)
+	setIfAbsent(res, ResourceHostIP, a.MajorIP)
+	setIfAbsent(res, ResourceAgentID, a.AgentID)
+	if len(a.Tags) > 0 {
+		setIfAbsent(res, ResourceAgentTags, a.Tags)
+	}
+	return res
+}
+
+// agentFromResource rebuilds the collecting agent identity from Resource
+// attributes written by agentToResource — the OTLP intake path has no other
+// source for it. A resource without any agent-describing key yields nil.
+func agentFromResource(res util.MapStr) *event.AgentMeta {
+	if res == nil {
+		return nil
+	}
+	a := &event.AgentMeta{}
+	a.AgentID, _ = res[ResourceAgentID].(string)
+	a.Hostname, _ = res[ResourceHostName].(string)
+	a.MajorIP, _ = res[ResourceHostIP].(string)
+	switch v := res[ResourceAgentTags].(type) {
+	case []string:
+		a.Tags = v
+	case []interface{}: // OTLP wire round-trip decodes arrays as []interface{}
+		tags := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				tags = append(tags, s)
+			}
+		}
+		if len(tags) > 0 {
+			a.Tags = tags
+		}
+	}
+	if a.AgentID == "" && a.Hostname == "" && a.MajorIP == "" && len(a.Tags) == 0 {
+		return nil
+	}
+	return a
+}
+
+func setIfAbsent(m util.MapStr, k string, v interface{}) {
+	if _, ok := m[k]; ok {
+		return
+	}
+	if s, ok := v.(string); ok && s == "" {
+		return
+	}
+	m[k] = v
 }
 
 func resourceMap(meta util.MapStr) (util.MapStr, bool) {

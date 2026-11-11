@@ -28,13 +28,17 @@
 package env
 
 type Version struct {
-	VersionNumber                  string `json:"number,omitempty"`
-	FrameworkBuildCommitHash       string `json:"framework_hash,omitempty"`
-	FrameworkVendorBuildCommitHash string `json:"vendor_hash,omitempty"`
-	BuildCommitHash                string `json:"build_hash,omitempty"`
-	BuildDate                      string `json:"build_date,omitempty"`
-	BuildNumber                    string `json:"build_number,omitempty"`
-	EolDate                        string `json:"eol_date,omitempty"`
+	VersionNumber                  string `json:"number,omitempty" elastic_mapping:"number: { type: keyword }"`
+	FrameworkBuildCommitHash       string `json:"framework_hash,omitempty" elastic_mapping:"framework_hash: { type: keyword }"`
+	FrameworkVendorBuildCommitHash string `json:"vendor_hash,omitempty" elastic_mapping:"vendor_hash: { type: keyword }"`
+	BuildCommitHash                string `json:"build_hash,omitempty" elastic_mapping:"build_hash: { type: keyword }"`
+	// BuildDate/EolDate must map to keyword, never a dynamic date: binaries
+	// built without version ldflags report placeholders ("N/A"), which a
+	// date mapping rejects with document_parsing_exception — killing
+	// instance heartbeats on indices whose mapping predates this pin.
+	BuildDate   string `json:"build_date,omitempty" elastic_mapping:"build_date: { type: keyword }"`
+	BuildNumber string `json:"build_number,omitempty" elastic_mapping:"build_number: { type: keyword }"`
+	EolDate     string `json:"eol_date,omitempty" elastic_mapping:"eol_date: { type: keyword }"`
 }
 
 func (env *Env) GetVersionInfo() Version {

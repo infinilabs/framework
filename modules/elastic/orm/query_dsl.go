@@ -242,6 +242,14 @@ func BuildQueryDSL(q *orm.QueryBuilder) map[string]interface{} {
 		dsl["aggs"] = aggs
 	}
 
+	// body-level parameters land at the DSL root next to query/from/size;
+	// in the OnTopOfDSL paths this runs inside the override map, so an
+	// explicit BodyParameter also beats a raw request-body key of the same
+	// name
+	for k, v := range q.BodyParametersVal() {
+		dsl[k] = v
+	}
+
 	return dsl
 }
 

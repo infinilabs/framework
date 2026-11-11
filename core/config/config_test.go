@@ -971,3 +971,47 @@ func TestLoadFileExpandsConfigTemplatesPlain(t *testing.T) {
 	assert.Equal(t, out.Entry[0].Name, "my_entry_test_entry")
 	assert.Equal(t, out.Entry[0].Network.Binding, "127.0.0.1:8002")
 }
+
+// A processor entry with an empty body (`- echo: {}`) must keep its key
+// through LoadPath + Unpack. Empty dicts used to reify to nil, which made
+// the KEY vanish from map[string]interface{} targets and broke every
+// config-file-loaded pipeline (managed instances saw "each processor must
+// have exactly one action, but found 0 actions").
+func TestLoadPathKeepsEmptyProcessorKeys(t *testing.T) {
+	dir := t.TempDir()
+	yml := "pipeline:\n" +
+		"  - name: t\n" +
+		"    auto_start: false\n" +
+		"    processor:\n" +
+		"      - echo: {}\n" +
+		"      - node_stamp:\n" +
+		"          field: x\n"
+	if err := os.WriteFile(filepath.Join(dir, "p.yml"), []byte(yml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadPath(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, err := cfg.Child("pipeline", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type rawPipeline struct {
+		Processor []map[string]interface{} `config:"processor"`
+	}
+	list := []rawPipeline{}
+	if err := child.Unpack(&list); err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || len(list[0].Processor) != 2 {
+		t.Fatalf("unexpected unpack result: %#v", list)
+	}
+	if _, ok := list[0].Processor[0]["echo"]; !ok {
+		t.Fatalf("empty processor body lost its key: %#v", list[0].Processor[0])
+	}
+	if _, ok := list[0].Processor[1]["node_stamp"]; !ok {
+		t.Fatalf("node_stamp lost its key: %#v", list[0].Processor[1])
+	}
+}
