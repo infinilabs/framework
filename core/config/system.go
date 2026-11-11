@@ -25,6 +25,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"strings"
 	"sync"
 
@@ -92,13 +93,38 @@ func (cfg *NetworkConfig) SetEffectiveBinding(addr string) {
 	}
 }
 
-// GetEffectiveAddr returns the runtime listen address, falling back to
-// Publish/Binding while nothing has been recorded.
-func (cfg NetworkConfig) GetEffectiveAddr() string {
+// GetEffectiveBinding returns the runtime listen address exactly as bound
+// (wildcards and brackets intact), falling back to the configured binding
+// while nothing is listening. Dialers talking to THIS process locally
+// (reverse-channel loopback) want this raw address, not the advertised
+// endpoint GetEffectiveAddr resolves to.
+func (cfg NetworkConfig) GetEffectiveBinding() string {
 	if cfg.EffectiveBinding != "" {
 		return cfg.EffectiveBinding
 	}
-	return cfg.GetPublishAddr()
+	return cfg.GetBindingAddr()
+}
+
+// GetEffectiveAddr returns the advertised endpoint. An explicit Publish wins
+// outright — operator intent for NAT/public mappings must survive the
+// listener opening. Otherwise the runtime port is combined with the binding
+// host, wildcards resolving to an intranet IP; while nothing is listening it
+// falls back to the static config.
+func (cfg NetworkConfig) GetEffectiveAddr() string {
+	if cfg.EffectiveBinding == "" || cfg.Publish != "" {
+		return cfg.GetPublishAddr()
+	}
+	host, port, err := net.SplitHostPort(cfg.EffectiveBinding)
+	if err != nil {
+		return cfg.GetPublishAddr()
+	}
+	switch host {
+	case "", "0.0.0.0", "::":
+		if ip, err := util.GetIntranetIP(); err == nil && ip != "" {
+			host = ip
+		}
+	}
+	return host + ":" + port
 }
 
 // GetEffectivePort returns the runtime listen port, falling back to the
