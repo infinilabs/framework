@@ -155,6 +155,14 @@ func AckSetOf(ctx *Context) *AckSet {
 	return s
 }
 
+// AttachTo shares this commit gate with a derived execution context while
+// leaving that context's record, clone and failure-tag parameters isolated.
+func (s *AckSet) AttachTo(ctx *Context) {
+	if s != nil && ctx != nil {
+		ctx.Set(ackSetKey, s)
+	}
+}
+
 // Add registers a receipt with this set.
 func (s *AckSet) Add(r *receiptImpl) { s.AddReceipt(r) }
 

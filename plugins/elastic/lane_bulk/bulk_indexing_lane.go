@@ -164,11 +164,8 @@ func (processor *BulkIndexingLaneProcessor) Process(ctx *pipeline.Context) error
 		return nil
 	}
 
-	// Re-bind per run: the previous run's exit DELETED this name, and the
-	// task's _start/_resume reuses this compiled processor without calling
-	// the constructor — subscribing to the dead handle while the merge
-	// side's GetOrCreate already rebuilt a fresh lane would permanently
-	// disconnect the pair. Capacity matches the constructor's auto-create.
+	// Rebind the lane on each run because task restart reuses this processor.
+	// A closed registration retains the original configuration for recovery.
 	processor.inputLane = lane.GetOrCreate(lane.LaneConfig{Name: processor.config.Lane, Capacity: autoLaneCapacity})
 
 	// batch width tracks the worker fan-out: batch_max payloads are picked
@@ -176,13 +173,14 @@ func (processor *BulkIndexingLaneProcessor) Process(ctx *pipeline.Context) error
 	// records below batch_max rely on the timer) and sent
 	// worker_size-at-a-time
 	batchMax := processor.config.WorkerSize * 2
-	_ = processor.inputLane.SubscribeBatch(batchMax, time.Duration(processor.config.BatchFlushMs)*time.Millisecond, func(recs []*event.Event) {
+	cancel := processor.inputLane.SubscribeBatch(batchMax, time.Duration(processor.config.BatchFlushMs)*time.Millisecond, func(recs []*event.Event) {
 		processor.sendBatch(ctx, meta, recs)
 	})
 
 	<-ctx.Done()
-	_ = lane.Delete(processor.config.Lane, true)
-	return nil
+	err := processor.inputLane.Close()
+	cancel()
+	return err
 }
 
 // sendBatch delivers one micro-batch: records are dealt across workers,

@@ -64,14 +64,16 @@ type Stats struct {
 }
 
 type laneImpl struct {
-	cfg     LaneConfig
-	ch      chan *event.Event
-	mu      sync.Mutex // guards counters + closed + pending
-	stats   Stats
-	spillQ  *queue.QueueConfig
-	pending map[*event.Event]*laneReceipt
-	quit    chan struct{}
-	once    sync.Once
+	cfg       LaneConfig
+	ch        chan *event.Event
+	mu        sync.Mutex // guards counters + closed + pending
+	stats     Stats
+	spillQ    *queue.QueueConfig
+	spillOnce sync.Once
+	spillErr  error
+	pending   map[*event.Event]*laneReceipt
+	quit      chan struct{}
+	once      sync.Once
 }
 
 // Lane is one named bounded record channel.
@@ -85,6 +87,9 @@ type Lane interface {
 	// records settle only after fn(batch) returns (batch hosts flush on
 	// size or idle timeout).
 	SubscribeBatch(max int, flushInterval time.Duration, fn func(recs []*event.Event)) (cancel func())
+	// SubscribeBatchWithError settles the batch's receipts with fn's result.
+	// A failed durable output must fail the producer's commit gate.
+	SubscribeBatchWithError(max int, flushInterval time.Duration, fn func(recs []*event.Event) error) (cancel func())
 	Subscribe(h Handler) (cancel func())
 	Depth() int
 	Snapshot() Stats
@@ -250,7 +255,7 @@ func (l *laneImpl) overflowPolicy() string {
 // spill encodes the record (three-level codec resolution, mirroring the
 // lane_consumer output bridge) and degrades it to the disk queue.
 func (l *laneImpl) spill(rec *event.Event) error {
-	if l.spillQ == nil {
+	l.spillOnce.Do(func() {
 		qname := ""
 		if p := util.TrimSpaces(l.cfg.Overflow); strings.HasPrefix(p, "spill:") {
 			qname = util.TrimSpaces(p[len("spill:"):])
@@ -258,10 +263,14 @@ func (l *laneImpl) spill(rec *event.Event) error {
 		if qname == "" {
 			// bare "spill" carries no target: report the misconfiguration,
 			// Emit degrades to block instead of slicing out of range
-			return fmt.Errorf("lane %s: spill target missing", l.cfg.Name)
+			l.spillErr = fmt.Errorf("lane %s: spill target missing", l.cfg.Name)
+			return
 		}
 		cfg := &queue.QueueConfig{Name: qname}
 		l.spillQ = queue.SmartGetOrInitConfig(cfg)
+	})
+	if l.spillErr != nil {
+		return l.spillErr
 	}
 	codec := l.resolveCodec(rec)
 	b, err := codec.Encode(rec)
@@ -303,13 +312,27 @@ func (l *laneImpl) Subscribe(h Handler) (cancel func()) {
 // the settlement point, keeping EmitAck's commit-gate semantics exact for
 // batching consumers.
 func (l *laneImpl) SubscribeBatch(max int, flushInterval time.Duration, fn func(recs []*event.Event)) (cancel func()) {
+	return l.SubscribeBatchWithError(max, flushInterval, func(recs []*event.Event) error {
+		fn(recs)
+		return nil
+	})
+}
+
+// SubscribeBatchWithError delivers batches and preserves their processing
+// result in ACK receipts. Cancel waits for the active callback to return.
+func (l *laneImpl) SubscribeBatchWithError(max int, flushInterval time.Duration, fn func(recs []*event.Event) error) (cancel func()) {
 	if max <= 0 {
 		max = 1
 	}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	var cancelOnce sync.Once
 	go func() {
+		defer close(done)
 		var batch []*event.Event
 		var receipts []*laneReceipt
 		timer := time.NewTimer(0)
+		defer timer.Stop()
 		if !timer.Stop() {
 			<-timer.C
 		}
@@ -320,9 +343,9 @@ func (l *laneImpl) SubscribeBatch(max int, flushInterval time.Duration, fn func(
 			l.mu.Lock()
 			l.stats.Delivered += int64(len(batch))
 			l.mu.Unlock()
-			fn(batch)
+			err := fn(batch)
 			for _, r := range receipts {
-				r.settle(nil)
+				r.settle(err)
 			}
 			batch = nil
 			receipts = nil
@@ -333,6 +356,9 @@ func (l *laneImpl) SubscribeBatch(max int, flushInterval time.Duration, fn func(
 				flushC = timer.C
 			}
 			select {
+			case <-stop:
+				flush()
+				return
 			case rec, ok := <-l.ch:
 				if !ok {
 					flush()
@@ -386,7 +412,10 @@ func (l *laneImpl) SubscribeBatch(max int, flushInterval time.Duration, fn func(
 			}
 		}
 	}()
-	return func() { /* subscriber cancel: lanes are single-consumer v1 */ }
+	return func() {
+		cancelOnce.Do(func() { close(stop) })
+		<-done
+	}
 }
 
 func (l *laneImpl) Depth() int { return len(l.ch) }
@@ -427,53 +456,47 @@ func Create(cfg LaneConfig) (Lane, error) {
 	if cfg.Name == "" {
 		return nil, fmt.Errorf("lane name is empty")
 	}
+	regMu.Lock()
+	defer regMu.Unlock()
+	if _, exists := registry[cfg.Name]; exists {
+		return nil, fmt.Errorf("lane %s already exists", cfg.Name)
+	}
+	l := newLane(cfg)
+	registry[cfg.Name] = l
+	return l, nil
+}
+
+// Helper function to construct a lane without changing the registry.
+func newLane(cfg LaneConfig) Lane {
 	if cfg.Capacity <= 0 {
 		cfg.Capacity = defaultCapacity
 		if cfg.Owner != "" {
 			cfg.Capacity = dynamicCapacity // dynamic lanes default small
 		}
 	}
-	regMu.Lock()
-	defer regMu.Unlock()
-	if _, exists := registry[cfg.Name]; exists {
-		return nil, fmt.Errorf("lane %s already exists", cfg.Name)
-	}
-	l := &laneImpl{cfg: cfg, ch: make(chan *event.Event, cfg.Capacity), quit: make(chan struct{})}
-	registry[cfg.Name] = l
-	return l, nil
+	return &laneImpl{cfg: cfg, ch: make(chan *event.Event, cfg.Capacity), quit: make(chan struct{})}
 }
 
 // GetOrCreate returns the named OPEN lane, creating it lazily on first Emit
 // (dynamic pipelines; owner tags it for cascade cleanup). A registered but
-// CLOSED instance is replaced with a fresh one built from cfg — lane
+// CLOSED instance is replaced with a fresh one using its original config. Lane
 // consumers close their lane on task exit, and without replacement the
 // registry would hold a permanently-unusable lane that wedges every
 // producer (emit fails "closed" forever, consumer restarts cannot recover).
 func GetOrCreate(cfg LaneConfig) Lane {
-	regMu.RLock()
-	l, ok := registry[cfg.Name]
-	closed := ok && l.Snapshot().Closed
-	regMu.RUnlock()
-	if ok && !closed {
-		return l
-	}
-	if closed {
-		regMu.Lock()
-		// re-check under the write lock: a concurrent replacer may have won
-		if cur, still := registry[cfg.Name]; still && !cur.Snapshot().Closed {
-			regMu.Unlock()
-			return cur
+	regMu.Lock()
+	defer regMu.Unlock()
+	if l := registry[cfg.Name]; l != nil {
+		if !l.Snapshot().Closed {
+			return l
 		}
-		delete(registry, cfg.Name)
-		regMu.Unlock()
+		cfg = l.Config()
 	}
-	l, err := Create(cfg)
-	if err != nil {
-		regMu.RLock()
-		existing := registry[cfg.Name]
-		regMu.RUnlock()
-		return existing // lost the race: the winner's instance wins
+	if cfg.Name == "" {
+		return nil
 	}
+	l := newLane(cfg)
+	registry[cfg.Name] = l
 	return l
 }
 
@@ -493,21 +516,20 @@ func Get(name string) Lane {
 // Delete removes a lane; refuses while records are in flight unless force.
 func Delete(name string, force bool) error {
 	regMu.Lock()
+	defer regMu.Unlock()
 	l, ok := registry[name]
 	if !ok {
-		// absent is success (idempotent delete) — but NEVER while holding
-		// the write lock: every later registry op would block forever
-		regMu.Unlock()
 		return nil
 	}
-	regMu.Unlock()
 	if !force && l.Depth() > 0 {
 		return fmt.Errorf("lane %s has %d in-flight records (force to drop)", name, l.Depth())
 	}
-	l.Close()
-	regMu.Lock()
+	if err := l.Close(); err != nil {
+		return err
+	}
+	// Hold the registry lock through close and removal so a producer cannot
+	// install a replacement that this deletion would then remove.
 	delete(registry, name)
-	regMu.Unlock()
 	return nil
 }
 

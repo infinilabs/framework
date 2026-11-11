@@ -118,35 +118,38 @@ func (p *LaneConsumerProcessor) ApplyScope(scope pipeline.ScopeInfo) error {
 // Process subscribes (once) and blocks until the pipeline task cancels —
 // the host drives the lane for its whole lifetime.
 func (p *LaneConsumerProcessor) Process(ctx *pipeline.Context) error {
-	// Re-bind per run: the previous run's exit DELETED this name, and the
-	// task's _start/_resume reuses this compiled processor without calling
-	// the constructor — a stale handle would subscribe to the dead lane
-	// while the producers' GetOrCreate already rebuilt a fresh one.
+	// Re-bind per run: the previous run closed this lane, and the
+	// task's _start/_resume reuses this compiled processor. GetOrCreate
+	// preserves the closed lane's config regardless of which producer or
+	// consumer recreates it first.
 	p.lane = lane.GetOrCreate(lane.LaneConfig{Name: p.cfg.Lane})
 	segments := buildSegments(p.sub.List)
-	batchFn := func(recs []*event.Event) {
-		p.runBatch(ctx, segments, recs)
+	batchFn := func(recs []*event.Event) error {
+		err := p.runBatch(ctx, segments, recs)
+		if err != nil {
+			// The receipt carries the delivery error even if logging fails.
+			_ = log.Errorf("lane_consumer: batch delivery failed: %v", err)
+		}
+		return err
 	}
-	_ = p.lane.SubscribeBatch(p.cfg.BatchMax, time.Duration(p.cfg.BatchFlushMs)*time.Millisecond, batchFn)
+	cancel := p.lane.SubscribeBatchWithError(p.cfg.BatchMax, time.Duration(p.cfg.BatchFlushMs)*time.Millisecond, batchFn)
 	<-ctx.Done()
-	// Delete (close + unregister), not bare Close: a closed-but-registered
-	// lane accepts nothing forever and wedges every producer, and this
-	// task's own restart would re-bind the dead instance. Delete keeps the
-	// Close drain semantics (buffered batch flushes, receipts settle) and
-	// lets GetOrCreate re-create the lane on the next cycle.
-	_ = lane.Delete(p.cfg.Lane, true)
-	return nil
+	// Keep the closed registration as the configuration source for restart.
+	// Wait for this run's callback before the processor can bind a new lane.
+	err := p.lane.Close()
+	cancel()
+	return err
 }
 
 // runBatch executes the stage-wise segments over one micro-batch, then
 // encodes survivors into the durable bridge. Receipts of the batch settle
 // when this returns (SubscribeBatch contract) — processing completion is
 // the settlement point.
-func (p *LaneConsumerProcessor) runBatch(ctx *pipeline.Context, segments []execSegment, recs []*event.Event) {
+func (p *LaneConsumerProcessor) runBatch(ctx *pipeline.Context, segments []execSegment, recs []*event.Event) error {
 	active := recs
 	for _, seg := range segments {
 		if ctx.IsCanceled() || !ctx.ShouldContinue() {
-			return
+			return fmt.Errorf("lane_consumer: processing interrupted: %w", context.Canceled)
 		}
 		if seg.batch {
 			live := make([]*event.Event, 0, len(active))
@@ -190,7 +193,9 @@ func (p *LaneConsumerProcessor) runBatch(ctx *pipeline.Context, segments []execS
 			} else if err := seg.chain.Process(c); err != nil {
 				log.Warnf("lane_consumer: record error (on_failure=%s): %v", p.cfg.OnFailure, err)
 				if p.deadQ != nil {
-					p.pushEncoded(p.deadQ, rec)
+					if err := p.pushEncoded(p.deadQ, rec); err != nil {
+						return err
+					}
 					continue // diverted: dead_letter is a settlement
 				}
 			}
@@ -202,15 +207,21 @@ func (p *LaneConsumerProcessor) runBatch(ctx *pipeline.Context, segments []execS
 	}
 	if p.outQ != nil {
 		for _, rec := range active {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			if !pipeline.IsDropped(rec) {
-				p.pushEncoded(p.outQ, rec)
+				if err := p.pushEncoded(p.outQ, rec); err != nil {
+					return err
+				}
 			}
 		}
 	}
+	return nil
 }
 
 // pushEncoded applies the 3-level codec resolution and pushes to a queue.
-func (p *LaneConsumerProcessor) pushEncoded(q *queue.QueueConfig, rec *event.Event) {
+func (p *LaneConsumerProcessor) pushEncoded(q *queue.QueueConfig, rec *event.Event) error {
 	codecName := p.cfg.OutputCodec
 	if codecName == "" {
 		codecName = pipeline.CodecHint(rec)
@@ -226,12 +237,10 @@ func (p *LaneConsumerProcessor) pushEncoded(q *queue.QueueConfig, rec *event.Eve
 	}
 	b, err := codec.Encode(rec)
 	if err != nil {
-		log.Errorf("lane_consumer: encode for output failed: %v", err)
-		return
+		return fmt.Errorf("lane_consumer: encode for queue %q: %w", q.Name, err)
 	}
 	if err := queue.Push(q, b); err != nil {
-		log.Errorf("lane_consumer: push to queue %q failed: %v", q.Name, err)
+		return fmt.Errorf("lane_consumer: push to queue %q: %w", q.Name, err)
 	}
+	return nil
 }
-
-var _ = context.Background // keep context import for future cancellation plumbing

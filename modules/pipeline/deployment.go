@@ -460,6 +460,30 @@ func (module *PipeModule) reconcilePipeline(octx *orm.Context, pipelineID string
 		gateAllowed = allowed
 	}
 
+	// Before retiring a broadcast row, copy its old content to targets whose
+	// rollout wave is still closed. Each instance then keeps its previous
+	// config even after the wildcard is removed. If any copy fails, return
+	// before GC so the wildcard continues to serve the remaining targets.
+	if fallback, ok := existing[configs_server.AllInstancesID]; ok && gateAllowed != nil {
+		if _, broadcast := desired[configs_server.AllInstancesID]; !broadcast {
+			for instID := range desired {
+				if _, exists := existing[instID]; exists || gateAllowed[instID] {
+					continue
+				}
+				row := fallback
+				row.ID = fmt.Sprintf("deploy-%s-%s", pipelineID, instID)
+				row.InstanceID = instID
+				row.Version = maxVersion + 1
+				row.Readonly = true
+				if err := orm.Save(octx, &row); err != nil {
+					return fmt.Errorf("preserve managed config %s→%s: %w", configName, instID, err)
+				}
+				maxVersion = row.Version
+				existing[instID] = row
+			}
+		}
+	}
+
 	for instID, spec := range desired {
 		if gateAllowed != nil && !gateAllowed[instID] {
 			continue // staged rollout: this instance's wave has not opened yet

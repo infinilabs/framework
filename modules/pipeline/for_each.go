@@ -468,12 +468,14 @@ func runRecordSegmentParallel(c *pipeline.Context, chain *pipeline.Processors, a
 	var mu sync.Mutex
 	var firstErr error
 	var wg sync.WaitGroup
+	acks := pipeline.AttachAckSet(c)
 	for w := 0; w < workers; w++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			// per-worker derived context: own record/clone/tag state
 			wc := &pipeline.Context{ParentContext: c, Context: c.Context, Config: c.Config}
+			acks.AttachTo(wc)
 			for {
 				if c.IsCanceled() || !c.ShouldContinue() {
 					return
