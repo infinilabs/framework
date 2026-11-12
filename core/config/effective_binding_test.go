@@ -6,11 +6,36 @@ package config
 
 import (
 	"net"
+	"net/url"
 	"strings"
 	"testing"
 
 	"infini.sh/framework/core/util"
 )
+
+// IPv6 runtime addresses must remain valid in both advertised endpoints.
+func TestGetEffectiveAddrPreservesIPv6Brackets(t *testing.T) {
+	for _, binding := range []string{"[::1]:39123", "[2001:db8::1]:39123"} {
+		t.Run(binding, func(t *testing.T) {
+			cfg := NetworkConfig{Binding: "127.0.0.1:29000"}
+			cfg.SetEffectiveBinding(binding)
+			if got := cfg.GetEffectiveAddr(); got != binding {
+				t.Errorf("GetEffectiveAddr = %q, want %q", got, binding)
+			}
+			web := WebAppConfig{NetworkConfig: cfg}
+			api := APIConfig{NetworkConfig: cfg}
+			for _, endpoint := range []string{web.GetEndpoint(), api.GetEndpoint()} {
+				u, err := url.Parse(endpoint)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, _, err := net.SplitHostPort(u.Host); err != nil {
+					t.Errorf("invalid endpoint %q: %v", endpoint, err)
+				}
+			}
+		})
+	}
+}
 
 // An explicit publish endpoint is operator intent (NAT/public mappings) and
 // must survive the listener opening — the runtime binding only carries the

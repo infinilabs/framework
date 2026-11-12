@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+
+	"infini.sh/framework/core/config"
 )
 
 // writeTempConfig builds a reloadable config file: path.data/path.logs are
@@ -65,6 +67,63 @@ func TestRefreshConfigRestoresBindingsOnLateLoadError(t *testing.T) {
 	setTestBindings(e)
 	if err := e.RefreshConfig(); err == nil {
 		t.Fatal("expected the broken configs dir to fail the reload")
+	}
+	assertTestBindings(t, e)
+}
+
+// Readers must see both runtime bindings while the configuration directory loads.
+func TestRefreshConfigKeepsBindingsDuringLoad(t *testing.T) {
+	dir := t.TempDir()
+	child := filepath.Join(dir, "entry.yml")
+	if err := os.WriteFile(child, []byte("test_value: 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e := EmptyEnv()
+	e.SetConfigFile(writeTempConfig(t, "  configs: "+dir+"\n"))
+	setTestBindings(e)
+	observed := false
+	config.RegisterPathFilter(func(path string) bool {
+		if path == child {
+			observed = true
+			assertTestBindings(t, e)
+		}
+		return false
+	})
+	if err := e.RefreshConfig(); err != nil {
+		t.Fatal(err)
+	}
+	if !observed {
+		t.Fatal("reload did not visit the configuration directory")
+	}
+	assertTestBindings(t, e)
+}
+
+// A recovered load panic must retain both bindings across a later successful reload.
+func TestRefreshConfigKeepsBindingsAfterPanic(t *testing.T) {
+	dir := t.TempDir()
+	child := filepath.Join(dir, "broken.yml")
+	if err := os.WriteFile(child, []byte("{{{ not yaml"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e := EmptyEnv()
+	e.SetConfigFile(writeTempConfig(t, "  configs: "+dir+"\n"))
+	setTestBindings(e)
+	var recovered interface{}
+	func() {
+		defer func() { recovered = recover() }()
+		if err := e.RefreshConfig(); err != nil {
+			t.Errorf("expected a panic, got error: %v", err)
+		}
+	}()
+	if recovered == nil {
+		t.Fatal("expected invalid YAML to cause a panic")
+	}
+	assertTestBindings(t, e)
+	if err := os.WriteFile(child, []byte("test_value: 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.RefreshConfig(); err != nil {
+		t.Fatal(err)
 	}
 	assertTestBindings(t, e)
 }

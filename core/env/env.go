@@ -400,28 +400,10 @@ func (env *Env) loadConfig() error {
 }
 
 func (env *Env) RefreshConfig() error {
-	// Serialize the whole snapshot/load/restore window: refreshLock only
-	// guards loadEnvFromConfigFile's body, so without this outer lock a
-	// concurrent reload could snapshot the gap between SystemConfig
-	// replacement and restore as empty bindings, then persist that
-	// emptiness (SetEffectiveBinding ignores empty values).
+	// Serialize reloads so GetConfigFile cannot overlap another reload's SetConfigFile.
 	refreshConfigLock.Lock()
 	defer refreshConfigLock.Unlock()
-
-	// A config reload replaces SystemConfig wholesale; the listener keeps
-	// serving and the runtime binding does not change with the file —
-	// preserve it, or instance reporting falls back to the configured
-	// value (possibly the port abandoned as occupied).
-	prevWeb := env.SystemConfig.WebAppConfig.NetworkConfig.EffectiveBinding
-	prevAPI := env.SystemConfig.APIConfig.NetworkConfig.EffectiveBinding
-	err := env.loadEnvFromConfigFile(env.GetConfigFile())
-	// Restore even when the load failed: SystemConfig may already have
-	// been replaced before the error surfaced (configs-dir loading with
-	// panic_on_config_error=false), which would drop the live listeners'
-	// runtime bindings.
-	env.SystemConfig.WebAppConfig.NetworkConfig.SetEffectiveBinding(prevWeb)
-	env.SystemConfig.APIConfig.NetworkConfig.SetEffectiveBinding(prevAPI)
-	return err
+	return env.loadEnvFromConfigFile(env.GetConfigFile())
 }
 
 var configObject *config.Config
@@ -445,6 +427,12 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 		return err
 	}
 
+	// Listeners keep serving during reloads, including loads that fail later.
+	// Copy their runtime addresses before readers can access the new configuration.
+	if env.SystemConfig != nil {
+		tempCfg.WebAppConfig.NetworkConfig.SetEffectiveBinding(env.SystemConfig.WebAppConfig.NetworkConfig.EffectiveBinding)
+		tempCfg.APIConfig.NetworkConfig.SetEffectiveBinding(env.SystemConfig.APIConfig.NetworkConfig.EffectiveBinding)
+	}
 	env.SystemConfig = &tempCfg
 	//initialize node config
 	env.findWorkingDir()

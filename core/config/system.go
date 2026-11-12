@@ -124,7 +124,7 @@ func (cfg NetworkConfig) GetEffectiveAddr() string {
 			host = ip
 		}
 	}
-	return host + ":" + port
+	return net.JoinHostPort(host, port)
 }
 
 // GetEffectivePort returns the runtime listen port, falling back to the
