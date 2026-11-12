@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/security"
@@ -125,7 +127,7 @@ func (s *SharingService) GetUserExplicitEffectivePermission(user *security.UserS
 	for _, share := range shares {
 		//let's double check
 		if share.ResourceID != r.ResourceID {
-			panic("invalid sharing record, resource_id is not correct")
+			return None, errors.New("invalid sharing record, resource_id is not correct")
 		}
 		if share.Permission > maxPermission {
 			maxPermission = share.Permission
@@ -155,7 +157,7 @@ func (s *SharingService) BatchGetShares(ctx *orm.Context, user *security.UserSes
 	for _, v := range req {
 
 		if v.ResourceType == "" || v.ResourceID == "" {
-			panic("resource type can't be empty")
+			return nil, errors.New("resource type can't be empty")
 		}
 
 		//group resources by resource's parent path
@@ -386,38 +388,296 @@ func (s *SharingService) MergeWithTeamRules(user *security.UserSessionInfo, docs
 type SharingResponse struct {
 }
 
+func cloneShareContext(ctx *orm.Context) *orm.Context {
+	if ctx != nil && ctx.Context != nil {
+		cloned := orm.NewContextWithParent(ctx.Context)
+		cloned.Refresh = ctx.Refresh
+		cloned.PermissionScope(ctx.GetIntOrDefault(orm.PermissionCheckingScope, security.PermissionScopePlatform))
+		return cloned
+	}
+
+	cloned := orm.NewContext()
+	cloned.PermissionScope(security.PermissionScopePlatform)
+	return cloned
+}
+
+func buildSharingRecordID(ctx *orm.Context, user *security.UserSessionInfo, share *SharingRecord) string {
+	parts := []string{}
+	for _, ext := range getRuntimeExtensions() {
+		if ext.BuildIdentityScope != nil {
+			parts = append(parts, ext.BuildIdentityScope(ctx, user, share)...)
+		}
+	}
+	parts = append(parts,
+		share.ResourceCategoryType,
+		share.ResourceCategoryID,
+		share.ResourceType,
+		share.ResourceID,
+		fmt.Sprintf("%t", share.ResourceIsFolder),
+		share.ResourceParentPath,
+		share.ResourceFullPath,
+		share.PrincipalType,
+		share.PrincipalID,
+	)
+	return util.MD5digest(strings.Join(parts, "|"))
+}
+
+func validateResolvedResource(ctx *orm.Context, user *security.UserSessionInfo, resource *ResolvedResource) error {
+	for _, ext := range getRuntimeExtensions() {
+		if ext.ValidateResolvedResource != nil {
+			if err := ext.ValidateResolvedResource(ctx, user, resource); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validateResolvedPrincipal(ctx *orm.Context, user *security.UserSessionInfo, principalType string, principalID string, principal *ResolvedPrincipal) error {
+	for _, ext := range getRuntimeExtensions() {
+		if ext.ValidateResolvedPrincipal != nil {
+			if err := ext.ValidateResolvedPrincipal(ctx, user, principalType, principalID, principal); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func prepareShareForWrite(ctx *orm.Context, user *security.UserSessionInfo, resource *ResolvedResource, share *SharingRecord) error {
+	for _, ext := range getRuntimeExtensions() {
+		if ext.PrepareShareForWrite != nil {
+			if err := ext.PrepareShareForWrite(ctx, user, resource, share); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func prepareExistingShareUpdate(ctx *orm.Context, user *security.UserSessionInfo, share *SharingRecord) error {
+	for _, ext := range getRuntimeExtensions() {
+		if ext.PrepareExistingShareUpdate != nil {
+			if err := ext.PrepareExistingShareUpdate(ctx, user, share); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (s *SharingService) getShareByID(ctx *orm.Context, id string) (*SharingRecord, error) {
+	if id == "" {
+		return nil, nil
+	}
+
+	lookupCtx := cloneShareContext(ctx)
+	lookupCtx.DirectReadAccess()
+	lookupCtx.PermissionScope(security.PermissionScopePlatform)
+
+	doc := &SharingRecord{}
+	doc.SetID(id)
+	exists, err := orm.GetWithSystemFields(lookupCtx, doc)
+	if err != nil {
+		if strings.Contains(err.Error(), "record not found") {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if !exists {
+		return nil, nil
+	}
+	return doc, nil
+}
+
+func (s *SharingService) resolveResource(ctx *orm.Context, resource ResourceEntity) (*ResolvedResource, error) {
+	resolver := getResourceResolver(resource.ResourceType)
+	if resolver == nil {
+		return nil, errors.Errorf("no resource resolver registered for resource type: %v", resource.ResourceType)
+	}
+
+	resolved, err := resolver(ctx, resource)
+	if err != nil {
+		return nil, err
+	}
+	if resolved == nil || !resolved.Exists {
+		return nil, errors.Errorf("resource not found: %v/%v", resource.ResourceType, resource.ResourceID)
+	}
+	if resolved.Resource.ResourceType == "" {
+		resolved.Resource.ResourceType = resource.ResourceType
+	}
+	if resolved.Resource.ResourceID == "" {
+		resolved.Resource.ResourceID = resource.ResourceID
+	}
+	if resolved.Resource.ResourceParentPath == "" {
+		resolved.Resource.ResourceParentPath = util.NormalizeFolderPath(resource.ResourceParentPath)
+	}
+	return resolved, nil
+}
+
+func (s *SharingService) validatePrincipal(ctx *orm.Context, user *security.UserSessionInfo, principalType string, principalID string) error {
+	resolver := getPrincipalResolver(principalType)
+	if resolver == nil {
+		return errors.Errorf("no principal resolver registered for principal type: %v", principalType)
+	}
+
+	resolved, err := resolver(ctx, principalID)
+	if err != nil {
+		return err
+	}
+	if resolved == nil || !resolved.Exists {
+		return errors.Errorf("principal not found: %v/%v", principalType, principalID)
+	}
+	if err := validateResolvedPrincipal(ctx, user, principalType, principalID, resolved); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *SharingService) ensureShareManageAccess(user *security.UserSessionInfo, resource *ResolvedResource) error {
+	if user == nil {
+		return errors.New("invalid user info")
+	}
+
+	userID := user.MustGetUserID()
+	if util.ContainsAnyInArray(security.RoleAdmin, user.Roles) {
+		return nil
+	}
+	if resource != nil && resource.OwnerID == userID {
+		return nil
+	}
+
+	perm, err := s.GetUserExplicitEffectivePermission(user, resource.Resource)
+	if err != nil {
+		return err
+	}
+	if perm < Share {
+		return errors.Errorf("user %v is not allowed to manage shares for %v/%v", userID, resource.Resource.ResourceType, resource.Resource.ResourceID)
+	}
+	return nil
+}
+
+func emitShareAudit(userID string, action string, record *SharingRecord) {
+	audit := &event.Audit{
+		Timestamp: time.Now(),
+		Metadata: event.AuditMetadata{
+			Category: "security",
+			Group:    "sharing",
+			Action:   action,
+			Outcome:  "success",
+			UserID:   userID,
+		},
+		Fields: util.MapStr{
+			"resource_type":  record.ResourceType,
+			"resource_id":    record.ResourceID,
+			"principal_type": record.PrincipalType,
+			"principal_id":   record.PrincipalID,
+			"permission":     record.Permission,
+			"share_id":       record.ID,
+		},
+	}
+	audit.SetID(util.GetUUID())
+	audit.SetSystemValue(orm.OwnerIDKey, userID)
+	ctx := orm.NewContext()
+	ctx.DirectAccess()
+	if err := orm.Save(ctx, audit); err != nil {
+		log.Errorf("failed to save share audit: %v", err)
+	}
+}
+
+func (s *SharingService) prepareShareForWrite(ctx *orm.Context, user *security.UserSessionInfo, share *SharingRecord, resolved *ResolvedResource, userID string) error {
+	share.ResourceType = resolved.Resource.ResourceType
+	share.ResourceID = resolved.Resource.ResourceID
+	share.ResourceCategoryType = resolved.Resource.ResourceCategoryType
+	share.ResourceCategoryID = resolved.Resource.ResourceCategoryID
+
+	if share.ResourceParentPath == "" {
+		share.ResourceParentPath = resolved.Resource.ResourceParentPath
+	}
+	share.ResourceParentPath = util.NormalizeFolderPath(share.ResourceParentPath)
+	if share.ResourceFullPath == "" {
+		share.ResourceFullPath = resolved.Resource.ResourceFullPath
+	}
+	if share.ResourceIsFolder && share.ResourceFullPath != "" {
+		share.ResourceFullPath = util.NormalizeFolderPath(share.ResourceFullPath)
+	}
+	share.ResourceParentPathReversed = util.ReverseString(share.ResourceParentPath)
+	share.GrantedBy = userID
+	share.ID = buildSharingRecordID(ctx, user, share)
+	if share.GetSystemString(orm.OwnerIDKey) == "" {
+		share.SetSystemValue(orm.OwnerIDKey, userID)
+	}
+	return prepareShareForWrite(ctx, user, resolved, share)
+}
+
 // CreateOrUpdateShares handles sharing resources with users/groups
 func (s *SharingService) CreateOrUpdateShares(ctx *orm.Context, userID string, req *ShareRequest) (*BulkOpResponses[SharingRecord], error) {
 	list := NewBulkOpResponses[SharingRecord]()
+	sessionUser, err := security.GetUserFromContext(ctx.Context)
+	if err != nil || sessionUser == nil {
+		return nil, errors.New("invalid user info")
+	}
+	if userID == "" {
+		userID = sessionUser.MustGetUserID()
+	}
 
 	//TODO, verify these share records, check the resource paths and the resource are well and correctly aligned
 	// Handle revokes
 	for _, revoke := range req.Revokes {
 		if revoke.ID != "" {
-			// TODO: permission check, validate current user's operation
-			// 1. if the resource is owned by current user
-			// 2. current user with `share` permission
-			ctx.DirectAccess() // TODO remove this line
-			ctx.PermissionScope(security.PermissionScopePlatform)
+			existingShare, err := s.getShareByID(ctx, revoke.ID)
+			if err != nil {
+				return nil, errors.Errorf("failed to get share for revoke: %v", err)
+			}
+			if existingShare == nil {
+				return nil, errors.Errorf("failed to revoke share: share was not found")
+			}
 
-			err := orm.Delete(ctx, &revoke)
+			resolvedResource, err := s.resolveResource(ctx, existingShare.ResourceEntity)
+			if err != nil {
+				return nil, errors.Errorf("failed to validate revoke resource: %v", err)
+			}
+			if err := validateResolvedResource(ctx, sessionUser, resolvedResource); err != nil {
+				return nil, err
+			}
+			if err := s.ensureShareManageAccess(sessionUser, resolvedResource); err != nil {
+				return nil, err
+			}
+
+			deleteCtx := cloneShareContext(ctx)
+			deleteCtx.DirectWriteAccess()
+			deleteCtx.PermissionScope(security.PermissionScopePlatform)
+
+			err = orm.Delete(deleteCtx, existingShare)
 			if err != nil {
 				return nil, errors.Errorf("failed to revoke share: %v", err)
 			}
-			list.AddDeleted(&revoke)
+			list.AddDeleted(existingShare)
+			emitShareAudit(userID, "share.revoke", existingShare)
 		}
 	}
 
 	// Create records for each share
 	for _, share := range req.Shares {
-		share.ResourceParentPath = util.NormalizeFolderPath(share.ResourceParentPath)
-		if share.ResourceIsFolder {
-			share.ResourceFullPath = util.NormalizeFolderPath(share.ResourceFullPath)
+		resolvedResource, err := s.resolveResource(ctx, share.ResourceEntity)
+		if err != nil {
+			return list, errors.Errorf("failed to validate resource: %v", err)
+		}
+		if err := validateResolvedResource(ctx, sessionUser, resolvedResource); err != nil {
+			return list, err
+		}
+		if err := s.validatePrincipal(ctx, sessionUser, share.PrincipalType, share.PrincipalID); err != nil {
+			return list, errors.Errorf("failed to validate principal: %v", err)
+		}
+		if err := s.ensureShareManageAccess(sessionUser, resolvedResource); err != nil {
+			return list, err
 		}
 
-		// Check if a share already exists for this combination
-		resourceParentPath := s.getResourcePath(ctx, share.ResourceType, share.ResourceID, share.ResourceParentPath)
-		existingShare, err := s.checkExistingShare(share.ResourceID, share.ResourceType, share.PrincipalID, share.PrincipalType, resourceParentPath)
+		if err := s.prepareShareForWrite(ctx, sessionUser, &share, resolvedResource, userID); err != nil {
+			return list, errors.Errorf("failed to prepare share: %v", err)
+		}
+
+		existingShare, err := s.getShareByID(ctx, share.ID)
 		if err != nil {
 			return list, errors.Errorf("failed to check existing share: %v", err)
 		}
@@ -431,20 +691,26 @@ func (s *SharingService) CreateOrUpdateShares(ctx *orm.Context, userID string, r
 			}
 
 			// Update existing share with new permission
-			err := s.updateExistingShare(existingShare, share.Permission, userID)
+			err := s.updateExistingShare(ctx, existingShare, share.Permission, userID, sessionUser)
 			if err != nil {
 				return list, errors.Errorf("failed to update existing share: %v", err)
 			}
 
 			list.AddUpdated(existingShare)
+			emitShareAudit(userID, "share.update", existingShare)
 			log.Debugf("Updated existing share for principal %s on resource %s (permission changed from %v to %v)",
 				share.PrincipalID, share.ResourceID, existingShare.Permission, share.Permission)
 		} else {
-			share.ResourceParentPathReversed = util.ReverseString(share.ResourceParentPath)
 			if err := orm.Create(ctx, &share); err != nil {
+				existingShare, lookupErr := s.getShareByID(ctx, share.ID)
+				if lookupErr == nil && existingShare != nil && existingShare.Permission == share.Permission {
+					list.AddUnchanged(existingShare)
+					continue
+				}
 				return list, errors.Errorf("failed to create share: %v", err)
 			}
 			list.AddCreated(&share)
+			emitShareAudit(userID, "share.grant", &share)
 			log.Debugf("Created new share for principal %s on resource %s", share.PrincipalID, share.ResourceID)
 		}
 	}
@@ -493,7 +759,7 @@ func GetSharingRules(user *security.UserSessionInfo, resourceType string, resour
 	}
 
 	if len(clauses) == 0 {
-		panic("invalid clauses, should not be empty")
+		return shares, errors.New("invalid clauses, should not be empty")
 	}
 
 	if resourceParentPath != "" {
@@ -560,7 +826,7 @@ func GetSharingRulesV2(user *security.UserSessionInfo, resourceType string, reso
 	}
 
 	if len(clauses) == 0 {
-		panic("invalid clauses, should not be empty")
+		return shares, errors.New("invalid clauses, should not be empty")
 	}
 
 	//check current resource's parent paths
@@ -890,13 +1156,16 @@ func (s *SharingService) checkExistingShare(resourceID, resourceType, principalI
 }
 
 // updateExistingShare updates an existing share record
-func (s *SharingService) updateExistingShare(existingShare *SharingRecord, newPermission SharingPermission, grantedBy string) error {
-	ctx := orm.NewContext()
-	ctx.DirectAccess()
+func (s *SharingService) updateExistingShare(parent *orm.Context, existingShare *SharingRecord, newPermission SharingPermission, grantedBy string, user *security.UserSessionInfo) error {
+	ctx := cloneShareContext(parent)
+	ctx.DirectWriteAccess()
 	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	existingShare.Permission = newPermission
 	existingShare.GrantedBy = grantedBy
+	if err := prepareExistingShareUpdate(ctx, user, existingShare); err != nil {
+		return err
+	}
 
 	return orm.Save(ctx, existingShare)
 }
