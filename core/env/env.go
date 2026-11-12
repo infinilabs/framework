@@ -400,11 +400,15 @@ func (env *Env) loadConfig() error {
 }
 
 func (env *Env) RefreshConfig() error {
+	// Serialize reloads so GetConfigFile cannot overlap another reload's SetConfigFile.
+	refreshConfigLock.Lock()
+	defer refreshConfigLock.Unlock()
 	return env.loadEnvFromConfigFile(env.GetConfigFile())
 }
 
 var configObject *config.Config
 var refreshLock = sync.Mutex{}
+var refreshConfigLock = sync.Mutex{}
 
 func (env *Env) loadEnvFromConfigFile(filename string) error {
 	refreshLock.Lock()
@@ -423,6 +427,12 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 		return err
 	}
 
+	// Listeners keep serving during reloads, including loads that fail later.
+	// Copy their runtime addresses before readers can access the new configuration.
+	if env.SystemConfig != nil {
+		tempCfg.WebAppConfig.NetworkConfig.SetEffectiveBinding(env.SystemConfig.WebAppConfig.NetworkConfig.EffectiveBinding)
+		tempCfg.APIConfig.NetworkConfig.SetEffectiveBinding(env.SystemConfig.APIConfig.NetworkConfig.EffectiveBinding)
+	}
 	env.SystemConfig = &tempCfg
 	//initialize node config
 	env.findWorkingDir()

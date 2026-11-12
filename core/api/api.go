@@ -220,6 +220,15 @@ func StartAPI() {
 		panic(err)
 	}
 
+	// Record the runtime listen address (the listener is up, so the real
+	// port is settled — covers skip_occupied_port moves and random :0
+	// ports). Consumers such as instance reporting read it via
+	// GetEffectiveAddr. listenAddress is rewritten too: the readiness
+	// check below dials it, and the requested value still carries :0.
+	listenAddress = l.Addr().String()
+	apiConfig.NetworkConfig.SetEffectiveBinding(listenAddress)
+	log.Infof("api server listening on %s (effective binding)", l.Addr().String())
+
 	router.NotFound = notfoundHandler
 
 	tlsCfg := apiConfig.TLSConfig

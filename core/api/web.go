@@ -30,6 +30,7 @@ package api
 import (
 	ctx "context"
 	"crypto/tls"
+	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"runtime"
@@ -155,6 +156,16 @@ func StartWeb(cfg config.WebAppConfig) {
 		bindAddress = cfg.NetworkConfig.GetBindingAddr()
 	}
 
+	// Bind explicitly before serving so the allocated address is known:
+	// with a :0 port (or a skip_occupied_port rewrite) the requested string
+	// is not the real endpoint, and EffectiveBinding plus the readiness
+	// check below must use the real one.
+	webListener, listenErr := net.Listen("tcp", bindAddress)
+	if listenErr != nil {
+		panic(listenErr)
+	}
+	bindAddress = webListener.Addr().String()
+
 	handler := context.ClearHandler(uiRouter)
 	if cfg.Gzip.Enabled {
 		log.Debug("gzip enabled")
@@ -177,6 +188,9 @@ func StartWeb(cfg config.WebAppConfig) {
 			TLSConfig:    serverTLSCfg,
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
+		cfg.NetworkConfig.SetEffectiveBinding(bindAddress)
+		global.Env().SystemConfig.WebAppConfig.NetworkConfig = cfg.NetworkConfig
+		log.Infof("web server listening on %s (effective binding)", bindAddress)
 
 		http2.ConfigureServer(srv, &http2.Server{
 			MaxHandlers:          1000,
@@ -200,7 +214,7 @@ func StartWeb(cfg config.WebAppConfig) {
 					}
 				}
 			}()
-			err := srv.ListenAndServeTLS("", "")
+			err := srv.ServeTLS(webListener, "", "")
 			if err != nil && err != http.ErrServerClosed {
 				log.Error(err)
 				panic(err)
@@ -209,6 +223,9 @@ func StartWeb(cfg config.WebAppConfig) {
 
 	} else {
 		srv = &http.Server{Addr: bindAddress, Handler: globalInterceptorHandler.Handler(RecoveryHandler()(StripPrefix(cfg.BasePath, handler)))}
+		cfg.NetworkConfig.SetEffectiveBinding(bindAddress)
+		global.Env().SystemConfig.WebAppConfig.NetworkConfig = cfg.NetworkConfig
+		log.Infof("web server listening on %s (effective binding)", bindAddress)
 		go func(srv *http.Server) {
 			defer func() {
 				if !global.Env().IsDebug {
@@ -227,7 +244,7 @@ func StartWeb(cfg config.WebAppConfig) {
 				}
 			}()
 
-			err := srv.ListenAndServe()
+			err := srv.Serve(webListener)
 			if err != nil && err != http.ErrServerClosed {
 				log.Error(err)
 				panic(err)

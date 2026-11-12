@@ -350,23 +350,29 @@ func localBaseURL() string {
 		if web.TLSConfig.TLSEnabled {
 			schema = "https"
 		}
-		addr = web.NetworkConfig.GetBindingAddr()
+		// The raw runtime binding — not the advertised endpoint — is what
+		// the loopback must dial: when skip_occupied_port moved the port,
+		// the configured port reaches whatever occupies it. GetEffectiveAddr
+		// may also rewrite the host for advertising, which the loopback
+		// should not depend on.
+		addr = web.NetworkConfig.GetEffectiveBinding()
 	} else if api := global.Env().SystemConfig.APIConfig; api.Enabled && (api.NetworkConfig.Port > 0 || api.NetworkConfig.Binding != "" || api.NetworkConfig.Host != "") {
 		schema = "http"
 		if api.TLSConfig.TLSEnabled {
 			schema = "https"
 		}
-		addr = api.NetworkConfig.GetBindingAddr()
+		addr = api.NetworkConfig.GetEffectiveBinding()
 	} else {
 		return "http://127.0.0.1"
 	}
-	// Loopback preference: wildcard bindings (0.0.0.0/::) are reached via
-	// 127.0.0.1, but a binding pinned to a specific interface IP (e.g. a
-	// second instance on a LAN address) must keep that host — nothing
-	// listens on the loopback rewrite for such bindings.
+	// Loopback preference: wildcard bindings (0.0.0.0/::, bracketed from
+	// net.Listener.Addr) are reached via 127.0.0.1, but a binding pinned to
+	// a specific interface IP (e.g. a second instance on a LAN address) must
+	// keep that host — nothing listens on the loopback rewrite for such
+	// bindings.
 	if i := strings.LastIndex(addr, ":"); i > 0 {
 		host := addr[:i]
-		if host == "" || host == "0.0.0.0" || host == "::" {
+		if host == "" || host == "0.0.0.0" || host == "::" || host == "[::]" {
 			host = "127.0.0.1"
 		}
 		return schema + "://" + host + addr[i:]
