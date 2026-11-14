@@ -373,7 +373,8 @@ CLEAN_BUFFER:
 //     payload.observed_timestamp / the envelope timestamp / now — data
 //     streams reject documents without a date @timestamp. @timestamp is the
 //     document's one true timestamp (house standard): the mirrored top-level
-//     "timestamp" and any payload "timestamp" are folded into it and removed.
+//     "timestamp", any payload "timestamp" and the OTel wire field
+//     "observed_timestamp" are folded into it and removed.
 //   - a bare document (no "payload" key) keeps its own @timestamp when
 //     present; only a missing one is stamped with now.
 //   - metadata.file (agent collection origin) lives in @agent.file_* — the
@@ -422,6 +423,13 @@ func normalizeDataStreamDoc(doc []byte) []byte {
 	}
 	out["@timestamp"] = ts
 	delete(out, "timestamp") // @timestamp is the single source of truth
+	// observed_timestamp is OTel-model wire state (agent observation time,
+	// auto-filled in core/otel). At document output it is folded into
+	// @timestamp (fallback above) and stripped: the chain already records
+	// the semantics with better precision per hop — @timestamp (log time),
+	// @agent.observed_at (collection), @gateway.observed_at (relay) — and
+	// nothing reads a top-level observed_timestamp.
+	delete(out, "observed_timestamp")
 
 	if meta, ok := m["metadata"].(map[string]interface{}); ok {
 		if rt, ok := meta["log_type"].(string); ok && rt != "" {

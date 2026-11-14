@@ -41,6 +41,12 @@ func TestNormalizeDataStreamDoc(t *testing.T) {
 	if _, ok := doc["timestamp"]; ok {
 		t.Fatalf("timestamp mirror must not be written: %v", doc["timestamp"])
 	}
+	// observed_timestamp folds into @timestamp and is stripped at output:
+	// zero readers, and the chain records the semantics per hop
+	// (@timestamp / @agent.observed_at / @gateway.observed_at).
+	if _, ok := doc["observed_timestamp"]; ok {
+		t.Fatalf("observed_timestamp must not survive at output: %v", doc["observed_timestamp"])
+	}
 
 	// metadata promotion: file origin no longer promotes to a top-level
 	// "file" (collection provenance lives on @agent.file_*); only the
