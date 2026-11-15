@@ -181,6 +181,15 @@ func (this *KafkaQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *qu
 			panic(errors.Errorf("allocate consumer failed, consumer is already acquired by another node, key:%v err: %v", string(k), err))
 		}
 
+		// the consumer value must exist before the client joins the group:
+		// the rebalance callbacks below close over it to discard tracked
+		// progress for partitions that moved away
+		output := Consumer{
+			qCfg:     qconfig,
+			cCfg:     consumer,
+			partNext: map[int32]int64{},
+		}
+
 		opts := []kgo.Opt{
 			// Static membership must be unique per node: consumer.ID derives
 			// from queue/group/name and is identical on every node running
@@ -204,6 +213,15 @@ func (this *KafkaQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *qu
 			kgo.FetchMinBytes(int32(consumer.FetchMinBytes)),
 			kgo.FetchMaxBytes(int32(consumer.FetchMaxBytes)),
 			kgo.FetchMaxWait(time.Duration(consumer.FetchMaxWaitMs) * time.Millisecond),
+			// forget tracked progress for partitions that left this member:
+			// a later commit flushing the stale entries would overwrite the
+			// new owner's committed positions with this consumer's old ones
+			kgo.OnPartitionsRevoked(func(_ context.Context, _ *kgo.Client, revoked map[string][]int32) {
+				output.dropPartitionProgress(revoked)
+			}),
+			kgo.OnPartitionsLost(func(_ context.Context, _ *kgo.Client, lost map[string][]int32) {
+				output.dropPartitionProgress(lost)
+			}),
 		}
 
 		if consumer.AutoResetOffset == "earliest" {
@@ -217,13 +235,7 @@ func (this *KafkaQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *qu
 		}
 
 		client := this.newClient(opts)
-
-		output := Consumer{
-			qCfg:     qconfig,
-			cCfg:     consumer,
-			client:   client,
-			partNext: map[int32]int64{},
-		}
+		output.client = client
 
 		this.consumers.Store(getGroupForKafka(consumer.Group, qconfig.ID), &output)
 		if global.Env().IsDebug {

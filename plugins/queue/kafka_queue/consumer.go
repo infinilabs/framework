@@ -36,6 +36,7 @@ import (
 	"infini.sh/framework/core/locker"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
+	"sync"
 	"time"
 )
 
@@ -45,14 +46,22 @@ type Consumer struct {
 
 	client *kgo.Client
 
+	// mu guards partNext. The fetch loop runs on the worker goroutine, but
+	// commits also arrive from admin API goroutines (the queue offset
+	// reset endpoints dispatch onto this cached consumer) and rebalance
+	// callbacks run on the client's own goroutines — unsynchronized map
+	// access here is a fatal concurrent-read panic.
+	mu sync.Mutex
+
 	// partNext tracks the per-partition progress (next offset to consume)
-	// of the batches fetched since the last successful commit. One fetch
-	// batch can mix partitions while the framework's commit carries a
-	// single (partition, offset) pair — the batch's last record — so
-	// committing that pair alone drops every other partition's progress
-	// and the group refetches it (duplicate delivery). CommitOffset
-	// flushes the whole map: every record of a committed batch was
-	// processed by the same successful HandleMessages call.
+	// of fetched-but-uncommitted records. One fetch batch can mix
+	// partitions while the framework's commit carries a single
+	// (partition, offset) pair — the batch's last record — so committing
+	// that pair alone drops every other partition's progress and the
+	// group refetches it (duplicate delivery). CommitOffset flushes the
+	// whole map once the acknowledged position catches up with the fetch
+	// buffer; see buildCommitRequest for why it must not flush when the
+	// acknowledged position trails.
 	partNext map[int32]int64
 }
 
@@ -71,9 +80,11 @@ func (this *Consumer) ResetOffset(part, readPos int64) (err error) {
 	this.client.SetOffsets(req)
 	// keep the tracked progress in sync with the rewind, otherwise a later
 	// commit would jump the partition forward past the reset position
+	this.mu.Lock()
 	if this.partNext != nil && readPos < this.partNext[int32(part)] {
 		this.partNext[int32(part)] = readPos
 	}
+	this.mu.Unlock()
 	return err
 }
 
@@ -82,7 +93,12 @@ func (this *Consumer) CommitOffset(off queue.Offset) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*10))
 	defer cancel()
 
-	req := this.offsetsToCommit(off)
+	// snapshot the commit request under the lock; the network commit runs
+	// outside it so a slow broker cannot stall the fetch loop
+	this.mu.Lock()
+	req, drained := this.buildCommitRequest(off)
+	this.mu.Unlock()
+
 	if len(req) == 0 {
 		return nil
 	}
@@ -92,14 +108,17 @@ func (this *Consumer) CommitOffset(off queue.Offset) error {
 		ret = err
 	})
 
-	if ret == nil {
+	if ret == nil && drained {
 		// fold the committed positions back into the tracked progress so a
-		// later explicit commit cannot regress below them
+		// later explicit commit cannot regress below them. A non-drained
+		// commit already rewound the partition inside buildCommitRequest.
+		this.mu.Lock()
 		for p, eo := range req[this.qCfg.ID] {
-			if eo.Offset > this.partNext[p] {
+			if this.partNext != nil && eo.Offset > this.partNext[p] {
 				this.partNext[p] = eo.Offset
 			}
 		}
+		this.mu.Unlock()
 	}
 
 	if global.Env().IsDebug {
@@ -108,31 +127,81 @@ func (this *Consumer) CommitOffset(off queue.Offset) error {
 	return ret
 }
 
-// offsetsToCommit builds the kgo commit request for one queue offset: the
-// offset itself plus the per-partition progress of every fetched-but-
-// uncommitted batch (see partNext). The partition comes from the offset
-// itself (queue offsets carry segment=partition since FetchMessages):
-// committing hard-wired to partition 0 silently corrupted the committed
-// positions of every multi-partition topic — each partition's progress
-// overwrote partition 0's commit and its own was never persisted.
-func (this *Consumer) offsetsToCommit(off queue.Offset) map[string]map[int32]kgo.EpochOffset {
+// buildCommitRequest builds the kgo commit request for one queue offset
+// from the tracked per-partition progress (partNext). The caller must hold
+// mu. Returns the request and whether the acknowledged position drained
+// the fetch buffer.
+//
+// The partition comes from the offset itself (queue offsets carry
+// segment=partition since FetchMessages): committing hard-wired to
+// partition 0 silently corrupted the committed positions of every
+// multi-partition topic — each partition's progress overwrote partition
+// 0's commit and its own was never persisted.
+//
+// The acknowledged position also decides how much progress is safe to
+// flush. Framework commits carry the next offset of the last record of
+// the last fetched batch (ctx.NextOffset):
+//
+//   - caught up with partNext for its partition: every fetched batch was
+//     processed, flushing the whole map commits exactly the processed
+//     records of all partitions in the buffer.
+//   - trailing partNext: the batch was interrupted mid-processing (the
+//     framework keeps the previous offset for at-least-once redelivery)
+//     or this is an explicit rewind (admin reset). Only the requested
+//     position is committed and the partition's tracking is rewound to
+//     it — flushing the map here would permanently skip records that
+//     were fetched but never processed, or silently ignore the reset.
+func (this *Consumer) buildCommitRequest(off queue.Offset) (map[string]map[int32]kgo.EpochOffset, bool) {
 	offset := map[string]map[int32]kgo.EpochOffset{}
 	parts := map[int32]kgo.EpochOffset{}
-	for p, o := range this.partNext {
-		if o > 0 {
-			parts[p] = kgo.EpochOffset{Offset: o, Epoch: -1}
-		}
+	drained := true
+	if off.Segment >= 0 && this.partNext[int32(off.Segment)] > off.Position {
+		drained = false
 	}
-	if off.Segment >= 0 {
-		p := int32(off.Segment)
-		if cur, ok := parts[p]; !ok || off.Position > cur.Offset {
-			parts[p] = kgo.EpochOffset{Offset: off.Position, Epoch: -1}
+	if drained {
+		for p, o := range this.partNext {
+			if o > 0 {
+				parts[p] = kgo.EpochOffset{Offset: o, Epoch: -1}
+			}
 		}
+		if off.Segment >= 0 {
+			p := int32(off.Segment)
+			if cur, ok := parts[p]; !ok || off.Position > cur.Offset {
+				parts[p] = kgo.EpochOffset{Offset: off.Position, Epoch: -1}
+			}
+		}
+	} else {
+		// commit exactly the requested position and rewind tracking to it;
+		// the other partitions' progress stays uncommitted and their
+		// records are redelivered (at-least-once)
+		p := int32(off.Segment)
+		parts[p] = kgo.EpochOffset{Offset: off.Position, Epoch: -1}
+		this.partNext[p] = off.Position
 	}
 	if len(parts) > 0 {
 		offset[this.qCfg.ID] = parts
 	}
-	return offset
+	return offset, drained
+}
+
+// dropPartitionProgress forgets tracked progress for partitions this
+// consumer no longer owns (rebalance revoked, fencing lost): a later
+// commit flushing the stale entries would overwrite the new owner's
+// progress with this consumer's old positions.
+func (this *Consumer) dropPartitionProgress(revoked map[string][]int32) {
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	if this.partNext == nil {
+		return
+	}
+	for topic, parts := range revoked {
+		if topic != this.qCfg.ID {
+			continue
+		}
+		for _, p := range parts {
+			delete(this.partNext, p)
+		}
+	}
 }
 
 func (this *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (messages []queue.Message, isTimeout bool, err error) {
@@ -154,6 +223,7 @@ func (this *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (mess
 
 	msgs := []queue.Message{}
 	ctx.MessageCount = 0
+	batchNext := map[int32]int64{}
 
 	byteSize := 0
 	start := time.Now()
@@ -182,8 +252,8 @@ func (this *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (mess
 
 			offsetStr := queue.NewOffset(int64(r.Partition), r.Offset)
 			nextOffsetStr := queue.NewOffset(int64(r.Partition), r.Offset+1)
-			if next := r.Offset + 1; next > this.partNext[r.Partition] {
-				this.partNext[r.Partition] = next
+			if next := r.Offset + 1; next > batchNext[r.Partition] {
+				batchNext[r.Partition] = next
 			}
 			if ctx.MessageCount == 0 {
 				firstOffset = offsetStr
@@ -207,6 +277,17 @@ func (this *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (mess
 				return
 			}
 		})
+
+		// merge this poll's per-partition progress into the tracked map
+		// once, under the lock: commits and rebalance callbacks run on
+		// other goroutines
+		this.mu.Lock()
+		for p, next := range batchNext {
+			if next > this.partNext[p] {
+				this.partNext[p] = next
+			}
+		}
+		this.mu.Unlock()
 
 		if errs := fetches.Errors(); len(errs) > 0 {
 			// All errors are retried internally when fetching, but non-retriable errors are
