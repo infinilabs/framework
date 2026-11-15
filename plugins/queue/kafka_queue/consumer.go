@@ -44,6 +44,16 @@ type Consumer struct {
 	cCfg *queue.ConsumerConfig
 
 	client *kgo.Client
+
+	// partNext tracks the per-partition progress (next offset to consume)
+	// of the batches fetched since the last successful commit. One fetch
+	// batch can mix partitions while the framework's commit carries a
+	// single (partition, offset) pair — the batch's last record — so
+	// committing that pair alone drops every other partition's progress
+	// and the group refetches it (duplicate delivery). CommitOffset
+	// flushes the whole map: every record of a committed batch was
+	// processed by the same successful HandleMessages call.
+	partNext map[int32]int64
 }
 
 func (this *Consumer) Close() error {
@@ -59,11 +69,11 @@ func (this *Consumer) ResetOffset(part, readPos int64) (err error) {
 	req[this.qCfg.ID] = map[int32]kgo.EpochOffset{}
 	req[this.qCfg.ID][int32(part)] = kgo.EpochOffset{Offset: readPos, Epoch: -1}
 	this.client.SetOffsets(req)
-	//this.client.CommitOffsetsSync(context.Background(),req, func(client *kgo.Client, request *kmsg.OffsetCommitRequest, response *kmsg.OffsetCommitResponse, err error) {
-	//	if err!=nil{
-	//		panic(err)
-	//	}
-	//})
+	// keep the tracked progress in sync with the rewind, otherwise a later
+	// commit would jump the partition forward past the reset position
+	if this.partNext != nil && readPos < this.partNext[int32(part)] {
+		this.partNext[int32(part)] = readPos
+	}
 	return err
 }
 
@@ -72,13 +82,25 @@ func (this *Consumer) CommitOffset(off queue.Offset) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*10))
 	defer cancel()
 
+	req := this.offsetsToCommit(off)
+	if len(req) == 0 {
+		return nil
+	}
+
 	var ret error
-	this.client.CommitOffsetsSync(ctx, offsetsToCommit(this.qCfg, off), func(client *kgo.Client, request *kmsg.OffsetCommitRequest, response *kmsg.OffsetCommitResponse, err error) {
-		if ret != nil {
-			log.Error(ret)
-		}
+	this.client.CommitOffsetsSync(ctx, req, func(client *kgo.Client, request *kmsg.OffsetCommitRequest, response *kmsg.OffsetCommitResponse, err error) {
 		ret = err
 	})
+
+	if ret == nil {
+		// fold the committed positions back into the tracked progress so a
+		// later explicit commit cannot regress below them
+		for p, eo := range req[this.qCfg.ID] {
+			if eo.Offset > this.partNext[p] {
+				this.partNext[p] = eo.Offset
+			}
+		}
+	}
 
 	if global.Env().IsDebug {
 		log.Infof("commit %v[%v] offset: %v", this.qCfg.Name, this.qCfg.ID, off.String())
@@ -86,16 +108,30 @@ func (this *Consumer) CommitOffset(off queue.Offset) error {
 	return ret
 }
 
-// offsetsToCommit builds the kgo commit request for one queue offset. The
-// partition comes from the offset itself (queue offsets carry
-// segment=partition since FetchMessages): committing hard-wired to
-// partition 0 silently corrupted the committed positions of every
-// multi-partition topic — each partition's progress overwrote partition 0's
-// commit and its own was never persisted.
-func offsetsToCommit(qCfg *queue.QueueConfig, off queue.Offset) map[string]map[int32]kgo.EpochOffset {
+// offsetsToCommit builds the kgo commit request for one queue offset: the
+// offset itself plus the per-partition progress of every fetched-but-
+// uncommitted batch (see partNext). The partition comes from the offset
+// itself (queue offsets carry segment=partition since FetchMessages):
+// committing hard-wired to partition 0 silently corrupted the committed
+// positions of every multi-partition topic — each partition's progress
+// overwrote partition 0's commit and its own was never persisted.
+func (this *Consumer) offsetsToCommit(off queue.Offset) map[string]map[int32]kgo.EpochOffset {
 	offset := map[string]map[int32]kgo.EpochOffset{}
-	offset[qCfg.ID] = map[int32]kgo.EpochOffset{}
-	offset[qCfg.ID][int32(off.Segment)] = kgo.EpochOffset{Offset: off.Position, Epoch: -1}
+	parts := map[int32]kgo.EpochOffset{}
+	for p, o := range this.partNext {
+		if o > 0 {
+			parts[p] = kgo.EpochOffset{Offset: o, Epoch: -1}
+		}
+	}
+	if off.Segment >= 0 {
+		p := int32(off.Segment)
+		if cur, ok := parts[p]; !ok || off.Position > cur.Offset {
+			parts[p] = kgo.EpochOffset{Offset: off.Position, Epoch: -1}
+		}
+	}
+	if len(parts) > 0 {
+		offset[this.qCfg.ID] = parts
+	}
 	return offset
 }
 
@@ -146,6 +182,9 @@ func (this *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (mess
 
 			offsetStr := queue.NewOffset(int64(r.Partition), r.Offset)
 			nextOffsetStr := queue.NewOffset(int64(r.Partition), r.Offset+1)
+			if next := r.Offset + 1; next > this.partNext[r.Partition] {
+				this.partNext[r.Partition] = next
+			}
 			if ctx.MessageCount == 0 {
 				firstOffset = offsetStr
 			}

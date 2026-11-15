@@ -182,7 +182,15 @@ func (this *KafkaQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *qu
 		}
 
 		opts := []kgo.Opt{
-			kgo.InstanceID(consumer.ID),
+			// Static membership must be unique per node: consumer.ID derives
+			// from queue/group/name and is identical on every node running
+			// the same deployed pipeline. Identical instance IDs across
+			// nodes make the broker fence the previous member on each join
+			// (endless active-passive flapping) instead of balancing
+			// partitions; suffixing the node ID gives each node its own
+			// static identity while sharing the consumer group, so N nodes
+			// consume N-way in parallel.
+			kgo.InstanceID(consumer.ID + "-" + global.Env().SystemConfig.NodeConfig.ID),
 			kgo.SessionTimeout(60 * time.Second),
 			kgo.HeartbeatInterval(10 * time.Second),
 			kgo.RetryTimeout(10 * time.Second),
@@ -211,9 +219,10 @@ func (this *KafkaQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *qu
 		client := this.newClient(opts)
 
 		output := Consumer{
-			qCfg:   qconfig,
-			cCfg:   consumer,
-			client: client,
+			qCfg:     qconfig,
+			cCfg:     consumer,
+			client:   client,
+			partNext: map[int32]int64{},
 		}
 
 		this.consumers.Store(getGroupForKafka(consumer.Group, qconfig.ID), &output)
