@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"infini.sh/framework/core/util"
 )
 
 // EnsureNamedIDTypedConfig must guarantee ID == name: kafka_queue and other
@@ -44,4 +45,38 @@ func TestEnsureNamedIDTypedConfig(t *testing.T) {
 	assert.Equal(t, "kafka", kept.Type)
 	assert.Equal(t, "file", kept.Source)
 	t.Cleanup(func() { RemoveConfig(fileCfg) })
+}
+
+// Replacing a hashed dynamic registration must carry over its
+// identity-independent settings: label-based consumer selection
+// (GetConfigByLabels) and codec config reference them, and must keep
+// working under the new named ID.
+func TestEnsureNamedIDTypedConfig_PreservesReplacedSettings(t *testing.T) {
+	hashed := &QueueConfig{
+		ID:     "legacy-hashed-id",
+		Name:   "legacy-topic",
+		Type:   "disk",
+		Source: "dynamic",
+		Codec:  "json",
+		Labels: util.MapStr{"env": "test"},
+	}
+	_, err := RegisterConfig(hashed)
+	assert.NoError(t, err)
+	t.Cleanup(func() { RemoveConfig(hashed) })
+
+	fixed := EnsureNamedIDTypedConfig("kafka", "legacy-topic")
+	assert.Equal(t, "legacy-topic", fixed.ID)
+	assert.Equal(t, "kafka", fixed.Type)
+	assert.Equal(t, "json", fixed.Codec, "codec must survive the replacement")
+	assert.Equal(t, util.MapStr{"env": "test"}, fixed.Labels, "labels must survive the replacement")
+	t.Cleanup(func() { RemoveConfig(fixed) })
+
+	matched := GetConfigByLabels(map[string]interface{}{"env": "test"})
+	found := false
+	for _, c := range matched {
+		if c.ID == "legacy-topic" {
+			found = true
+		}
+	}
+	assert.True(t, found, "label-based selection must find the replaced queue")
 }

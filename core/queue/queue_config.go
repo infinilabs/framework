@@ -173,7 +173,9 @@ func GetOrInitConfig(key string) *QueueConfig {
 // from the config ID (kafka_queue uses the ID as the topic name) need this so
 // a queue named after a real external topic maps 1:1 to it — the default
 // dynamic path hashes the name into an opaque ID instead. A dynamic
-// registration previously created for the same name (hashed ID) is replaced;
+// registration previously created for the same name (hashed ID) is replaced
+// in place, carrying over its Codec / Labels / Created so label-based
+// consumer selection and codec config keep working under the new ID;
 // file-declared queues (source "file") already carry ID = name and are kept.
 func EnsureNamedIDTypedConfig(queueType, key string) *QueueConfig {
 	if cfg, exists := SmartGetConfig(key); exists && cfg != nil {
@@ -186,10 +188,14 @@ func EnsureNamedIDTypedConfig(queueType, key string) *QueueConfig {
 			return cfg
 		}
 		if cfg.Source != "file" {
+			codec, labels, created := cfg.Codec, cfg.Labels, cfg.Created
 			RemoveConfig(cfg)
 			// the hashed registration was persisted to kv; without deleting
 			// the row, GetConfigByUUID would resurrect it by its old ID
 			_ = kv.DeleteKey(queueConfigBucket, []byte(cfg.ID))
+			cfg := &QueueConfig{Type: queueType, ID: key, Name: key, Source: "dynamic", Codec: codec, Labels: labels, Created: created}
+			RegisterConfig(cfg)
+			return cfg
 		}
 	}
 	cfg := &QueueConfig{Type: queueType, ID: key, Name: key, Source: "dynamic"}
