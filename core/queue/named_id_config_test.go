@@ -80,3 +80,29 @@ func TestEnsureNamedIDTypedConfig_PreservesReplacedSettings(t *testing.T) {
 	}
 	assert.True(t, found, "label-based selection must find the replaced queue")
 }
+
+// A hashed dynamic registration may live only in kv (registered on another
+// node or before a restart, never loaded here): SmartGetConfig is
+// memory-only and misses it, but GetConfigByUUID's kv fallback would
+// resurrect it into the cache. The named-ID registration must clean the
+// row up.
+func TestEnsureNamedIDTypedConfig_CleansKVOnlyHashedRegistration(t *testing.T) {
+	// register dynamically (ID = MD5digest(name), persisted to kv), then
+	// drop it from memory only — leaving the kv row behind
+	hashed := EnsureTypedConfig("kafka", "kv-only-topic")
+	assert.NotEqual(t, "kv-only-topic", hashed.ID)
+	digest := hashed.ID
+	RemoveConfig(hashed)
+
+	if _, ok := GetConfigByKey("kv-only-topic"); ok {
+		t.Fatal("precondition: registration should be gone from memory")
+	}
+
+	fixed := EnsureNamedIDTypedConfig("kafka", "kv-only-topic")
+	assert.Equal(t, "kv-only-topic", fixed.ID)
+	t.Cleanup(func() { RemoveConfig(fixed) })
+
+	if resurrected, ok := GetConfigByUUID(digest); ok {
+		t.Fatalf("kv-only hashed registration must not be resurrectable, got %+v", resurrected)
+	}
+}
