@@ -14,9 +14,11 @@ import (
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/security/team"
 )
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -114,6 +116,16 @@ func Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		Roles:    account.Roles,
 	}
 	sessionInfo.SetUserID(account.ID)
+
+	// Team principal expansion: resolve the verified account's team
+	// memberships and carry them on the session, so share rules granted to
+	// a team apply to its members. Match on the submitted login AND the
+	// account's canonical name — members may be listed by either form, and
+	// the submitted login can be an email while the member list holds the
+	// name.
+	if teamIDs := team.TeamIDsForUser(account.ID, login, account.Name); len(teamIDs) > 0 {
+		sessionInfo.Set(orm.TeamsIDKey, teamIDs)
+	}
 
 	// Create the session: generates a JWT (24h) and stores it in the session
 	// cookie. Subsequent requests are authenticated by the session_token

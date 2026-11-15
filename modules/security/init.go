@@ -41,6 +41,7 @@ import (
 	_ "infini.sh/framework/modules/security/orm_hooks"
 	_ "infini.sh/framework/modules/security/share"
 	staticauth "infini.sh/framework/modules/security/static"
+	_ "infini.sh/framework/modules/security/team"
 )
 
 type EnterpriseWebConfig struct {
