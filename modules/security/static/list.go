@@ -31,6 +31,9 @@ func ListAccounts() []security.UserAccount {
 	for _, account := range authUsersByID {
 		sanitized := *account
 		sanitized.Password = ""
+		// deep-copy the slice fields so callers cannot mutate the live
+		// registry through the shared backing arrays
+		sanitized.Roles = append([]string(nil), account.Roles...)
 		out = append(out, sanitized)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
