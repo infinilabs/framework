@@ -168,6 +168,35 @@ func GetOrInitConfig(key string) *QueueConfig {
 	return AdvancedGetOrInitConfig("", key, nil)
 }
 
+// EnsureNamedIDTypedConfig is EnsureTypedConfig with one extra guarantee: the
+// queue's config ID equals its name. Backends whose physical identity derives
+// from the config ID (kafka_queue uses the ID as the topic name) need this so
+// a queue named after a real external topic maps 1:1 to it — the default
+// dynamic path hashes the name into an opaque ID instead. A dynamic
+// registration previously created for the same name (hashed ID) is replaced;
+// file-declared queues (source "file") already carry ID = name and are kept.
+func EnsureNamedIDTypedConfig(queueType, key string) *QueueConfig {
+	if cfg, exists := SmartGetConfig(key); exists && cfg != nil {
+		if cfg.ID == key {
+			if cfg.Type != queueType {
+				cfg.Type = queueType
+				RegisterConfig(cfg)
+				log.Infof("queue [%v] switched to type [%v]", key, queueType)
+			}
+			return cfg
+		}
+		if cfg.Source != "file" {
+			RemoveConfig(cfg)
+			// the hashed registration was persisted to kv; without deleting
+			// the row, GetConfigByUUID would resurrect it by its old ID
+			_ = kv.DeleteKey(queueConfigBucket, []byte(cfg.ID))
+		}
+	}
+	cfg := &QueueConfig{Type: queueType, ID: key, Name: key, Source: "dynamic"}
+	RegisterConfig(cfg)
+	return cfg
+}
+
 // EnsureTypedConfig ensures the named queue is registered with the given
 // queueType. Dynamically created queues fall back to the default handler
 // (disk); transport segments that must switch the backend explicitly (e.g. a
