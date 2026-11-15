@@ -47,7 +47,9 @@ func (h *APIHandler) staticUsers(w http.ResponseWriter, req *http.Request, _ htt
 }
 
 // GET /security/static-roles — read-only echo of the yml static roles
-// (authorization.static.roles; grantAll means permissions: ["*"]).
+// (authorization.static.roles). The wildcard entry is consumed into
+// grantAll at load time: grantAll roles report grant_all: true with an
+// empty permissions list, not permissions: ["*"].
 func (h *APIHandler) staticRoles(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 	defs := ListRoleDefinitions()
 	result := make([]util.MapStr, 0, len(defs))
