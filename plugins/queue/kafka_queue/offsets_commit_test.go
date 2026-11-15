@@ -9,8 +9,9 @@ import (
 
 func newTestConsumer() *Consumer {
 	return &Consumer{
-		qCfg:     &queue.QueueConfig{ID: "test-topic", Name: "test-topic"},
-		partNext: map[int32]int64{},
+		qCfg:      &queue.QueueConfig{ID: "test-topic", Name: "test-topic"},
+		partNext:  map[int32]int64{},
+		fetchTail: queue.NewOffset(-1, 0), // no fetch yet: nothing drains
 	}
 }
 
@@ -26,7 +27,7 @@ func TestBuildCommitRequest_UsesOffsetPartition(t *testing.T) {
 		off := queue.NewOffset(partition, 100+partition)
 		m, drained := c.buildCommitRequest(off)
 
-		assert.True(t, drained, "no fetched progress: the explicit offset drains by definition")
+		assert.False(t, drained, "no fetch tail recorded: every commit is incremental")
 		inner, ok := m["test-topic"]
 		assert.True(t, ok, "topic map must exist")
 		assert.Len(t, inner, 1, "exactly one partition must be committed")
@@ -41,9 +42,11 @@ func TestBuildCommitRequest_UsesOffsetPartition(t *testing.T) {
 // processed and the full map must be flushed.
 func TestBuildCommitRequest_FlushesAllPartitionsOfDrainedBatch(t *testing.T) {
 	c := newTestConsumer()
-	// batch mixed p1 (3 records) and p3 (2 records); commit says p3
+	// batch mixed p1 (3 records) and p3 (2 records); the batch's last
+	// record was p3's, so the fetch tail is (3,2) and the commit says p3
 	c.partNext[1] = 3
 	c.partNext[3] = 2
+	c.fetchTail = queue.NewOffset(3, 2)
 
 	m, drained := c.buildCommitRequest(queue.NewOffset(3, 2))
 	assert.True(t, drained)
@@ -61,7 +64,7 @@ func TestBuildCommitRequest_SkipsZeroProgress(t *testing.T) {
 	c := newTestConsumer()
 
 	m, drained := c.buildCommitRequest(queue.NewOffset(2, 7))
-	assert.True(t, drained)
+	assert.False(t, drained, "no fetch tail recorded: incremental commit")
 	inner, ok := m["test-topic"]
 	assert.True(t, ok)
 	assert.Len(t, inner, 1)
@@ -72,17 +75,16 @@ func TestBuildCommitRequest_SkipsZeroProgress(t *testing.T) {
 	}
 }
 
-// When the acknowledged position trails the fetched progress the batch was
-// interrupted mid-processing (the framework keeps the previous offset for
-// at-least-once redelivery) or the caller is an explicit rewind (admin
-// reset). Only the requested position may be committed — flushing the map
-// here would permanently skip records that were fetched but never
-// processed, or silently ignore the reset. The partition's tracking must
-// be rewound to the committed position.
+// When the committed position is not the fetch tail — bulk-indexing buffer
+// boundaries, interrupted batches, admin rewinds — only the requested
+// position may be committed: the other partitions' records may still be in
+// flight. A position trailing the partition's tracked progress rewinds the
+// tracking so a later flush cannot skip the gap.
 func TestBuildCommitRequest_TrailingOffsetCommitsExplicitOnly(t *testing.T) {
 	c := newTestConsumer()
 	c.partNext[3] = 5 // fetched p3:0-4, ack says p3@2
 	c.partNext[1] = 3
+	c.fetchTail = queue.NewOffset(3, 5)
 
 	m, drained := c.buildCommitRequest(queue.NewOffset(3, 2))
 	assert.False(t, drained)
@@ -92,13 +94,56 @@ func TestBuildCommitRequest_TrailingOffsetCommitsExplicitOnly(t *testing.T) {
 	assert.Equal(t, int64(2), inner[3].Offset)
 	assert.Equal(t, int64(2), c.partNext[3], "tracking must rewind to the committed position")
 	_, committed := inner[1]
-	assert.False(t, committed, "p1's unprocessed-progress must not be committed")
+	assert.False(t, committed, "p1's unprocessed progress must not be committed")
 
-	// equal position drains (framework NextOffset == partNext after a fully
-	// processed batch)
-	m2, drained2 := c.buildCommitRequest(queue.NewOffset(3, 2))
+	// at the fetch tail the whole buffer was processed: flush everything
+	m2, drained2 := c.buildCommitRequest(queue.NewOffset(3, 5))
 	assert.True(t, drained2)
-	assert.Len(t, m2["test-topic"], 2, "after the rewind, the follow-up commit flushes the map")
+	assert.Len(t, m2["test-topic"], 2, "the tail commit flushes the whole map")
+	assert.Equal(t, int64(5), m2["test-topic"][3].Offset, "explicit tail position wins over the rewound tracking")
+	assert.Equal(t, int64(3), m2["test-topic"][1].Offset)
+}
+
+// Regression for the bulk-indexing incremental commit pattern: offset
+// advances per popped message and commits happen at buffer-flush
+// boundaries. A chunk boundary that exhausts one partition's fetched
+// records (commit == that partition's tracked progress) must NOT flush the
+// other partitions — their records are still in flight and committing them
+// here would permanently skip them on crash. Only the fetch tail may flush.
+func TestBuildCommitRequest_IncrementalCommitKeepsOtherPartitions(t *testing.T) {
+	c := newTestConsumer()
+	// fetch returned p1:0-9 and p3:0-9; the batch's last record was p3's
+	c.partNext[1] = 10
+	c.partNext[3] = 10
+	c.fetchTail = queue.NewOffset(3, 10)
+
+	// chunk 1 flushed p1:0-4: explicit-only, no rewind of p3, no flush
+	m1, drained1 := c.buildCommitRequest(queue.NewOffset(1, 5))
+	assert.False(t, drained1)
+	assert.Len(t, m1["test-topic"], 1)
+	assert.Equal(t, int64(5), m1["test-topic"][1].Offset)
+	_, flushed := m1["test-topic"][3]
+	assert.False(t, flushed, "in-flight p3 must not be committed by p1's chunk commit")
+
+	// chunk 2 flushed p1:5-9 — equals p1's tracked progress, but is NOT the
+	// fetch tail: the old "caught-up partitions drain the buffer" heuristic
+	// flushed p3 here and permanently skipped its unsubmitted records
+	m2, drained2 := c.buildCommitRequest(queue.NewOffset(1, 10))
+	assert.False(t, drained2)
+	assert.Len(t, m2["test-topic"], 1, "caught-up partition must still not flush the buffer")
+	_, flushed = m2["test-topic"][3]
+	assert.False(t, flushed)
+	// CommitOffset folds a successful commit's position back into the
+	// tracking (chunk 2 reached the broker)
+	c.partNext[1] = 10
+
+	// chunk 3 flushes the rest of the fetch (p3:0-9) — the fetch tail:
+	// every fetched record is submitted, the whole map commits
+	m3, drained3 := c.buildCommitRequest(queue.NewOffset(3, 10))
+	assert.True(t, drained3)
+	assert.Len(t, m3["test-topic"], 2)
+	assert.Equal(t, int64(10), m3["test-topic"][1].Offset)
+	assert.Equal(t, int64(10), m3["test-topic"][3].Offset)
 }
 
 // Progress for partitions lost in a rebalance must be forgotten: a later

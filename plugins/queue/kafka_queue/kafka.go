@@ -185,9 +185,10 @@ func (this *KafkaQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *qu
 		// the rebalance callbacks below close over it to discard tracked
 		// progress for partitions that moved away
 		output := Consumer{
-			qCfg:     qconfig,
-			cCfg:     consumer,
-			partNext: map[int32]int64{},
+			qCfg:      qconfig,
+			cCfg:      consumer,
+			partNext:  map[int32]int64{},
+			fetchTail: queue.NewOffset(-1, 0), // no fetch yet: nothing drains
 		}
 
 		opts := []kgo.Opt{

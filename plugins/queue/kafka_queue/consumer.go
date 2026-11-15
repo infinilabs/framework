@@ -59,10 +59,19 @@ type Consumer struct {
 	// (partition, offset) pair — the batch's last record — so committing
 	// that pair alone drops every other partition's progress and the
 	// group refetches it (duplicate delivery). CommitOffset flushes the
-	// whole map once the acknowledged position catches up with the fetch
-	// buffer; see buildCommitRequest for why it must not flush when the
-	// acknowledged position trails.
+	// whole map only at the fetch tail; see buildCommitRequest.
 	partNext map[int32]int64
+
+	// fetchTail is the NextOffset of the last record of the most recent
+	// fetch (Segment -1 before the first fetch). It is the only commit
+	// position at which every fetched record is known to be processed:
+	// the consumer plugin commits exactly there after a fully processed
+	// batch, and a bulk-indexing chunk that reaches the fetch tail has
+	// submitted all fetched records. Commits at any earlier position are
+	// incremental progress markers (buffer-flush boundaries) — other
+	// partitions' records may still be in flight and must not be
+	// committed on their behalf.
+	fetchTail queue.Offset
 }
 
 func (this *Consumer) Close() error {
@@ -96,7 +105,7 @@ func (this *Consumer) CommitOffset(off queue.Offset) error {
 	// snapshot the commit request under the lock; the network commit runs
 	// outside it so a slow broker cannot stall the fetch loop
 	this.mu.Lock()
-	req, drained := this.buildCommitRequest(off)
+	req, _ := this.buildCommitRequest(off)
 	this.mu.Unlock()
 
 	if len(req) == 0 {
@@ -108,10 +117,10 @@ func (this *Consumer) CommitOffset(off queue.Offset) error {
 		ret = err
 	})
 
-	if ret == nil && drained {
+	if ret == nil {
 		// fold the committed positions back into the tracked progress so a
-		// later explicit commit cannot regress below them. A non-drained
-		// commit already rewound the partition inside buildCommitRequest.
+		// later commit cannot regress below them (incremental commits keep
+		// the tracking in sync with actual broker progress)
 		this.mu.Lock()
 		for p, eo := range req[this.qCfg.ID] {
 			if this.partNext != nil && eo.Offset > this.partNext[p] {
@@ -129,8 +138,8 @@ func (this *Consumer) CommitOffset(off queue.Offset) error {
 
 // buildCommitRequest builds the kgo commit request for one queue offset
 // from the tracked per-partition progress (partNext). The caller must hold
-// mu. Returns the request and whether the acknowledged position drained
-// the fetch buffer.
+// mu. Returns the request and whether the offset is the fetch tail (see
+// fetchTail).
 //
 // The partition comes from the offset itself (queue offsets carry
 // segment=partition since FetchMessages): committing hard-wired to
@@ -138,26 +147,21 @@ func (this *Consumer) CommitOffset(off queue.Offset) error {
 // multi-partition topic — each partition's progress overwrote partition
 // 0's commit and its own was never persisted.
 //
-// The acknowledged position also decides how much progress is safe to
-// flush. Framework commits carry the next offset of the last record of
-// the last fetched batch (ctx.NextOffset):
-//
-//   - caught up with partNext for its partition: every fetched batch was
-//     processed, flushing the whole map commits exactly the processed
-//     records of all partitions in the buffer.
-//   - trailing partNext: the batch was interrupted mid-processing (the
-//     framework keeps the previous offset for at-least-once redelivery)
-//     or this is an explicit rewind (admin reset). Only the requested
-//     position is committed and the partition's tracking is rewound to
-//     it — flushing the map here would permanently skip records that
-//     were fetched but never processed, or silently ignore the reset.
+// Only a commit at the fetch tail may flush the whole tracked map: there,
+// every fetched record is known to be processed (the consumer plugin
+// commits exactly there after a fully processed batch; a bulk-indexing
+// chunk that reaches the tail has submitted all fetched records).
+// Commits at earlier positions — bulk buffer-flush boundaries with
+// per-message offsets, interrupted batches, admin rewinds — must commit
+// exactly the requested position only: the other partitions' records may
+// still be in flight, and flushing them here would permanently skip them
+// on restart. A requested position that trails the partition's tracked
+// progress also rewinds the tracking so a later flush cannot jump over
+// the gap; successful commits fold their position back in.
 func (this *Consumer) buildCommitRequest(off queue.Offset) (map[string]map[int32]kgo.EpochOffset, bool) {
 	offset := map[string]map[int32]kgo.EpochOffset{}
 	parts := map[int32]kgo.EpochOffset{}
-	drained := true
-	if off.Segment >= 0 && this.partNext[int32(off.Segment)] > off.Position {
-		drained = false
-	}
+	drained := off.Equals(this.fetchTail)
 	if drained {
 		for p, o := range this.partNext {
 			if o > 0 {
@@ -170,13 +174,15 @@ func (this *Consumer) buildCommitRequest(off queue.Offset) (map[string]map[int32
 				parts[p] = kgo.EpochOffset{Offset: off.Position, Epoch: -1}
 			}
 		}
-	} else {
-		// commit exactly the requested position and rewind tracking to it;
-		// the other partitions' progress stays uncommitted and their
-		// records are redelivered (at-least-once)
+	} else if off.Segment >= 0 {
 		p := int32(off.Segment)
 		parts[p] = kgo.EpochOffset{Offset: off.Position, Epoch: -1}
-		this.partNext[p] = off.Position
+		// rewind tracking below the requested position: the records in
+		// between were fetched but their processing did not complete (or
+		// this is an explicit rewind) — a later flush must not skip them
+		if off.Position < this.partNext[p] {
+			this.partNext[p] = off.Position
+		}
 	}
 	if len(parts) > 0 {
 		offset[this.qCfg.ID] = parts
@@ -306,6 +312,12 @@ func (this *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (mess
 
 	ctx.InitOffset = firstOffset
 	ctx.NextOffset = nextOffset
+
+	// the commit boundary at which every fetched record is processed (see
+	// fetchTail)
+	this.mu.Lock()
+	this.fetchTail = nextOffset
+	this.mu.Unlock()
 
 	if global.Env().IsDebug {
 		log.Debug(this.qCfg.Name, "[", this.qCfg.ID, "],", this.cCfg.ID, ",msg:", len(msgs), ",first:", firstOffset, ",last:", nextOffset)
