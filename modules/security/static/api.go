@@ -18,8 +18,10 @@ type APIHandler struct {
 }
 
 func init() {
-	// 静态账号回显与用户管理同权限面（generic#security:user/read）；
-	// 角色回显同理。端点常驻: 未启用 static 认证时返回空列表。
+	// Static account listing shares the user-management permission surface
+	// (generic#security:user/read); role listing is analogous. The
+	// endpoints are always registered: they return empty lists when static
+	// auth is not enabled.
 	userRead := api.RequirePermission(security.GetOrInitPermission("generic", "security:user", security.Read))
 	roleRead := api.RequirePermission(security.GetOrInitPermission("generic", "security:role", security.Read))
 
@@ -30,8 +32,8 @@ func init() {
 	api.HandleUIMethod(api.GET, "/security/static-roles/", handler.staticRoles, roleRead)
 }
 
-// GET /security/static-users — yml 静态账号只读回显。
-// ListAccounts 返回脱敏副本，不含密码哈希。
+// GET /security/static-users — read-only echo of the yml static accounts.
+// ListAccounts returns sanitized copies without the bcrypt password hashes.
 func (h *APIHandler) staticUsers(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 	accounts := ListAccounts()
 	result := make([]util.MapStr, 0, len(accounts))
@@ -44,8 +46,8 @@ func (h *APIHandler) staticUsers(w http.ResponseWriter, req *http.Request, _ htt
 	h.WriteJSON(w, util.MapStr{"count": len(result), "result": result}, http.StatusOK)
 }
 
-// GET /security/static-roles — yml 静态角色只读回显
-// （authorization.static.roles；grantAll 即 permissions: ["*"]）。
+// GET /security/static-roles — read-only echo of the yml static roles
+// (authorization.static.roles; grantAll means permissions: ["*"]).
 func (h *APIHandler) staticRoles(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 	defs := ListRoleDefinitions()
 	result := make([]util.MapStr, 0, len(defs))
