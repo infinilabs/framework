@@ -208,7 +208,7 @@ func TestTrimJSONString(t *testing.T) {
 }
 
 func TestNormalizeDataStreamDoc(t *testing.T) {
-	env := []byte(`{"metadata":{"file":{"path":"/a.log"}},"payload":{"message":"hi","timestamp":"2026-10-15T00:00:00Z"},"timestamp":"2026-10-15T00:00:00Z"}`)
+	env := []byte(`{"metadata":{"file":{"path":"/a.log"}},"payload":{"message":"hi","timestamp":"2026-10-15T00:00:00Z","observed_timestamp":"2026-10-15T00:00:00.123Z"},"timestamp":"2026-10-15T00:00:00Z"}`)
 
 	out := normalizeDataStreamDoc(env)
 	m := util.MapStr{}
@@ -225,6 +225,12 @@ func TestNormalizeDataStreamDoc(t *testing.T) {
 	// into @timestamp and is dropped — no top-level mirror is written.
 	if _, ok := m["timestamp"]; ok {
 		t.Errorf("timestamp mirror must not survive: %v", m["timestamp"])
+	}
+	// observed_timestamp (OTel wire field, agent observation time) folds
+	// into the @timestamp fallback chain and is stripped at output; zero
+	// readers — chain timestamps cover the semantics per hop.
+	if _, ok := m["observed_timestamp"]; ok {
+		t.Errorf("observed_timestamp must not survive: %v", m["observed_timestamp"])
 	}
 	// file origin no longer promotes to a top-level "file"
 	// (collection provenance lives on @agent.file_*)
