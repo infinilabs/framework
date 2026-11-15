@@ -33,6 +33,9 @@ func (t *Team) GetIndexName() string { return "security-team" }
 // List returns all teams, paging through the index so the result never
 // silently truncates at a single page.
 func List(ctx *orm.Context) ([]Team, error) {
+	if !orm.IsHandlerRegistered() {
+		return []Team{}, nil
+	}
 	orm.WithModel(ctx, &Team{})
 	const pageSize = 500
 	var teams []Team
@@ -66,6 +69,11 @@ func List(ctx *orm.Context) ([]Team, error) {
 // context: it must not fail logins, so any storage error simply yields no
 // teams.
 func TeamIDsForUser(userID string, aliases ...string) []string {
+	// static-auth-only deployments run no ORM backend; the lookup below
+	// would panic on it and take every password login down with it
+	if !orm.IsHandlerRegistered() {
+		return nil
+	}
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 	ctx.PermissionScope(security.PermissionScopePlatform)

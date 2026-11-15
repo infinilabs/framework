@@ -58,12 +58,16 @@ func (h *APIHandler) get(w http.ResponseWriter, req *http.Request, ps httprouter
 	team := Team{}
 	team.ID = id
 	ctx := orm.NewContextWithParent(req.Context())
+	// the route already enforced generic#security:team read; bypass the
+	// ORM owner check so teams created by another user (typically an
+	// admin) stay readable by anyone granted the permission
+	ctx.DirectReadAccess()
 	exists, err := orm.GetV2(ctx, &team)
-	if err != nil {
+	if err != nil && !isNotFound(err) {
 		panic(err)
 	}
 	if !exists {
-		api.NotFoundResponse(id)
+		api.WriteGetMissingJSON(w, id)
 		return
 	}
 	api.WriteGetOKJSON(w, id, team)
@@ -99,14 +103,17 @@ func (h *APIHandler) update(w http.ResponseWriter, req *http.Request, ps httprou
 	}
 
 	ctx := orm.NewContextWithParent(req.Context())
+	// same ownership-bypass rationale as get: the route permission gates
+	// the operation, not object ownership
+	ctx.DirectReadAccess()
 	stored := Team{}
 	stored.ID = id
 	exists, err := orm.GetV2(ctx, &stored)
-	if err != nil {
+	if err != nil && !isNotFound(err) {
 		panic(err)
 	}
 	if !exists {
-		api.NotFoundResponse(id)
+		api.WriteGetMissingJSON(w, id)
 		return
 	}
 
@@ -123,15 +130,34 @@ func (h *APIHandler) update(w http.ResponseWriter, req *http.Request, ps httprou
 }
 
 // DELETE /security/teams/:id
+//
+// Note on consistency: the ORM backend may index writes with a slight
+// delay (Elasticsearch refresh interval), so a membership change is
+// visible to logins issued immediately afterwards only eventually.
 func (h *APIHandler) delete(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.MustGetParameter("id")
 	team := Team{}
 	team.ID = id
 	ctx := orm.NewContextWithParent(req.Context())
+	// the delete path runs the ORM existence check (a read) and the
+	// owner-check hook; bypass both — the route permission gates the
+	// operation
+	ctx.DirectAccess()
 	if err := orm.Delete(ctx, &team); err != nil {
+		if isNotFound(err) {
+			h.WriteError(w, "team not found", http.StatusNotFound)
+			return
+		}
 		panic(err)
 	}
 	h.WriteJSON(w, util.MapStr{"ok": true}, http.StatusOK)
+}
+
+// isNotFound matches the orm layer's string-typed missing-record errors
+// (orm reports them as plain errors, e.g. "failed to delete, object was
+// not found" and the adapters' "record not found").
+func isNotFound(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "not found")
 }
 
 // normalizeMembers trims, drops empties and dedupes the member list.
