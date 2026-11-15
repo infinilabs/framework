@@ -12,6 +12,22 @@ import (
 // TestNormalizeDataStreamDoc verifies the otel-envelope → data stream doc
 // normalization: payload promotion, @timestamp derivation priority, and
 // metadata promotion (file / log_type / log_kind).
+// A bare document carrying only the OTel wire field must fold
+// observed_timestamp into @timestamp instead of losing it to "now".
+func TestNormalizeDataStreamDoc_BareDocObservedTimestamp(t *testing.T) {
+	out := normalizeDataStreamDoc([]byte(`{"message":"raw","observed_timestamp":"2026-10-15T00:00:00.123Z"}`))
+	doc := util.MapStr{}
+	if err := util.FromJSONBytes(out, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if doc["@timestamp"] != "2026-10-15T00:00:00.123Z" {
+		t.Fatalf("@timestamp must come from the bare doc's observed_timestamp: %v", doc["@timestamp"])
+	}
+	if _, ok := doc["observed_timestamp"]; ok {
+		t.Fatal("observed_timestamp must not survive at output")
+	}
+}
+
 func TestNormalizeDataStreamDoc(t *testing.T) {
 	envelope := `{"metadata":{"file":{"path":"/var/log/system.log","offset":123},"log_type":"text","log_kind":"server"},
 		"payload":{"message":"adding data stream [system-logs]","observed_timestamp":"2026-08-23T14:38:32.982744Z"},

@@ -198,6 +198,23 @@ func TestFingerprintID(t *testing.T) {
 	}
 }
 
+// A bare document carrying only the OTel wire field must fold
+// observed_timestamp into @timestamp instead of losing it to "now" — it is
+// the document's best-known time when no @timestamp/timestamp exists.
+func TestNormalizeDataStreamDoc_BareDocObservedTimestamp(t *testing.T) {
+	out := normalizeDataStreamDoc([]byte(`{"message":"raw","observed_timestamp":"2026-10-15T00:00:00.123Z"}`))
+	m := util.MapStr{}
+	if err := util.FromJSONBytes(out, &m); err != nil {
+		t.Fatal(err)
+	}
+	if m["@timestamp"] != "2026-10-15T00:00:00.123Z" {
+		t.Fatalf("@timestamp must come from the bare doc's observed_timestamp: %v", m["@timestamp"])
+	}
+	if _, ok := m["observed_timestamp"]; ok {
+		t.Fatal("observed_timestamp must not survive at output")
+	}
+}
+
 func TestTrimJSONString(t *testing.T) {
 	if s, ok := trimJSONString([]byte(`"hello"`)); !ok || s != "hello" {
 		t.Errorf("quoted token: %q %v", s, ok)

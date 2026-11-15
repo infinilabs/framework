@@ -40,12 +40,12 @@ import (
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/lane"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/stats"
-	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"infini.sh/framework/modules/elastic/common"
@@ -94,12 +94,12 @@ type MergeConfig struct {
 	// document bytes and take the same aggregation path — written directly
 	// by an upstream output{lane}, in memory end to end (the staging queue
 	// is the only disk landing point).
-	InputLane   string `config:"input_lane"`
-	OutputLane  string `config:"output_lane"`
-	IndexName   string `config:"index_name"`
-	TypeName    string `config:"type_name"`
-	WriteOpType string `config:"write_op_type"`
-	KeyField    string `config:"key_field"`
+	InputLane   string   `config:"input_lane"`
+	OutputLane  string   `config:"output_lane"`
+	IndexName   string   `config:"index_name"`
+	TypeName    string   `config:"type_name"`
+	WriteOpType string   `config:"write_op_type"`
+	KeyField    string   `config:"key_field"`
 	KeyFields   []string `config:"key_fields"`
 
 	BulkSizeInKB         int `config:"bulk_size_in_kb"`
@@ -481,7 +481,8 @@ func trimJSONString(v []byte) (string, bool) {
 //     streams reject documents without a date @timestamp. @timestamp is the
 //     document's one true timestamp (house standard): the mirrored top-level
 //     "timestamp", any payload "timestamp" and the OTel wire field
-//     "observed_timestamp" are folded into it and removed.
+//     "observed_timestamp" (payload or top-level on bare documents) are
+//     folded into it and removed.
 //   - a bare document (no "payload" key) keeps its own @timestamp when
 //     present; only a missing one is stamped with now.
 //   - metadata.file (agent collection origin) lives in @agent.file_* — the
@@ -511,6 +512,14 @@ func normalizeDataStreamDoc(doc []byte) []byte {
 	}
 	if ts == "" {
 		if v, ok := m["@timestamp"].(string); ok { // bare doc already carrying one
+			ts = v
+		}
+	}
+	if ts == "" {
+		// bare doc carrying only the OTel wire field: the agent's
+		// observation time is the document's best-known time, and the
+		// deletion below would otherwise drop it in favor of "now"
+		if v, ok := m["observed_timestamp"].(string); ok && v != "" {
 			ts = v
 		}
 	}
