@@ -26,6 +26,12 @@ func TestDocumentCodec_Decode(t *testing.T) {
 	want, _ := time.Parse(time.RFC3339, "2026-01-02T03:04:05Z")
 	assert.Equal(t, want, rec.Timestamp, "event time must hydrate from the document")
 
+	// an empty JSON object is still a document, not a text line
+	recEmpty, err := documentCodec{}.Decode([]byte(`{}`))
+	assert.NoError(t, err)
+	assert.NotContains(t, recEmpty.Fields, "message", "empty JSON object must not become a message")
+	assert.Equal(t, "document", CodecHint(recEmpty))
+
 	// non-object payloads land as one text line; hint and timestamp defaults
 	rec2, err := documentCodec{}.Decode([]byte("plain line"))
 	assert.NoError(t, err)

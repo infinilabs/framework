@@ -24,7 +24,10 @@ func (documentCodec) Namespace() string { return "" } // generic — same family
 func (documentCodec) Decode(data []byte) (*event.Event, error) {
 	e := &event.Event{Fields: util.MapStr{}}
 	var raw util.MapStr
-	if err := util.FromJSONBytes(data, &raw); err == nil && len(raw) > 0 {
+	// any valid JSON object is a document — including the empty one;
+	// routing it to the plain-text branch would turn a round-trip of {}
+	// into {"message":"{}"}
+	if err := util.FromJSONBytes(data, &raw); err == nil {
 		e.Fields = raw
 	} else {
 		e.Fields["message"] = string(data)
