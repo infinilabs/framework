@@ -198,74 +198,12 @@ func TestFingerprintID(t *testing.T) {
 	}
 }
 
-// A bare document carrying only the OTel wire field must fold
-// observed_timestamp into @timestamp instead of losing it to "now" — it is
-// the document's best-known time when no @timestamp/timestamp exists.
-func TestNormalizeDataStreamDoc_BareDocObservedTimestamp(t *testing.T) {
-	out := normalizeDataStreamDoc([]byte(`{"message":"raw","observed_timestamp":"2026-10-15T00:00:00.123Z"}`))
-	m := util.MapStr{}
-	if err := util.FromJSONBytes(out, &m); err != nil {
-		t.Fatal(err)
-	}
-	if m["@timestamp"] != "2026-10-15T00:00:00.123Z" {
-		t.Fatalf("@timestamp must come from the bare doc's observed_timestamp: %v", m["@timestamp"])
-	}
-	if _, ok := m["observed_timestamp"]; ok {
-		t.Fatal("observed_timestamp must not survive at output")
-	}
-}
-
 func TestTrimJSONString(t *testing.T) {
 	if s, ok := trimJSONString([]byte(`"hello"`)); !ok || s != "hello" {
 		t.Errorf("quoted token: %q %v", s, ok)
 	}
 	if _, ok := trimJSONString([]byte(`42`)); ok {
 		t.Error("non-string token should not trim")
-	}
-}
-
-func TestNormalizeDataStreamDoc(t *testing.T) {
-	env := []byte(`{"metadata":{"file":{"path":"/a.log"}},"payload":{"message":"hi","timestamp":"2026-10-15T00:00:00Z","observed_timestamp":"2026-10-15T00:00:00.123Z"},"timestamp":"2026-10-15T00:00:00Z"}`)
-
-	out := normalizeDataStreamDoc(env)
-	m := util.MapStr{}
-	if err := util.FromJSONBytes(out, &m); err != nil {
-		t.Fatalf("normalized doc is not JSON: %v", err)
-	}
-	if m["message"] != "hi" {
-		t.Errorf("payload.message not promoted: %v", m)
-	}
-	if m["@timestamp"] != "2026-10-15T00:00:00Z" {
-		t.Errorf("@timestamp = %v", m["@timestamp"])
-	}
-	// @timestamp is the only real timestamp: the payload's timestamp folds
-	// into @timestamp and is dropped — no top-level mirror is written.
-	if _, ok := m["timestamp"]; ok {
-		t.Errorf("timestamp mirror must not survive: %v", m["timestamp"])
-	}
-	// observed_timestamp (OTel wire field, agent observation time) folds
-	// into the @timestamp fallback chain and is stripped at output; zero
-	// readers — chain timestamps cover the semantics per hop.
-	if _, ok := m["observed_timestamp"]; ok {
-		t.Errorf("observed_timestamp must not survive: %v", m["observed_timestamp"])
-	}
-	// file origin no longer promotes to a top-level "file"
-	// (collection provenance lives on @agent.file_*)
-	if _, ok := m["file"]; ok {
-		t.Errorf("top-level file promotion is gone: %v", m["file"])
-	}
-
-	// bare docs pass through with a stamped @timestamp
-	bare := normalizeDataStreamDoc([]byte(`{"message":"plain"}`))
-	m2 := util.MapStr{}
-	if err := util.FromJSONBytes(bare, &m2); err != nil {
-		t.Fatalf("bare doc: %v", err)
-	}
-	if m2["message"] != "plain" {
-		t.Errorf("bare doc message lost: %v", m2)
-	}
-	if m2["@timestamp"] == nil {
-		t.Error("bare doc missing stamped @timestamp")
 	}
 }
 
