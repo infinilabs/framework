@@ -143,15 +143,20 @@ func replaySample(procs *pipeline.Processors, s Sample, opts Options, sink *[]Ca
 		before := snapshotFields(rec)
 		start := time.Now()
 		outcome, errMsg := "ok", ""
+		// a captured sink write during this step marks it as a delivery —
+		// even though capture intercepted the I/O, the step is terminal
+		// for the sample exactly as a real delivery would be at runtime
+		writesBefore := len(*sink)
 		var runErr error
 		if bp, isBatch := p.(pipeline.BatchProcessor); isBatch {
 			runErr = bp.ProcessBatch(ctx, []*event.Event{rec})
 		} else {
 			runErr = p.Process(ctx)
 		}
+		capturedWrite := len(*sink) > writesBefore
 		if runErr != nil {
 			outcome, errMsg = "error", runErr.Error()
-		} else if pipeline.IsDelivered(ctx) {
+		} else if pipeline.IsDelivered(ctx) || capturedWrite {
 			outcome = "delivered"
 		} else if pipeline.IsDropped(rec) {
 			outcome = "dropped"

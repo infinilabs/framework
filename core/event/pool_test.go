@@ -118,3 +118,23 @@ func TestPoolConcurrentAcquireRelease(t *testing.T) {
 		t.Fatalf("every acquire must be released exactly once: released %d of %d", got, workers*rounds)
 	}
 }
+
+func TestCloneEvent_ClearsPrivateAndCopiesTopLevel(t *testing.T) {
+	e := &Event{
+		Fields:   util.MapStr{"message": "x", "user": map[string]interface{}{"name": "a"}},
+		Metadata: EventMetadata{Labels: util.MapStr{"k": "v"}},
+	}
+	e.Private = "marker"
+	c := CloneEvent(e)
+	if c.Private != nil {
+		t.Fatal("clone must not carry Private state")
+	}
+	c.Fields["message"] = "y"
+	if e.Fields["message"] != "x" {
+		t.Fatal("top-level Fields must be independent")
+	}
+	c.Metadata.Labels["k"] = "v2"
+	if e.Metadata.Labels["k"] != "v" {
+		t.Fatal("Labels must be independent")
+	}
+}

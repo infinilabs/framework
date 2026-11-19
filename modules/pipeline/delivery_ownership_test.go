@@ -393,3 +393,35 @@ func TestDelivery_StepOutcomeDelivered(t *testing.T) {
 		t.Fatal("no step event observed for the output processor")
 	}
 }
+
+// A failed Emit keeps sender ownership: the record is NOT marked
+// delivered, stays in its batch slot, and the error path decides — a
+// record the sink never accepted must not vanish from the flow.
+func TestDelivery_FailedEmitKeepsRecord(t *testing.T) {
+	// capacity 1 and no subscriber: the first Emit fills the channel, the
+	// output step's Emit blocks; closing the lane mid-block fails it —
+	// the deterministic path to a failed single-target send
+	l := lane.GetOrCreate(lane.LaneConfig{Name: t.Name() + "-lane", Capacity: 1})
+	if err := l.Emit(&event.Event{Fields: util.MapStr{"filler": true}}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = lane.Delete(t.Name()+"-lane", true) })
+
+	p := forEachWith(t, "", []interface{}{
+		util.MapStr{"output": util.MapStr{"lane": t.Name() + "-lane"}},
+	})
+	var msgs []queue.Message
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		msgs = runForEach(t, p, `{"payload":{"message":"x"},"timestamp":"2026-08-18T10:00:00Z"}`)
+	}()
+	// let the output step reach the blocking Emit, then fail it
+	time.Sleep(10 * time.Millisecond)
+	_ = l.Close()
+	<-done
+
+	if msgs[0].Data == nil {
+		t.Fatal("record lost: a failed Emit must keep the record in its slot")
+	}
+}

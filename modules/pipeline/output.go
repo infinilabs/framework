@@ -147,33 +147,44 @@ func (p *OutputProcessor) emitLanes(ctx *pipeline.Context) error {
 	if p.capture(ctx, "lane", strings.Join(p.laneNames, ","), encodePreview(rec)) {
 		return nil
 	}
-	pipeline.MarkDelivered(ctx)
+	// Prepare EVERY fan-out copy before the first hand-off: lane #0's
+	// subscriber may mutate its record the moment Emit returns, and a
+	// CloneEvent iterating rec.Fields afterwards would race with it (and
+	// could snapshot lane #0's mutations into the other branches).
+	outs := make([]*event.Event, len(p.laneNames))
+	for i := range p.laneNames {
+		// ownership hand-off: the emitting host (for_each) recycles pooled
+		// records once this call returns, but the lane delivers the pointer
+		// asynchronously — a pooled record must cross the boundary as a
+		// pool-independent copy, or the subscriber reads a reset event.
+		// Extra fan-out lanes get an independent copy even for non-pooled
+		// records: every receiver owns its record.
+		if i == 0 {
+			outs[i] = event.DetachFromPool(rec)
+		} else {
+			outs[i] = event.CloneEvent(rec)
+		}
+	}
 	for i, name := range p.laneNames {
 		l := lane.Get(name)
 		if l == nil {
 			l = lane.GetOrCreate(lane.LaneConfig{Name: name})
 		}
-		// ownership hand-off: the emitting host (for_each) recycles
-		// pooled records once this call returns, but the lane delivers
-		// the pointer asynchronously — a pooled record must cross the
-		// boundary as a pool-independent copy, or the subscriber reads a
-		// reset event. Extra fan-out lanes get an independent copy even
-		// for non-pooled records: every receiver owns its record.
-		var out *event.Event
-		if i == 0 {
-			out = event.DetachFromPool(rec)
-		} else {
-			out = event.CloneEvent(rec)
-		}
 		if !p.ack {
-			if err := l.Emit(out); err != nil {
+			if err := l.Emit(outs[i]); err != nil {
 				return err
 			}
 			continue
 		}
-		r := l.EmitAck(out)
+		r := l.EmitAck(outs[i])
 		pipeline.AttachAckSet(ctx).AddReceipt(r)
 	}
+	// Mark only after every target accepted the record: a failed Emit
+	// keeps sender ownership — the record stays in the batch and the
+	// error path decides. A partial fan-out failure is not marked either:
+	// the record re-delivers whole (at-least-once; downstream
+	// fingerprinting dedupes) instead of being half-delivered and lost.
+	pipeline.MarkDelivered(ctx)
 	// fan-out counts once per record (lane-side emit counters live on the
 	// lanes themselves — laneStageStats reports them)
 	stats.Increment("pipeline", ctx.Config.Name, "processor", outputName, "total_delivered")
