@@ -151,7 +151,7 @@ func replaySample(procs *pipeline.Processors, s Sample, opts Options, sink *[]Ca
 		}
 		if runErr != nil {
 			outcome, errMsg = "error", runErr.Error()
-		} else if pipeline.IsDelivered(rec) {
+		} else if pipeline.IsDelivered(ctx) {
 			outcome = "delivered"
 		} else if pipeline.IsDropped(rec) {
 			outcome = "dropped"
@@ -165,6 +165,11 @@ func replaySample(procs *pipeline.Processors, s Sample, opts Options, sink *[]Ca
 			Outcome:    outcome, Err: errMsg,
 		})
 		if runErr != nil {
+			break
+		}
+		// mirror the chain runner: terminal states stop the replay — the
+		// real pipeline would skip the remaining processors
+		if outcome == "delivered" || outcome == "dropped" {
 			break
 		}
 	}

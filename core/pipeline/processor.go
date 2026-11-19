@@ -313,7 +313,7 @@ func (procs *Processors) Process(ctx *Context) error {
 		// receiver (e.g. a lane subscriber encoding the same record), and
 		// a second sink would double-deliver. Outside a record scope the
 		// check is inert.
-		if rec, ok := CurrentRecord(ctx); ok && RecordLeft(rec) {
+		if _, ok := CurrentRecord(ctx); ok && RecordLeft(ctx) {
 			ctx.AddFlowProcess("skipped")
 			return nil
 		}

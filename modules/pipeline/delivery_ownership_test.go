@@ -5,6 +5,7 @@
 package pipeline
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -263,7 +264,81 @@ func TestDelivery_LaneToLaneSingleDelivery(t *testing.T) {
 	if got := relayRecs[0].Fields["message"]; got != "relay" {
 		t.Fatalf("successor ran on delivered record: %v", got)
 	}
-	if !pipeline.IsDelivered(rec) {
-		t.Fatal("record relayed to the second lane must be marked delivered")
+}
+
+// A record can arrive at lane_consumer carrying a stale record-borne
+// terminal marker from a foreign emitter. Intake is an ownership transfer
+// — the receiving chain must process the record, not skip it as "already
+// left".
+func TestDelivery_LaneConsumerIntakeTakesOwnership(t *testing.T) {
+	cfgMap := util.MapStr{
+		"lane":      t.Name() + "-lane",
+		"processor": []interface{}{util.MapStr{"test_upper": util.MapStr{}}},
+	}
+	c, err := config.NewConfigFrom(cfgMap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proc, err := NewLaneConsumerProcessor(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lc := proc.(*LaneConsumerProcessor)
+	t.Cleanup(func() { _ = lane.Delete(t.Name()+"-lane", true) })
+
+	ctx := &pipeline.Context{Context: t.Context()}
+	rec := &event.Event{Fields: util.MapStr{"message": "x"}}
+	pipeline.MarkDropped(rec) // a foreign emitter's stale record-borne marker
+
+	if err := lc.runBatch(ctx, buildSegments(lc.sub.List), []*event.Event{rec}); err != nil {
+		t.Fatal(err)
+	}
+	if got := rec.Fields["message"]; got != "PROCESSED:x" {
+		t.Fatalf("upstream-marked record must be processed by the receiving chain, got %v", got)
+	}
+	if pipeline.IsDropped(rec) {
+		t.Fatal("intake must clear the upstream marker: the record starts a fresh lifecycle here")
+	}
+}
+
+// End-to-end ownership hop: for_each{output{lane}} delivers marked
+// records; the lane_consumer's chain processes them and re-delivers to a
+// second lane. Without the intake reset the consumer would skip every
+// record and the second lane would never receive anything.
+func TestDelivery_LaneToLaneChainProcessesDelivered(t *testing.T) {
+	out := subscribe(t, t.Name()+"-out")
+
+	lcCfg := util.MapStr{
+		"lane":           t.Name() + "-in",
+		"batch_max":      1,
+		"batch_flush_ms": 5,
+		"processor": []interface{}{
+			util.MapStr{"test_upper": util.MapStr{}},
+			util.MapStr{"output": util.MapStr{"lane": t.Name() + "-out"}},
+		},
+	}
+	c2, err := config.NewConfigFrom(lcCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proc, err := NewLaneConsumerProcessor(c2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lc := proc.(*LaneConsumerProcessor)
+	t.Cleanup(func() { _ = lane.Delete(t.Name()+"-in", true) })
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	go func() { _ = lc.Process(&pipeline.Context{Context: ctx}) }()
+
+	p := forEachWith(t, "", []interface{}{
+		util.MapStr{"output": util.MapStr{"lane": t.Name() + "-in"}},
+	})
+	runForEach(t, p, `{"payload":{"message":"hop"},"timestamp":"2026-08-18T10:00:00Z"}`)
+
+	recs := out.wait(t, 1)
+	if got := recs[0].Fields["message"]; got != "PROCESSED:hop" {
+		t.Fatalf("receiving chain must process the upstream-delivered record, got %v", got)
 	}
 }

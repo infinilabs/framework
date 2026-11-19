@@ -282,7 +282,7 @@ func (p *ForEachProcessor) runOnRecords(c *pipeline.Context, records []*event.Ev
 		if seg.batch {
 			live := make([]*event.Event, 0, len(active))
 			for i := range active {
-				if !pipeline.RecordLeft(active[i].rec) {
+				if !active[i].left && !pipeline.IsDropped(active[i].rec) {
 					live = append(live, active[i].rec)
 				}
 			}
@@ -303,15 +303,35 @@ func (p *ForEachProcessor) runOnRecords(c *pipeline.Context, records []*event.Ev
 				}
 				log.Warnf("for_each: batch segment [%s] error (%s): %v", seg.proc.Name(), p.cfg.OnFailure, err)
 			}
+			// batch processors may drop records in place; reconcile the
+			// host-side view (a dropped record never crossed goroutines,
+			// so reading its marker here is safe)
+			for i := range active {
+				if !active[i].left && pipeline.IsDropped(active[i].rec) {
+					active[i].left = true
+				}
+			}
 			continue
 		}
 
 		// record segment: per active record, run the segment's sub-chain
 		// (dry-run adoption stays serial for deterministic diffs)
 		if p.cfg.Parallel > 1 && msgs != nil {
-			perr := runRecordSegmentParallel(c, seg.chain, active, p.cfg, func(cl *event.Event, idx int) {
+			// left[] is seeded from the accumulated host state and written
+			// back after the join: each index belongs to exactly one
+			// worker, so the writes never race
+			left := make([]bool, len(active))
+			for i := range active {
+				left[i] = active[i].left
+			}
+			perr := runRecordSegmentParallel(c, seg.chain, active, p.cfg, left, func(cl *event.Event, idx int) {
 				active = append(active, forEachActive{rec: cl, msgIdx: idx, isClone: true})
 			})
+			for i := range left {
+				if left[i] {
+					active[i].left = true
+				}
+			}
 			if perr != nil {
 				// parallel workers cannot abort mid-record like the serial
 				// loop — in-flight records finish, then the fail strategy
@@ -327,7 +347,7 @@ func (p *ForEachProcessor) runOnRecords(c *pipeline.Context, records []*event.Ev
 				break
 			}
 			ar := &active[i]
-			if pipeline.RecordLeft(ar.rec) {
+			if ar.left {
 				continue
 			}
 			c.Set(pipeline.RecordContextKey, ar.rec)
@@ -339,8 +359,10 @@ func (p *ForEachProcessor) runOnRecords(c *pipeline.Context, records []*event.Ev
 				tagged := false
 				for _, proc := range seg.chain.List {
 					// same single-owner guard as Processors.Process — this
-					// manual loop bypasses the chain runner
-					if pipeline.RecordLeft(ar.rec) {
+					// manual loop bypasses the chain runner. Delivery state
+					// comes from the context; the dropped check is ordered
+					// AFTER it so a delivered record is never touched.
+					if pipeline.RecordLeft(c) {
 						break
 					}
 					if err := proc.Process(c); err != nil {
@@ -352,12 +374,24 @@ func (p *ForEachProcessor) runOnRecords(c *pipeline.Context, records []*event.Ev
 							p.cfg.FailureTag, offsetOf(ar), err)
 					}
 				}
-				mergeFailureTags(ar.rec, tags)
+				// a delivered record belongs to its receiver now — writing
+				// failure tags onto it would race with the receiver
+				if !pipeline.TakeDelivery(c) {
+					mergeFailureTags(ar.rec, tags)
+					if pipeline.IsDropped(ar.rec) {
+						ar.left = true
+					}
+				} else {
+					ar.left = true
+				}
 			} else {
 				if err := seg.chain.Process(c); err != nil {
 					if err2 := p.handleFailure(c, err); err2 != nil {
 						return err2
 					}
+				}
+				if pipeline.TakeDelivery(c) || pipeline.IsDropped(ar.rec) {
+					ar.left = true
 				}
 			}
 			// clones join the active set and flow through later segments
@@ -374,13 +408,14 @@ func (p *ForEachProcessor) runOnRecords(c *pipeline.Context, records []*event.Ev
 	}
 
 	// Encode pass: originals write their message slot, clones append new
-	// messages sharing the parent's offset semantics. Delivered records
-	// empty their slot exactly like dropped ones — delivery is terminal
-	// and single (the sink owns the record; re-encoding here would both
-	// race with the receiver and double-deliver via the batch).
+	// messages sharing the parent's offset semantics. Left records (dropped
+	// or delivered) empty their slot — delivery is terminal and single (the
+	// sink owns a delivered record; re-encoding here would both race with
+	// the receiver and double-deliver via the batch). The check reads the
+	// host-side flag only: a delivered record must not be touched at all.
 	for i := range active {
 		ar := active[i]
-		if pipeline.RecordLeft(ar.rec) {
+		if ar.left {
 			if !ar.isClone {
 				msgs[ar.msgIdx].Data = nil
 				msgs[ar.msgIdx].Size = 0
@@ -455,6 +490,11 @@ type forEachActive struct {
 	rec     *event.Event
 	msgIdx  int
 	isClone bool
+	// left: host-side terminal state (dropped, or delivered to a sink that
+	// now owns the record). Tracked HERE, never read back from the record:
+	// a delivered record must not be touched post-handoff (single-owner
+	// rule), so the encode pass and segment filters consult this flag only.
+	left bool
 }
 
 // runRecordSegmentParallel runs one record segment with N workers. Each
@@ -464,7 +504,7 @@ type forEachActive struct {
 // for parallel record processing. It returns the first sub-chain error so
 // the caller can apply its on_failure strategy (fail must abort the batch
 // exactly as the serial path does).
-func runRecordSegmentParallel(c *pipeline.Context, chain *pipeline.Processors, active []forEachActive, cfg ForEachConfig, addClone func(cl *event.Event, idx int)) error {
+func runRecordSegmentParallel(c *pipeline.Context, chain *pipeline.Processors, active []forEachActive, cfg ForEachConfig, left []bool, addClone func(cl *event.Event, idx int)) error {
 	if len(active) == 0 {
 		return nil
 	}
@@ -493,7 +533,7 @@ func runRecordSegmentParallel(c *pipeline.Context, chain *pipeline.Processors, a
 					return
 				}
 				ar := active[i]
-				if pipeline.RecordLeft(ar.rec) {
+				if left[i] {
 					continue
 				}
 				wc.Set(pipeline.RecordContextKey, ar.rec)
@@ -503,12 +543,26 @@ func runRecordSegmentParallel(c *pipeline.Context, chain *pipeline.Processors, a
 					var tags []string
 					wc.Set(pipeline.FailureTagsKey, &tags)
 					for _, proc := range chain.List {
+						// same single-owner guard as Processors.Process —
+						// this manual loop bypasses the chain runner
+						if pipeline.RecordLeft(wc) {
+							break
+						}
 						if err := proc.Process(wc); err != nil {
 							pipeline.AppendFailureTag(wc, cfg.FailureTag)
 							log.Warnf("for_each: sub-chain error tagged %q (parallel): %v", cfg.FailureTag, err)
 						}
 					}
-					mergeFailureTags(ar.rec, tags)
+					// a delivered record belongs to its receiver — writing
+					// failure tags onto it would race with the receiver
+					if !pipeline.TakeDelivery(wc) {
+						mergeFailureTags(ar.rec, tags)
+						if pipeline.IsDropped(ar.rec) {
+							left[i] = true
+						}
+					} else {
+						left[i] = true
+					}
 				} else {
 					if err := chain.Process(wc); err != nil {
 						log.Warnf("for_each: record error (parallel, on_failure=%s): %v", cfg.OnFailure, err)
@@ -517,6 +571,9 @@ func runRecordSegmentParallel(c *pipeline.Context, chain *pipeline.Processors, a
 							firstErr = err
 						}
 						mu.Unlock()
+					}
+					if pipeline.TakeDelivery(wc) || pipeline.IsDropped(ar.rec) {
+						left[i] = true
 					}
 				}
 				for _, cl := range pipeline.TakeClones(wc) {

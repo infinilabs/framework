@@ -38,7 +38,7 @@ func runSync(job *Job, ctx *Context) {
 		// remaining processors of this chain must not touch it — a write
 		// here races with the receiver (e.g. a lane subscriber encoding
 		// the same record). Outside a record scope the check is inert.
-		if rec, ok := CurrentRecord(ctx); ok && RecordLeft(rec) {
+		if _, ok := CurrentRecord(ctx); ok && RecordLeft(ctx) {
 			break
 		}
 

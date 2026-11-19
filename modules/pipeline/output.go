@@ -126,25 +126,26 @@ func truncate(b []byte, n int) string {
 // emitLanes: record scope only — the batch scope has no live records.
 //
 // Delivery is ownership transfer (single-owner rule, see
-// core/pipeline/record.go): the marker is set BEFORE any handoff so the
-// channel's happens-before settles the record for the receiver, and
-// nothing on this side touches it afterwards — the chain runner stops
-// the remaining processors of the record's chain, the host's encode-back
-// pass empties the message slot, and a second sink in the same chain is
-// skipped with a warning (fan out via lanes: [...], fork via clone).
+// core/pipeline/record.go): MarkDelivered sets the CONTEXT flag before any
+// handoff so the channel's happens-before settles the record for the
+// receiver, and nothing on this side touches the record afterwards — the
+// chain runner stops the remaining processors of the record's chain, the
+// host's encode-back pass empties the message slot, and a second sink in
+// the same chain is skipped with a warning (fan out via lanes: [...],
+// fork via clone).
 func (p *OutputProcessor) emitLanes(ctx *pipeline.Context) error {
 	rec, ok := pipeline.CurrentRecord(ctx)
 	if !ok {
 		return fmt.Errorf("%s{lane:%v} requires record scope (inside for_each/lane_consumer); for disk→lane bridging use consumer{codec, output_lane}", outputName, p.laneNames)
 	}
-	if pipeline.IsDelivered(rec) {
+	if pipeline.IsDelivered(ctx) {
 		log.Warnf("%s: record already delivered to a sink; skipping lanes %v (use lanes: [...] for fan-out or the clone processor for forks)", outputName, p.laneNames)
 		return nil
 	}
 	if p.capture(ctx, "lane", strings.Join(p.laneNames, ","), encodePreview(rec)) {
 		return nil
 	}
-	pipeline.MarkDelivered(rec)
+	pipeline.MarkDelivered(ctx)
 	for i, name := range p.laneNames {
 		l := lane.Get(name)
 		if l == nil {
@@ -179,7 +180,7 @@ func (p *OutputProcessor) emitLanes(ctx *pipeline.Context) error {
 // bridge, 3-level codec resolution).
 func (p *OutputProcessor) pushQueue(ctx *pipeline.Context) error {
 	if rec, ok := pipeline.CurrentRecord(ctx); ok {
-		if pipeline.IsDelivered(rec) {
+		if pipeline.IsDelivered(ctx) {
 			log.Warnf("%s: record already delivered to a sink; skipping queue %v (use the clone processor for forks)", outputName, p.outQ.Name)
 			return nil
 		}
@@ -198,9 +199,9 @@ func (p *OutputProcessor) pushQueue(ctx *pipeline.Context) error {
 			return err
 		}
 		// byte-plane delivery: the queue owns the pushed bytes, and the
-		// marker keeps the host's encode-back from re-delivering the
-		// record through the batch (single delivery)
-		pipeline.MarkDelivered(rec)
+		// context flag keeps the host's encode-back from re-delivering
+		// the record through the batch (single delivery)
+		pipeline.MarkDelivered(ctx)
 		return nil
 	}
 	obj := ctx.Get(p.cfg.MessageField)
