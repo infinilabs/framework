@@ -31,6 +31,7 @@ import (
 	"infini.sh/framework/core/task/chrono"
 	"infini.sh/framework/core/util"
 	"runtime"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -236,7 +237,9 @@ func RegisterScheduleTask(task ScheduleTask) (taskID string) {
 						case string:
 							v = r.(string)
 						}
-						log.Error(v)
+						// a bare message here is undiagnosable — name the task
+						// and capture the panic stack so the crash site is visible
+						log.Errorf("scheduled task [%v][%v] panicked: %v\n%s", task.ID, task.Description, v, debug.Stack())
 					}
 				}
 				task.isTaskRunning.Store(false)
