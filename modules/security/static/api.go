@@ -9,58 +9,79 @@ import (
 
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/security"
+	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/util"
 )
 
-type APIHandler struct {
-	api.Handler
+// SourceStatic is the source query-parameter value that routes a
+// /security/user/_search or /security/role/_search request to the static
+// (yml-configured) registry instead of the ORM store.
+const SourceStatic = "static"
+
+// IsStaticSource reports whether the request asks for the static source.
+func IsStaticSource(req *http.Request) bool {
+	return req.URL.Query().Get("source") == SourceStatic
 }
 
-func init() {
-	// Static account listing shares the user-management permission surface
-	// (generic#security:user/read); role listing is analogous. The
-	// endpoints are always registered: they return empty lists when static
-	// auth is not enabled.
-	userRead := api.RequirePermission(security.GetOrInitPermission("generic", "security:user", security.Read))
-	roleRead := api.RequirePermission(security.GetOrInitPermission("generic", "security:role", security.Read))
-
-	handler := APIHandler{}
-	api.HandleUIMethod(api.GET, "/security/static-users", handler.staticUsers, userRead)
-	api.HandleUIMethod(api.GET, "/security/static-users/", handler.staticUsers, userRead)
-	api.HandleUIMethod(api.GET, "/security/static-roles", handler.staticRoles, roleRead)
-	api.HandleUIMethod(api.GET, "/security/static-roles/", handler.staticRoles, roleRead)
-}
-
-// GET /security/static-users — read-only echo of the yml static accounts.
-// ListAccounts returns sanitized copies without the bcrypt password hashes.
-func (h *APIHandler) staticUsers(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+// UserSearch serves /security/user/_search?source=static: a read-only echo
+// of the yml static accounts, in the same envelope and item shape as the
+// ORM-backed search (hits/_id/_source), so clients can render both
+// listings with one model. Full list, no pagination: the source is the
+// config file, so the result is bounded by it. created/updated stay
+// absent — config-defined accounts have no ORM metadata — and each item
+// carries source: "static". ListAccounts returns sanitized copies without
+// the bcrypt password hashes.
+func UserSearch(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 	accounts := ListAccounts()
-	result := make([]util.MapStr, 0, len(accounts))
+	docs := make([]elastic.DocumentWithMeta[util.MapStr], 0, len(accounts))
 	for _, a := range accounts {
-		result = append(result, util.MapStr{
-			"id": a.ID, "name": a.Name, "email": a.Email,
-			"roles": a.Roles,
+		docs = append(docs, elastic.DocumentWithMeta[util.MapStr]{
+			ID: a.ID,
+			Source: util.MapStr{
+				"id": a.ID, "name": a.Name, "email": a.Email,
+				"roles": a.Roles, "source": SourceStatic,
+			},
 		})
 	}
-	h.WriteJSON(w, util.MapStr{"count": len(result), "result": result}, http.StatusOK)
+	WriteSearchResponse(w, docs)
 }
 
-// GET /security/static-roles — read-only echo of the yml static roles
-// (authorization.static.roles). The wildcard entry is consumed into
-// grantAll at load time: grantAll roles report grant_all: true with an
-// empty permissions list, not permissions: ["*"].
-func (h *APIHandler) staticRoles(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+// RoleSearch serves /security/role/_search?source=static: a read-only
+// echo of the yml static roles (authorization.static.roles), full list
+// for the same reason as UserSearch. id repeats the name:
+// config-defined roles are keyed by name, and the field gives clients a
+// uniform row key across sources. permissions nest under grants like the
+// ORM-backed role items; the wildcard entry is consumed into grantAll at
+// load time, so grantAll roles report grant_all: true with an empty
+// permissions list, not permissions: ["*"].
+func RoleSearch(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 	defs := ListRoleDefinitions()
-	result := make([]util.MapStr, 0, len(defs))
+	docs := make([]elastic.DocumentWithMeta[util.MapStr], 0, len(defs))
 	for _, d := range defs {
 		perms := make([]string, 0, len(d.Permissions))
 		for _, p := range d.Permissions {
 			perms = append(perms, string(p))
 		}
-		result = append(result, util.MapStr{
-			"name": d.Name, "grant_all": d.GrantAll, "permissions": perms,
+		docs = append(docs, elastic.DocumentWithMeta[util.MapStr]{
+			ID: d.Name,
+			Source: util.MapStr{
+				"id": d.Name, "name": d.Name,
+				"grants":    util.MapStr{"permissions": perms},
+				"grant_all": d.GrantAll,
+				"source":    SourceStatic,
+			},
 		})
 	}
-	h.WriteJSON(w, util.MapStr{"count": len(result), "result": result}, http.StatusOK)
+	WriteSearchResponse(w, docs)
+}
+
+// WriteSearchResponse emits docs in the SearchResponseWithMeta envelope
+// used by the ORM-backed _search handlers; nil yields an empty listing.
+// Shared with the security module, which serves the same envelope for
+// sources that have nothing to list.
+func WriteSearchResponse(w http.ResponseWriter, docs []elastic.DocumentWithMeta[util.MapStr]) {
+	res := elastic.SearchResponseWithMeta[util.MapStr]{}
+	res.Hits.Hits = docs
+	res.Hits.Total = elastic.NewGeneralTotal(int64(len(docs)))
+	api.WriteJSON(w, res, http.StatusOK)
 }
