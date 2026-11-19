@@ -154,7 +154,7 @@ func (p *LaneConsumerProcessor) runBatch(ctx *pipeline.Context, segments []execS
 		if seg.batch {
 			live := make([]*event.Event, 0, len(active))
 			for _, rec := range active {
-				if !pipeline.IsDropped(rec) {
+				if !pipeline.RecordLeft(rec) {
 					live = append(live, rec)
 				}
 			}
@@ -175,7 +175,7 @@ func (p *LaneConsumerProcessor) runBatch(ctx *pipeline.Context, segments []execS
 		}
 		next := active[:0]
 		for _, rec := range active {
-			if pipeline.IsDropped(rec) {
+			if pipeline.RecordLeft(rec) {
 				continue
 			}
 			c := &pipeline.Context{ParentContext: ctx, Context: ctx.Context, Config: ctx.Config}
@@ -184,6 +184,11 @@ func (p *LaneConsumerProcessor) runBatch(ctx *pipeline.Context, segments []execS
 				var tags []string
 				c.Set(pipeline.FailureTagsKey, &tags)
 				for _, proc := range seg.chain.List {
+					// same single-owner guard as Processors.Process — this
+					// manual loop bypasses the chain runner
+					if pipeline.RecordLeft(rec) {
+						break
+					}
 					if err := proc.Process(c); err != nil {
 						pipeline.AppendFailureTag(c, p.cfg.FailureTag)
 						log.Warnf("lane_consumer: sub-chain error tagged %q: %v", p.cfg.FailureTag, err)
@@ -199,18 +204,21 @@ func (p *LaneConsumerProcessor) runBatch(ctx *pipeline.Context, segments []execS
 					continue // diverted: dead_letter is a settlement
 				}
 			}
-			if !pipeline.IsDropped(rec) {
+			if !pipeline.RecordLeft(rec) {
 				next = append(next, rec)
 			}
 		}
 		active = next
 	}
 	if p.outQ != nil {
+		// delivered records are excluded: their sub-chain already handed
+		// them to a sink (e.g. another lane) — pushing them here too
+		// would double-deliver
 		for _, rec := range active {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if !pipeline.IsDropped(rec) {
+			if !pipeline.RecordLeft(rec) {
 				if err := p.pushEncoded(p.outQ, rec); err != nil {
 					return err
 				}

@@ -42,7 +42,11 @@ import (
 //      each payload into an *event.Event via a registered RecordCodec.
 //   2. The record is exposed to the sub-chain under RecordContextKey;
 //      transform processors read/mutate it in place via CurrentRecord.
-//   3. Processors may MarkDropped the record to remove it from the batch.
+//   3. Processors may MarkDropped the record to remove it from the batch,
+//      or deliver it to a sink (output{lane}/output{queue} record scope)
+//      which MarkDelivered's it — both states mean the record has left
+//      the active batch: later processors skip it, and the host's
+//      encode-back pass empties its message slot (single delivery).
 //   4. Optional failure tags are stored under FailureTagsKey by the
 //      splitter when a sub-chain errors (on_failure: tag strategy).
 //   5. The re-encoded payload replaces the original message in the batch.
@@ -50,6 +54,19 @@ import (
 // Writing a compatible record processor means: use CurrentRecord(ctx) to
 // fetch the record, mutate Fields/Meta in place, call MarkDropped to drop,
 // and NEVER touch the raw payload bytes — encoding belongs to the codec.
+//
+// ── Single-owner rule ──────────────────────────────────────────────────
+// A record has exactly one owner at any moment: the host while it is in
+// the batch, the sink after delivery. Delivering a record transfers
+// ownership — pointer handoffs (lanes) included: the receiver may read
+// and even mutate (codec Encode that stamps fields) the record the
+// moment it arrives. Consequently NO code may touch a record after
+// MarkDelivered: the chain runner stops the remaining processors of the
+// record's chain, hosts skip the record in later segments and the
+// encode-back pass, and a second sink in the same chain is rejected
+// with a warning (use lanes: [...] for fan-out or the clone processor
+// for forks). The marker is set before the handoff so the channel's
+// happens-before guarantees the receiver sees a settled record.
 //
 // Nesting: a sub-chain may itself contain another batch-splitting
 // processor bound to a different message field (see the nested-for_each
@@ -104,6 +121,37 @@ func IsDropped(rec *event.Event) bool {
 	}
 	_, ok := rec.Private.(droppedMarker)
 	return ok
+}
+
+// deliveredMarker is stored in event.Private by MarkDelivered (sink
+// outputs); see the single-owner rule above.
+type deliveredMarker struct{}
+
+// MarkDelivered marks the record as handed to a sink. Delivery is
+// terminal: the marker must be set BEFORE the record crosses to the
+// receiver, and nothing on the emitting side may touch the record
+// afterwards (the chain runner and the hosts enforce this).
+func MarkDelivered(rec *event.Event) {
+	if rec != nil {
+		rec.Private = deliveredMarker{}
+	}
+}
+
+// IsDelivered reports whether the record was delivered to a sink.
+func IsDelivered(rec *event.Event) bool {
+	if rec == nil {
+		return false
+	}
+	_, ok := rec.Private.(deliveredMarker)
+	return ok
+}
+
+// RecordLeft reports whether the record has left the active batch —
+// dropped or delivered. Hosts (for_each, lane_consumer) and the chain
+// runner skip such records: there is nothing left to process, and a
+// delivered record is owned by its receiver.
+func RecordLeft(rec *event.Event) bool {
+	return IsDropped(rec) || IsDelivered(rec)
 }
 
 // CurrentFailureTags returns the failure-tag list of the current record,

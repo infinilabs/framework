@@ -151,6 +151,8 @@ func replaySample(procs *pipeline.Processors, s Sample, opts Options, sink *[]Ca
 		}
 		if runErr != nil {
 			outcome, errMsg = "error", runErr.Error()
+		} else if pipeline.IsDelivered(rec) {
+			outcome = "delivered"
 		} else if pipeline.IsDropped(rec) {
 			outcome = "dropped"
 		}

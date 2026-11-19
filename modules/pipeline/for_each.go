@@ -282,7 +282,7 @@ func (p *ForEachProcessor) runOnRecords(c *pipeline.Context, records []*event.Ev
 		if seg.batch {
 			live := make([]*event.Event, 0, len(active))
 			for i := range active {
-				if !pipeline.IsDropped(active[i].rec) {
+				if !pipeline.RecordLeft(active[i].rec) {
 					live = append(live, active[i].rec)
 				}
 			}
@@ -327,7 +327,7 @@ func (p *ForEachProcessor) runOnRecords(c *pipeline.Context, records []*event.Ev
 				break
 			}
 			ar := &active[i]
-			if pipeline.IsDropped(ar.rec) {
+			if pipeline.RecordLeft(ar.rec) {
 				continue
 			}
 			c.Set(pipeline.RecordContextKey, ar.rec)
@@ -338,6 +338,11 @@ func (p *ForEachProcessor) runOnRecords(c *pipeline.Context, records []*event.Ev
 				c.Set(pipeline.FailureTagsKey, &tags)
 				tagged := false
 				for _, proc := range seg.chain.List {
+					// same single-owner guard as Processors.Process — this
+					// manual loop bypasses the chain runner
+					if pipeline.RecordLeft(ar.rec) {
+						break
+					}
 					if err := proc.Process(c); err != nil {
 						if !tagged {
 							pipeline.AppendFailureTag(c, p.cfg.FailureTag)
@@ -369,10 +374,13 @@ func (p *ForEachProcessor) runOnRecords(c *pipeline.Context, records []*event.Ev
 	}
 
 	// Encode pass: originals write their message slot, clones append new
-	// messages sharing the parent's offset semantics.
+	// messages sharing the parent's offset semantics. Delivered records
+	// empty their slot exactly like dropped ones — delivery is terminal
+	// and single (the sink owns the record; re-encoding here would both
+	// race with the receiver and double-deliver via the batch).
 	for i := range active {
 		ar := active[i]
-		if pipeline.IsDropped(ar.rec) {
+		if pipeline.RecordLeft(ar.rec) {
 			if !ar.isClone {
 				msgs[ar.msgIdx].Data = nil
 				msgs[ar.msgIdx].Size = 0
@@ -485,7 +493,7 @@ func runRecordSegmentParallel(c *pipeline.Context, chain *pipeline.Processors, a
 					return
 				}
 				ar := active[i]
-				if pipeline.IsDropped(ar.rec) {
+				if pipeline.RecordLeft(ar.rec) {
 					continue
 				}
 				wc.Set(pipeline.RecordContextKey, ar.rec)

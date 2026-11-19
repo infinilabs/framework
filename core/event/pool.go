@@ -140,6 +140,25 @@ func copyMapStr(m map[string]interface{}) map[string]interface{} {
 	return out
 }
 
+// CloneEvent returns a deep-enough copy of the event: a new struct with
+// independently-copied Fields, Metadata.Labels and Meta maps. Unlike
+// DetachFromPool — which returns non-pooled events as-is — CloneEvent
+// ALWAYS copies, making it the primitive for fan-out deliveries (each
+// receiver owns its record) and the clone processor. The copy carries no
+// pool association and no Private state (drop/deliver markers do not
+// propagate to clones).
+func CloneEvent(e *Event) *Event {
+	if e == nil {
+		return nil
+	}
+	cp := *e
+	cp.pooled = nil
+	cp.Fields = copyMapStr(e.Fields)
+	cp.Metadata.Labels = copyMapStr(e.Metadata.Labels)
+	cp.Meta = copyMapStr(e.Meta)
+	return &cp
+}
+
 // resetForPool clears an event for reuse; see the pool doc for the
 // map-retention policy.
 func (e *Event) resetForPool() {
