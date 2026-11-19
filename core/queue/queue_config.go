@@ -168,6 +168,67 @@ func GetOrInitConfig(key string) *QueueConfig {
 	return AdvancedGetOrInitConfig("", key, nil)
 }
 
+// EnsureNamedIDTypedConfig is EnsureTypedConfig with one extra guarantee: the
+// queue's config ID equals its name. Backends whose physical identity derives
+// from the config ID (kafka_queue uses the ID as the topic name) need this so
+// a queue named after a real external topic maps 1:1 to it — the default
+// dynamic path hashes the name into an opaque ID instead. A dynamic
+// registration previously created for the same name (hashed ID) is replaced
+// in place, carrying over its Codec / Labels / Created so label-based
+// consumer selection and codec config keep working under the new ID;
+// file-declared queues (source "file") already carry ID = name and are kept.
+func EnsureNamedIDTypedConfig(queueType, key string) *QueueConfig {
+	cfg := ensureNamedIDTyped(queueType, key)
+	// a stale hashed dynamic registration (ID = MD5digest(name)) may live
+	// only in kv — registered on another node or before a restart, never
+	// in this process: SmartGetConfig is memory-only and the replacement
+	// above never saw it, but GetConfigByUUID's kv fallback would
+	// resurrect it into the cache. Drop the row now that the named-ID
+	// registration owns this name.
+	digest := util.MD5digest(key)
+	if exists, _ := kv.ExistsKey(queueConfigBucket, []byte(digest)); exists {
+		if err := kv.DeleteKey(queueConfigBucket, []byte(digest)); err != nil {
+			log.Warnf("failed to clean up stale hashed queue registration for [%v]: %v", key, err)
+		}
+	}
+	return cfg
+}
+
+func ensureNamedIDTyped(queueType, key string) *QueueConfig {
+	if cfg, exists := SmartGetConfig(key); exists && cfg != nil {
+		if cfg.ID == key {
+			if cfg.Type != queueType {
+				cfg.Type = queueType
+				RegisterConfig(cfg)
+				log.Infof("queue [%v] switched to type [%v]", key, queueType)
+			}
+			return cfg
+		}
+		if cfg.Source != "file" {
+			codec, labels, created := cfg.Codec, cfg.Labels, cfg.Created
+			RemoveConfig(cfg)
+			// the hashed registration was persisted to kv; without deleting
+			// the row, GetConfigByUUID would resurrect it by its old ID
+			if err := kv.DeleteKey(queueConfigBucket, []byte(cfg.ID)); err != nil {
+				log.Warnf("failed to delete replaced queue registration [%v] from kv: %v", cfg.ID, err)
+			}
+			cfg := &QueueConfig{Type: queueType, ID: key, Name: key, Source: "dynamic", Codec: codec, Labels: labels, Created: created}
+			RegisterConfig(cfg)
+			return cfg
+		}
+		if cfg.ID != key {
+			// file-declared queue with an explicit ID different from its
+			// name: the named-ID registration below shadows the file
+			// config's name mapping (the file config stays reachable by
+			// its own ID)
+			log.Warnf("queue [%v] is file-declared with ID [%v] != name; the named-ID registration shadows its name mapping", key, cfg.ID)
+		}
+	}
+	cfg := &QueueConfig{Type: queueType, ID: key, Name: key, Source: "dynamic"}
+	RegisterConfig(cfg)
+	return cfg
+}
+
 // EnsureTypedConfig ensures the named queue is registered with the given
 // queueType. Dynamically created queues fall back to the default handler
 // (disk); transport segments that must switch the backend explicitly (e.g. a
