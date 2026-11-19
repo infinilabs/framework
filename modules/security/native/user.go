@@ -16,6 +16,7 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
+	staticauth "infini.sh/framework/modules/security/static"
 )
 
 func GetUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -116,6 +117,10 @@ func DeleteUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 }
 
 func SearchUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	if staticauth.IsStaticSource(req) {
+		staticauth.UserSearch(w, req, ps)
+		return
+	}
 	builder, err := orm.NewQueryBuilderFromRequest(req, "id", "name", "email")
 	if err != nil {
 		panic(err)
