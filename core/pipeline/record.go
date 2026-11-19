@@ -42,7 +42,11 @@ import (
 //      each payload into an *event.Event via a registered RecordCodec.
 //   2. The record is exposed to the sub-chain under RecordContextKey;
 //      transform processors read/mutate it in place via CurrentRecord.
-//   3. Processors may MarkDropped the record to remove it from the batch.
+//   3. Processors may MarkDropped the record to remove it from the batch,
+//      or deliver it to a sink (output{lane}/output{queue} record scope)
+//      which MarkDelivered's it — both states mean the record has left
+//      the active batch: later processors skip it, and the host's
+//      encode-back pass empties its message slot (single delivery).
 //   4. Optional failure tags are stored under FailureTagsKey by the
 //      splitter when a sub-chain errors (on_failure: tag strategy).
 //   5. The re-encoded payload replaces the original message in the batch.
@@ -50,6 +54,34 @@ import (
 // Writing a compatible record processor means: use CurrentRecord(ctx) to
 // fetch the record, mutate Fields/Meta in place, call MarkDropped to drop,
 // and NEVER touch the raw payload bytes — encoding belongs to the codec.
+//
+// ── Single-owner rule ──────────────────────────────────────────────────
+// A record has exactly one owner at any moment: the host while it is in
+// the batch, the sink after delivery. Delivering a record transfers
+// ownership — pointer handoffs (lanes) included: the receiver may read
+// and even mutate (codec Encode that stamps fields) the record the
+// moment it arrives. Consequently the sender must not touch a record
+// once it is handed over — not even to READ a marker: the channel's
+// happens-before is one-directional (pre-send writes are visible to the
+// receiver), while any post-send access by the sender is unsynchronized
+// with the receiver's writes.
+//
+// Terminal state therefore lives WHERE ITS READERS ARE:
+//   - dropped: on the record (event.Private) — a dropped record never
+//     crosses goroutines, so the sender's later reads are safe;
+//   - delivered: on the per-record CONTEXT (DeliveredContextKey) — the
+//     context stays sender-goroutine-local, so the sink sets it before
+//     the handoff and the runner guards / hosts read it afterwards,
+//     all properly ordered.
+// After delivery: the chain runner stops the remaining processors of the
+// record's chain, hosts skip the record in later segments and the
+// encode-back pass (emptying its message slot), and a second sink in the
+// same chain is rejected with a warning (use lanes: [...] for fan-out or
+// the clone processor for forks).
+//
+// Receiving side: a lane consumer takes ownership at intake
+// (TakeOwnership clears any stale record-borne markers; delivery state
+// never rides the pointer across a lane).
 //
 // Nesting: a sub-chain may itself contain another batch-splitting
 // processor bound to a different message field (see the nested-for_each
@@ -104,6 +136,81 @@ func IsDropped(rec *event.Event) bool {
 	}
 	_, ok := rec.Private.(droppedMarker)
 	return ok
+}
+
+// DeliveredContextKey is the Context key carrying the CURRENT record's
+// delivery state. It lives on the context, never on the record: at Emit
+// the record pointer crosses to the receiver, and any later sender-side
+// access — even reading a marker out of event.Private — would race with
+// the receiver's writes. The context stays on the sender's goroutine, so
+// the sink sets the flag before the handoff and the runner guards and
+// hosts read it afterwards, all in happens-before order.
+const DeliveredContextKey = "record_delivered"
+
+// MarkDelivered records that the CURRENT record's delivery has been taken
+// over by a sink (single-owner rule). MUST be called before the record is
+// handed over; delivery is terminal for this record's batch lifecycle.
+func MarkDelivered(ctx *Context) {
+	if ctx != nil {
+		ctx.Set(DeliveredContextKey, true)
+	}
+}
+
+// IsDelivered reports the current record's delivery state (read-only;
+// runner guards between processors). Hosts that finish a record use
+// TakeDelivery instead, which also clears the flag.
+func IsDelivered(ctx *Context) bool {
+	if ctx == nil {
+		return false
+	}
+	v, ok := ctx.Peek(DeliveredContextKey)
+	b, ok2 := v.(bool)
+	return ok && ok2 && b
+}
+
+// TakeDelivery reports and clears the current record's delivery state.
+// Host-side, once per record after its sub-chain returned: the flag rides
+// contexts that outlive one record (for_each rebinds RecordContextKey on a
+// shared context), so leaving it set would leak "delivered" onto the next
+// record. When it returns true the caller must not touch the record again.
+func TakeDelivery(ctx *Context) bool {
+	if !IsDelivered(ctx) {
+		return false
+	}
+	ctx.Set(DeliveredContextKey, false)
+	return true
+}
+
+// RecordLeft reports whether the CURRENT record has left the active batch
+// — dropped, or delivered to a sink that now owns it. The mid-chain guard
+// form for chain runners: delivery state comes from the context, drop
+// state from the record (a dropped record never crosses goroutines, so
+// reading its marker is safe). Evaluation is ordered: a delivered record
+// short-circuits before any record access.
+func RecordLeft(ctx *Context) bool {
+	if IsDelivered(ctx) {
+		return true
+	}
+	rec, ok := CurrentRecord(ctx)
+	return ok && IsDropped(rec)
+}
+
+// TakeOwnership clears terminal markers on a record received across an
+// ownership-transfer boundary (a lane subscription intake). Delivery
+// state never rides the pointer (it lives on the sender's context), but
+// this defends the boundary: a foreign emitter that marks the record
+// itself would otherwise have its stale marker read by the receiver's
+// RecordLeft guards, silently skipping every record.
+type deliveredMarker struct{} // legacy record-borne form; see above
+
+func TakeOwnership(rec *event.Event) {
+	if rec == nil {
+		return
+	}
+	switch rec.Private.(type) {
+	case droppedMarker, deliveredMarker:
+		rec.Private = nil
+	}
 }
 
 // CurrentFailureTags returns the failure-tag list of the current record,

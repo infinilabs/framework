@@ -6,6 +6,7 @@ package pipeline
 
 import (
 	"fmt"
+	"strings"
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
@@ -14,15 +15,21 @@ import (
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/queue"
+	"infini.sh/framework/core/stats"
 )
 
 // OutputConfig declares the unified output step: exactly ONE target
-// field (queue or lane) — config unpacking rejects zero or multiple.
+// field (queue, lane or lanes) — config unpacking rejects zero or multiple.
 type OutputConfig struct {
 	// Queue accepts either a bare queue name (string) or a full config
 	// object; the custom Unpack below handles both forms.
 	Queue interface{} `config:"queue"`
 	Lane  string      `config:"lane"`
+	// Lanes fans the record out to several lanes (explicit fork): the
+	// first lane receives the record itself (zero-copy for codec-decoded
+	// records), every further lane an independent copy — each receiver
+	// owns its record.
+	Lanes []string `config:"lanes"`
 	// Ack (lane target only): emit with an acknowledgment receipt attached
 	// to the context's AckSet — the emitting consumer's commit gate waits
 	// for settlement (cross-lane at-least-once).
@@ -32,10 +39,10 @@ type OutputConfig struct {
 }
 
 type OutputProcessor struct {
-	cfg      OutputConfig
-	outQ     *queue.QueueConfig
-	laneName string
-	ack      bool
+	cfg       OutputConfig
+	outQ      *queue.QueueConfig
+	laneNames []string // resolved fan-out targets (single lane included)
+	ack       bool
 }
 
 const outputName = "output"
@@ -68,10 +75,18 @@ func NewOutputProcessor(c *config.Config) (pipeline.Processor, error) {
 	if cfg.Lane != "" {
 		targets++
 	}
-	if targets != 1 {
-		return nil, fmt.Errorf("%s requires exactly one target field (queue: <name> or lane: <name>), found %d", outputName, targets)
+	if len(cfg.Lanes) > 0 {
+		targets++
 	}
-	p := &OutputProcessor{cfg: cfg, laneName: cfg.Lane}
+	if targets != 1 {
+		return nil, fmt.Errorf("%s requires exactly one target field (queue: <name>, lane: <name> or lanes: [<name>...]), found %d", outputName, targets)
+	}
+	p := &OutputProcessor{cfg: cfg}
+	if cfg.Lane != "" {
+		p.laneNames = []string{cfg.Lane}
+	} else {
+		p.laneNames = cfg.Lanes
+	}
 	if queueName != "" {
 		qc := &queue.QueueConfig{Name: queueName}
 		p.outQ = queue.SmartGetOrInitConfig(qc)
@@ -85,8 +100,8 @@ func NewOutputProcessor(c *config.Config) (pipeline.Processor, error) {
 func (p *OutputProcessor) Name() string { return outputName }
 
 func (p *OutputProcessor) Process(ctx *pipeline.Context) error {
-	if p.laneName != "" {
-		return p.emitLane(ctx)
+	if len(p.laneNames) > 0 {
+		return p.emitLanes(ctx)
 	}
 	return p.pushQueue(ctx)
 }
@@ -109,29 +124,70 @@ func truncate(b []byte, n int) string {
 	return string(b[:n]) + "..."
 }
 
-// emitLane: record scope only — the batch scope has no live records.
-func (p *OutputProcessor) emitLane(ctx *pipeline.Context) error {
+// emitLanes: record scope only — the batch scope has no live records.
+//
+// Delivery is ownership transfer (single-owner rule, see
+// core/pipeline/record.go): MarkDelivered sets the CONTEXT flag before any
+// handoff so the channel's happens-before settles the record for the
+// receiver, and nothing on this side touches the record afterwards — the
+// chain runner stops the remaining processors of the record's chain, the
+// host's encode-back pass empties the message slot, and a second sink in
+// the same chain is skipped with a warning (fan out via lanes: [...],
+// fork via clone).
+func (p *OutputProcessor) emitLanes(ctx *pipeline.Context) error {
 	rec, ok := pipeline.CurrentRecord(ctx)
 	if !ok {
-		return fmt.Errorf("%s{lane:%s} requires record scope (inside for_each/lane_consumer); for disk→lane bridging use consumer{codec, output_lane}", outputName, p.laneName)
+		return fmt.Errorf("%s{lane:%v} requires record scope (inside for_each/lane_consumer); for disk→lane bridging use consumer{codec, output_lane}", outputName, p.laneNames)
 	}
-	if p.capture(ctx, "lane", p.laneName, encodePreview(rec)) {
+	if pipeline.IsDelivered(ctx) {
+		log.Warnf("%s: record already delivered to a sink; skipping lanes %v (use lanes: [...] for fan-out or the clone processor for forks)", outputName, p.laneNames)
+		stats.Increment("pipeline", ctx.Config.Name, "processor", outputName, "total_deliver_skip")
 		return nil
 	}
-	l := lane.Get(p.laneName)
-	if l == nil {
-		l = lane.GetOrCreate(lane.LaneConfig{Name: p.laneName})
+	if p.capture(ctx, "lane", strings.Join(p.laneNames, ","), encodePreview(rec)) {
+		return nil
 	}
-	// ownership hand-off: the emitting host (for_each) recycles pooled
-	// records once this call returns, but the lane delivers the pointer
-	// asynchronously — a pooled record must cross the boundary as a
-	// pool-independent copy, or the subscriber reads a reset event
-	rec = event.DetachFromPool(rec)
-	if !p.ack {
-		return l.Emit(rec)
+	// Prepare EVERY fan-out copy before the first hand-off: lane #0's
+	// subscriber may mutate its record the moment Emit returns, and a
+	// CloneEvent iterating rec.Fields afterwards would race with it (and
+	// could snapshot lane #0's mutations into the other branches).
+	outs := make([]*event.Event, len(p.laneNames))
+	for i := range p.laneNames {
+		// ownership hand-off: the emitting host (for_each) recycles pooled
+		// records once this call returns, but the lane delivers the pointer
+		// asynchronously — a pooled record must cross the boundary as a
+		// pool-independent copy, or the subscriber reads a reset event.
+		// Extra fan-out lanes get an independent copy even for non-pooled
+		// records: every receiver owns its record.
+		if i == 0 {
+			outs[i] = event.DetachFromPool(rec)
+		} else {
+			outs[i] = event.CloneEvent(rec)
+		}
 	}
-	r := l.EmitAck(rec)
-	pipeline.AttachAckSet(ctx).AddReceipt(r)
+	for i, name := range p.laneNames {
+		l := lane.Get(name)
+		if l == nil {
+			l = lane.GetOrCreate(lane.LaneConfig{Name: name})
+		}
+		if !p.ack {
+			if err := l.Emit(outs[i]); err != nil {
+				return err
+			}
+			continue
+		}
+		r := l.EmitAck(outs[i])
+		pipeline.AttachAckSet(ctx).AddReceipt(r)
+	}
+	// Mark only after every target accepted the record: a failed Emit
+	// keeps sender ownership — the record stays in the batch and the
+	// error path decides. A partial fan-out failure is not marked either:
+	// the record re-delivers whole (at-least-once; downstream
+	// fingerprinting dedupes) instead of being half-delivered and lost.
+	pipeline.MarkDelivered(ctx)
+	// fan-out counts once per record (lane-side emit counters live on the
+	// lanes themselves — laneStageStats reports them)
+	stats.Increment("pipeline", ctx.Config.Name, "processor", outputName, "total_delivered")
 	return nil
 }
 
@@ -140,6 +196,11 @@ func (p *OutputProcessor) emitLane(ctx *pipeline.Context) error {
 // bridge, 3-level codec resolution).
 func (p *OutputProcessor) pushQueue(ctx *pipeline.Context) error {
 	if rec, ok := pipeline.CurrentRecord(ctx); ok {
+		if pipeline.IsDelivered(ctx) {
+			log.Warnf("%s: record already delivered to a sink; skipping queue %v (use the clone processor for forks)", outputName, p.outQ.Name)
+			stats.Increment("pipeline", ctx.Config.Name, "processor", outputName, "total_deliver_skip")
+			return nil
+		}
 		codecName := p.cfg.Codec
 		if codecName == "" {
 			codecName = pipeline.CodecHint(rec)
@@ -151,7 +212,15 @@ func (p *OutputProcessor) pushQueue(ctx *pipeline.Context) error {
 		if p.capture(ctx, "queue", p.outQ.Name, b) {
 			return nil
 		}
-		return queue.Push(p.outQ, b)
+		if err := queue.Push(p.outQ, b); err != nil {
+			return err
+		}
+		// byte-plane delivery: the queue owns the pushed bytes, and the
+		// context flag keeps the host's encode-back from re-delivering
+		// the record through the batch (single delivery)
+		pipeline.MarkDelivered(ctx)
+		stats.Increment("pipeline", ctx.Config.Name, "processor", outputName, "total_delivered")
+		return nil
 	}
 	obj := ctx.Get(p.cfg.MessageField)
 	msgs, ok := obj.([]queue.Message)
