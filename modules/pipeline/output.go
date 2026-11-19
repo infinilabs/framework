@@ -15,6 +15,7 @@ import (
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/queue"
+	"infini.sh/framework/core/stats"
 )
 
 // OutputConfig declares the unified output step: exactly ONE target
@@ -140,6 +141,7 @@ func (p *OutputProcessor) emitLanes(ctx *pipeline.Context) error {
 	}
 	if pipeline.IsDelivered(ctx) {
 		log.Warnf("%s: record already delivered to a sink; skipping lanes %v (use lanes: [...] for fan-out or the clone processor for forks)", outputName, p.laneNames)
+		stats.Increment("pipeline", ctx.Config.Name, "processor", outputName, "total_deliver_skip")
 		return nil
 	}
 	if p.capture(ctx, "lane", strings.Join(p.laneNames, ","), encodePreview(rec)) {
@@ -172,6 +174,9 @@ func (p *OutputProcessor) emitLanes(ctx *pipeline.Context) error {
 		r := l.EmitAck(out)
 		pipeline.AttachAckSet(ctx).AddReceipt(r)
 	}
+	// fan-out counts once per record (lane-side emit counters live on the
+	// lanes themselves — laneStageStats reports them)
+	stats.Increment("pipeline", ctx.Config.Name, "processor", outputName, "total_delivered")
 	return nil
 }
 
@@ -182,6 +187,7 @@ func (p *OutputProcessor) pushQueue(ctx *pipeline.Context) error {
 	if rec, ok := pipeline.CurrentRecord(ctx); ok {
 		if pipeline.IsDelivered(ctx) {
 			log.Warnf("%s: record already delivered to a sink; skipping queue %v (use the clone processor for forks)", outputName, p.outQ.Name)
+			stats.Increment("pipeline", ctx.Config.Name, "processor", outputName, "total_deliver_skip")
 			return nil
 		}
 		codecName := p.cfg.Codec
@@ -202,6 +208,7 @@ func (p *OutputProcessor) pushQueue(ctx *pipeline.Context) error {
 		// context flag keeps the host's encode-back from re-delivering
 		// the record through the batch (single delivery)
 		pipeline.MarkDelivered(ctx)
+		stats.Increment("pipeline", ctx.Config.Name, "processor", outputName, "total_delivered")
 		return nil
 	}
 	obj := ctx.Get(p.cfg.MessageField)

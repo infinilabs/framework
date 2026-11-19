@@ -44,6 +44,13 @@ const (
 	OutcomeDropped         Outcome = "dropped"
 	OutcomeSkippedContract Outcome = "skipped-contract"
 
+	// OutcomeDelivered marks a terminal success: this step handed the
+	// record to a sink (output{lane}/output{queue} record scope) and the
+	// record left the batch — successors are skipped, the receiver owns
+	// it now. Non-ok on purpose, so the flight recorder always retains
+	// delivery events.
+	OutcomeDelivered Outcome = "delivered"
+
 	// OutcomeTakeover marks a singleton lock takeover (a control-plane
 	// lifecycle event, not a chain step): this instance acquired a lock
 	// whose previous holder's lease expired. Not an error, but always

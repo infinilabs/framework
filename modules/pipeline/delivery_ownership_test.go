@@ -6,6 +6,7 @@ package pipeline
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -340,5 +341,55 @@ func TestDelivery_LaneToLaneChainProcessesDelivered(t *testing.T) {
 	recs := out.wait(t, 1)
 	if got := recs[0].Fields["message"]; got != "PROCESSED:hop" {
 		t.Fatalf("receiving chain must process the upstream-delivered record, got %v", got)
+	}
+}
+
+// captureObserver collects StepEvents for one test.
+type captureObserver struct {
+	mu     sync.Mutex
+	events []pipeline.StepEvent
+}
+
+func (o *captureObserver) OnStep(e *pipeline.StepEvent) {
+	o.mu.Lock()
+	o.events = append(o.events, *e)
+	o.mu.Unlock()
+}
+
+// Delivery surfaces in the step stream: the output step's outcome is
+// "delivered" (terminal success — the flight recorder retains non-ok
+// outcomes, stats rows show it as last_outcome), and a successor
+// processor emits NO step event at all: it never ran, the single-owner
+// guard skipped it (visible via the total_skipped counter instead).
+func TestDelivery_StepOutcomeDelivered(t *testing.T) {
+	sink := subscribe(t, t.Name()+"-lane")
+
+	obs := &captureObserver{}
+	pipeline.RegisterObserver(obs)
+	t.Cleanup(func() { pipeline.UnregisterObserver(obs) })
+
+	p := forEachWith(t, "", []interface{}{
+		util.MapStr{"output": util.MapStr{"lane": t.Name() + "-lane"}},
+		util.MapStr{"test_upper": util.MapStr{}},
+	})
+	runForEach(t, p, `{"payload":{"message":"x"},"timestamp":"2026-08-18T10:00:00Z"}`)
+	sink.wait(t, 1)
+
+	obs.mu.Lock()
+	defer obs.mu.Unlock()
+	delivered := 0
+	for _, e := range obs.events {
+		switch e.Processor {
+		case "output":
+			if e.Outcome != pipeline.OutcomeDelivered {
+				t.Fatalf("output step outcome = %q, want %q", e.Outcome, pipeline.OutcomeDelivered)
+			}
+			delivered++
+		case "test_upper":
+			t.Fatal("skipped successor must not emit a step event — it never ran")
+		}
+	}
+	if delivered == 0 {
+		t.Fatal("no step event observed for the output processor")
 	}
 }

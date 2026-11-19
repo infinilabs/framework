@@ -314,6 +314,10 @@ func (procs *Processors) Process(ctx *Context) error {
 		// a second sink would double-deliver. Outside a record scope the
 		// check is inert.
 		if _, ok := CurrentRecord(ctx); ok && RecordLeft(ctx) {
+			// no step event for a skipped successor: it never ran, and the
+			// delivery step itself already tells the terminal story — the
+			// flat counter keeps the skip rate visible
+			stats.Increment("pipeline", ctx.Config.Name, "processor", p.Name(), "total_skipped")
 			ctx.AddFlowProcess("skipped")
 			return nil
 		}
@@ -371,10 +375,17 @@ func (procs *Processors) Process(ctx *Context) error {
 			return err
 		}
 		if hasObservers() {
+			// delivery reclassifies the step: a successful sink handoff is
+			// a terminal success, not a plain ok (flight recorder retains
+			// it; stats rows surface it as last_outcome)
+			outcome := OutcomeOK
+			if _, hasRec := CurrentRecord(ctx); hasRec && IsDelivered(ctx) {
+				outcome = OutcomeDelivered
+			}
 			emitStep(&StepEvent{
 				Pipeline: ctx.Config.Name, Step: stepIdx, Processor: p.Name(),
 				Scope: scope, Duration: time.Since(start),
-				Outcome: OutcomeOK,
+				Outcome: outcome,
 			}, ctx)
 		}
 		//if event == nil {
