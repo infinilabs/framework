@@ -74,7 +74,12 @@ type Config struct {
 	// consumed by this processor. Used by cross-instance transport segments:
 	// the writer (Agent) and the reader (Gateway) must land on the same
 	// queue implementation.
-	ForceQueueType          string                `config:"force_queue_type"`
+	ForceQueueType string `config:"force_queue_type"`
+	// ForceQueueNameAsID registers the forced queues with the queue name as
+	// the config ID. Backends keyed by config ID (kafka_queue: topic name)
+	// then map the queue 1:1 to a real external topic instead of the hashed
+	// dynamic ID. Only meaningful together with ForceQueueType.
+	ForceQueueNameAsID      bool                  `config:"force_queue_name_as_id"`
 	Consumer                *queue.ConsumerConfig `config:"consumer"`
 	MaxWorkers              int                   `config:"max_worker_size"`
 	DetectActiveQueue       bool                  `config:"detect_active_queue"`
@@ -245,8 +250,12 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 	// so both ends land on the same implementation.
 	if processor.config.ForceQueueType != "" {
 		for _, k := range processor.config.Selector.Keys {
-			queue.EnsureTypedConfig(processor.config.ForceQueueType, k)
-			log.Infof("consumer [%v] enforces queue [%v] to type [%v]", processor.id, k, processor.config.ForceQueueType)
+			if processor.config.ForceQueueNameAsID {
+				queue.EnsureNamedIDTypedConfig(processor.config.ForceQueueType, k)
+			} else {
+				queue.EnsureTypedConfig(processor.config.ForceQueueType, k)
+			}
+			log.Infof("consumer [%v] enforces queue [%v] to type [%v], name_as_id [%v]", processor.id, k, processor.config.ForceQueueType, processor.config.ForceQueueNameAsID)
 		}
 	}
 
