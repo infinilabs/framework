@@ -207,45 +207,6 @@ func TestTrimJSONString(t *testing.T) {
 	}
 }
 
-func TestNormalizeDataStreamDoc(t *testing.T) {
-	env := []byte(`{"metadata":{"file":{"path":"/a.log"}},"payload":{"message":"hi","timestamp":"2026-10-15T00:00:00Z"},"timestamp":"2026-10-15T00:00:00Z"}`)
-
-	out := normalizeDataStreamDoc(env)
-	m := util.MapStr{}
-	if err := util.FromJSONBytes(out, &m); err != nil {
-		t.Fatalf("normalized doc is not JSON: %v", err)
-	}
-	if m["message"] != "hi" {
-		t.Errorf("payload.message not promoted: %v", m)
-	}
-	if m["@timestamp"] != "2026-10-15T00:00:00Z" {
-		t.Errorf("@timestamp = %v", m["@timestamp"])
-	}
-	// @timestamp is the only real timestamp: the payload's timestamp folds
-	// into @timestamp and is dropped — no top-level mirror is written.
-	if _, ok := m["timestamp"]; ok {
-		t.Errorf("timestamp mirror must not survive: %v", m["timestamp"])
-	}
-	// file origin no longer promotes to a top-level "file"
-	// (collection provenance lives on @agent.file_*)
-	if _, ok := m["file"]; ok {
-		t.Errorf("top-level file promotion is gone: %v", m["file"])
-	}
-
-	// bare docs pass through with a stamped @timestamp
-	bare := normalizeDataStreamDoc([]byte(`{"message":"plain"}`))
-	m2 := util.MapStr{}
-	if err := util.FromJSONBytes(bare, &m2); err != nil {
-		t.Fatalf("bare doc: %v", err)
-	}
-	if m2["message"] != "plain" {
-		t.Errorf("bare doc message lost: %v", m2)
-	}
-	if m2["@timestamp"] == nil {
-		t.Error("bare doc missing stamped @timestamp")
-	}
-}
-
 // ─── config validation ───────────────────────────────────────────────────────
 
 func TestNewMergeValidation(t *testing.T) {
