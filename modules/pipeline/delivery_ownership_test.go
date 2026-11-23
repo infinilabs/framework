@@ -6,12 +6,14 @@ package pipeline
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/event"
+	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/lane"
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/pipeline"
@@ -423,5 +425,161 @@ func TestDelivery_FailedEmitKeepsRecord(t *testing.T) {
 
 	if msgs[0].Data == nil {
 		t.Fatal("record lost: a failed Emit must keep the record in its slot")
+	}
+}
+
+// ── in-memory kv + queue fixtures: unit tests have no store/queue module,
+// so the durable-bridge assertions register both (kv.Register makes the
+// last-registered handler the default; control_test may re-register its
+// own complete handler later, which keeps working either way).
+type testMemKV struct {
+	mu   sync.Mutex
+	data map[string][]byte
+}
+
+func (m *testMemKV) Open() error  { return nil }
+func (m *testMemKV) Close() error { return nil }
+
+func (m *testMemKV) GetValue(_ string, key []byte) ([]byte, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if v, ok := m.data[string(key)]; ok {
+		return append([]byte(nil), v...), nil
+	}
+	return nil, nil
+}
+
+func (m *testMemKV) GetCompressedValue(bucket string, key []byte) ([]byte, error) {
+	return m.GetValue(bucket, key)
+}
+
+func (m *testMemKV) AddValueCompress(bucket string, key, value []byte) error {
+	return m.AddValue(bucket, key, value)
+}
+
+func (m *testMemKV) AddValue(_ string, key, value []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.data[string(key)] = append([]byte(nil), value...)
+	return nil
+}
+
+func (m *testMemKV) ExistsKey(_ string, key []byte) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, ok := m.data[string(key)]
+	return ok, nil
+}
+
+func (m *testMemKV) DeleteKey(_ string, key []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.data, string(key))
+	return nil
+}
+
+// testMemQueue is a slice-backed QueueAPI + SimpleQueueAPI.
+type testMemQueue struct {
+	mu   sync.Mutex
+	data map[string][][]byte
+}
+
+var deliveryTestQueue = &testMemQueue{data: map[string][][]byte{}}
+
+func (q *testMemQueue) Name() string                   { return "testmem" }
+func (q *testMemQueue) Init(_ string) error            { return nil }
+func (q *testMemQueue) Close(_ string) error           { return nil }
+func (q *testMemQueue) GetStorageSize(_ string) uint64 { return 0 }
+func (q *testMemQueue) Destroy(_ string) error         { return nil }
+func (q *testMemQueue) GetQueues() []string            { return nil }
+
+func (q *testMemQueue) Push(id string, v []byte) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.data[id] = append(q.data[id], append([]byte(nil), v...))
+	return nil
+}
+
+func (q *testMemQueue) Pop(id string, _ time.Duration) ([]byte, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	d := q.data[id]
+	if len(d) == 0 {
+		return nil, true
+	}
+	v := d[0]
+	q.data[id] = d[1:]
+	return v, false
+}
+
+func (q *testMemQueue) Depth(id string) int64 {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return int64(len(q.data[id]))
+}
+
+func init() {
+	kv.Register("delivery-test-mem-kv", &testMemKV{data: map[string][]byte{}})
+	queue.RegisterDefaultHandler(deliveryTestQueue)
+}
+
+// batchSegmentDropper drops matching records in batch scope — batch
+// segments filter their live view but never compact the host list, so
+// the durable-bridge push must re-check the dropped marker (a batch
+// segment can be the last one before the push).
+type batchSegmentDropper struct{}
+
+func (batchSegmentDropper) Name() string { return "test_batch_dropper" }
+func (batchSegmentDropper) Process(*pipeline.Context) error {
+	return nil
+}
+
+func (batchSegmentDropper) ProcessBatch(_ *pipeline.Context, recs []*event.Event) error {
+	for _, r := range recs {
+		if msg, ok := r.Fields["message"].(string); ok && msg == "drop" {
+			pipeline.MarkDropped(r)
+		}
+	}
+	return nil
+}
+
+func init() {
+	pipeline.RegisterProcessorPlugin("test_batch_dropper",
+		func(*config.Config) (pipeline.Processor, error) { return batchSegmentDropper{}, nil })
+}
+
+func TestDelivery_BatchSegmentDropNotPushed(t *testing.T) {
+	qname := t.Name() + "-out-q"
+	cfgMap := util.MapStr{
+		"lane":         t.Name() + "-lane",
+		"output_queue": qname,
+		"processor":    []interface{}{util.MapStr{"test_batch_dropper": util.MapStr{}}},
+	}
+	c, err := config.NewConfigFrom(cfgMap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proc, err := NewLaneConsumerProcessor(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lc := proc.(*LaneConsumerProcessor)
+	t.Cleanup(func() { _ = lane.Delete(t.Name()+"-lane", true) })
+
+	ctx := &pipeline.Context{Context: t.Context()}
+	keep := &event.Event{Fields: util.MapStr{"message": "keep"}}
+	dropped := &event.Event{Fields: util.MapStr{"message": "drop"}}
+	if err := lc.runBatch(ctx, buildSegments(lc.sub.List), []*event.Event{keep, dropped}); err != nil {
+		t.Fatal(err)
+	}
+
+	// queue handlers are keyed by the resolved config ID (MD5 of the name)
+	qc := queue.SmartGetOrInitConfig(&queue.QueueConfig{Name: qname})
+	if d := deliveryTestQueue.Depth(qc.ID); d != 1 {
+		t.Fatalf("output queue depth = %d, want 1 (dropped record must not reach the bridge)", d)
+	}
+	data, _ := deliveryTestQueue.Pop(qc.ID, time.Second)
+	if !strings.Contains(string(data), "keep") {
+		t.Fatalf("bridge pushed the wrong record: %s", data)
 	}
 }

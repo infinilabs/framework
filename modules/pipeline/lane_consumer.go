@@ -228,11 +228,17 @@ func (p *LaneConsumerProcessor) runBatch(ctx *pipeline.Context, segments []execS
 		active = next
 	}
 	if p.outQ != nil {
-		// active holds only survivors (not dropped, never delivered) —
-		// the durable bridge is their single delivery
+		// record segments exclude both delivered and dropped records from
+		// active, but batch segments only filter their `live` view — a
+		// batch processor can drop records in place, so the push re-checks
+		// the marker (safe: survivors were never delivered, the dropped
+		// marker never crosses goroutines)
 		for _, rec := range active {
 			if err := ctx.Err(); err != nil {
 				return err
+			}
+			if pipeline.IsDropped(rec) {
+				continue
 			}
 			if err := p.pushEncoded(p.outQ, rec); err != nil {
 				return err
