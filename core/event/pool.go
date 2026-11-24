@@ -30,6 +30,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"infini.sh/framework/core/util"
 )
 
 // The record pool recycles *Event across record-mode batches: decode-heavy
@@ -141,18 +143,13 @@ func copyMapStr(m map[string]interface{}) map[string]interface{} {
 }
 
 // CloneEvent returns a copy of the event for fan-out deliveries and the
-// clone processor: a new struct with independently-copied Fields,
-// Metadata.Labels and Meta maps. Unlike DetachFromPool — which returns
-// non-pooled events as-is — CloneEvent ALWAYS copies. The copy carries no
-// pool association and no Private state (terminal markers do not
-// propagate: every receiver starts from a clean record).
-//
-// The copy is SHALLOW at the value level: nested maps/slices inside
-// Fields are shared with the original. Two fan-out receivers mutating the
-// same nested value would still interfere — receivers must treat nested
-// payload as read-only (transform processors replace values, they do not
-// mutate nested structures in place); a processor that must rewrite
-// nested state deep-clones first.
+// clone processor: a new struct whose Fields, Metadata.Labels and Meta maps
+// are deep-copied — nested maps/slices are duplicated too, so every
+// receiver fully owns its record and concurrent receivers can never
+// interfere through shared payload structures. Unlike DetachFromPool —
+// which returns non-pooled events as-is — CloneEvent ALWAYS copies. The
+// copy carries no pool association and no Private state (terminal markers
+// do not propagate: every receiver starts from a clean record).
 func CloneEvent(e *Event) *Event {
 	if e == nil {
 		return nil
@@ -160,10 +157,47 @@ func CloneEvent(e *Event) *Event {
 	cp := *e
 	cp.pooled = nil
 	cp.Private = nil
-	cp.Fields = copyMapStr(e.Fields)
-	cp.Metadata.Labels = copyMapStr(e.Metadata.Labels)
-	cp.Meta = copyMapStr(e.Meta)
+	cp.Fields = deepCopyMap(e.Fields)
+	cp.Metadata.Labels = deepCopyMap(e.Metadata.Labels)
+	cp.Meta = deepCopyMap(e.Meta)
 	return &cp
+}
+
+// deepCopyMap clones a field map recursively. JSON-decoded payloads are
+// plain maps/slices/scalars; util.MapStr and []byte (mutable) are handled
+// explicitly, everything else is treated as immutable and shared by value.
+func deepCopyMap(m util.MapStr) util.MapStr {
+	if m == nil {
+		return nil
+	}
+	out := make(util.MapStr, len(m))
+	for k, v := range m {
+		out[k] = deepCopyValue(v)
+	}
+	return out
+}
+
+func deepCopyValue(v interface{}) interface{} {
+	switch t := v.(type) {
+	case util.MapStr:
+		return deepCopyMap(t)
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(t))
+		for k, vv := range t {
+			out[k] = deepCopyValue(vv)
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, len(t))
+		for i, vv := range t {
+			out[i] = deepCopyValue(vv)
+		}
+		return out
+	case []byte:
+		return append([]byte(nil), t...)
+	default:
+		return v
+	}
 }
 
 // resetForPool clears an event for reuse; see the pool doc for the

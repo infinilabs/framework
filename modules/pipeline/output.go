@@ -165,6 +165,15 @@ func (p *OutputProcessor) emitLanes(ctx *pipeline.Context) error {
 			outs[i] = event.CloneEvent(rec)
 		}
 	}
+	// The FIRST successful hand-off settles the sender: that lane's
+	// receiver may mutate the record from the moment the send returns, so
+	// the sender must not touch it again — regardless of what the
+	// remaining fan-out targets do. Marking only after the whole loop
+	// (as an earlier iteration did) would leave sender and receiver
+	// sharing the record on a partial fan-out failure. A failed later
+	// target surfaces as the step error; the record never re-enters the
+	// sender's batch (recovery is the ack/receipt layer's redelivery).
+	delivered := false
 	for i, name := range p.laneNames {
 		l := lane.Get(name)
 		if l == nil {
@@ -174,17 +183,15 @@ func (p *OutputProcessor) emitLanes(ctx *pipeline.Context) error {
 			if err := l.Emit(outs[i]); err != nil {
 				return err
 			}
-			continue
+		} else {
+			r := l.EmitAck(outs[i])
+			pipeline.AttachAckSet(ctx).AddReceipt(r)
 		}
-		r := l.EmitAck(outs[i])
-		pipeline.AttachAckSet(ctx).AddReceipt(r)
+		if !delivered {
+			delivered = true
+			pipeline.MarkDelivered(ctx)
+		}
 	}
-	// Mark only after every target accepted the record: a failed Emit
-	// keeps sender ownership — the record stays in the batch and the
-	// error path decides. A partial fan-out failure is not marked either:
-	// the record re-delivers whole (at-least-once; downstream
-	// fingerprinting dedupes) instead of being half-delivered and lost.
-	pipeline.MarkDelivered(ctx)
 	// fan-out counts once per record (lane-side emit counters live on the
 	// lanes themselves — laneStageStats reports them)
 	stats.Increment("pipeline", ctx.Config.Name, "processor", outputName, "total_delivered")

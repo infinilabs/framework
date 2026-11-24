@@ -206,7 +206,7 @@ func TestDelivery_LanesFanOut(t *testing.T) {
 	p := forEachWith(t, "", []interface{}{
 		util.MapStr{"output": util.MapStr{"lanes": []string{t.Name() + "-a", t.Name() + "-b"}}},
 	})
-	runForEach(t, p, `{"payload":{"message":"x"},"timestamp":"2026-08-18T10:00:00Z"}`)
+	runForEach(t, p, `{"payload":{"message":"x","user":{"name":"a"}},"timestamp":"2026-08-18T10:00:00Z"}`)
 
 	recA := a.wait(t, 1)[0]
 	recB := b.wait(t, 1)[0]
@@ -215,6 +215,13 @@ func TestDelivery_LanesFanOut(t *testing.T) {
 	recA.Fields["touched_by_a"] = true
 	if _, ok := recB.Fields["touched_by_a"]; ok {
 		t.Fatal("fan-out receivers must hold independent records")
+	}
+	// deep-copy contract: nested payload is duplicated per receiver too
+	userA := recA.Fields["user"].(map[string]interface{})
+	userA["name"] = "mutated-by-a"
+	userB := recB.Fields["user"].(map[string]interface{})
+	if userB["name"] != "a" {
+		t.Fatalf("fan-out receivers must hold independent nested payload, got %v", userB["name"])
 	}
 }
 
@@ -581,5 +588,87 @@ func TestDelivery_BatchSegmentDropNotPushed(t *testing.T) {
 	data, _ := deliveryTestQueue.Pop(qc.ID, time.Second)
 	if !strings.Contains(string(data), "keep") {
 		t.Fatalf("bridge pushed the wrong record: %s", data)
+	}
+}
+
+// The default on_failure:tag path consumed the delivery flag for the
+// tag-merge decision and discarded the result — the activity check then
+// re-read a cleared flag and re-queued the record into the durable
+// bridge while the receiver already owned it. Exact repro:
+// lane_consumer{lane: in, output_queue: remaining, processor: [output{lane: out}]},
+// which is also the DEFAULT configuration (on_failure defaults to tag).
+func TestDelivery_LaneConsumerDeliveredNotRequeued(t *testing.T) {
+	out := subscribe(t, t.Name()+"-out")
+	qname := t.Name() + "-remaining"
+
+	cfgMap := util.MapStr{
+		"lane":         t.Name() + "-in",
+		"output_queue": qname,
+		"processor": []interface{}{
+			util.MapStr{"output": util.MapStr{"lane": t.Name() + "-out"}},
+		},
+	}
+	c, err := config.NewConfigFrom(cfgMap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proc, err := NewLaneConsumerProcessor(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lc := proc.(*LaneConsumerProcessor)
+	t.Cleanup(func() { _ = lane.Delete(t.Name()+"-in", true) })
+
+	ctx := &pipeline.Context{Context: t.Context()}
+	rec := &event.Event{Fields: util.MapStr{"message": "relay"}}
+	if err := lc.runBatch(ctx, buildSegments(lc.sub.List), []*event.Event{rec}); err != nil {
+		t.Fatal(err)
+	}
+
+	out.wait(t, 1)
+	qc := queue.SmartGetOrInitConfig(&queue.QueueConfig{Name: qname})
+	if d := deliveryTestQueue.Depth(qc.ID); d != 0 {
+		t.Fatalf("delivered record re-entered the durable bridge: queue depth = %d, want 0", d)
+	}
+}
+
+// Partial fan-out failure: lanes [ok, bad] where the SECOND emit fails.
+// The first successful hand-off already settled the sender — the record
+// must be marked delivered (slot emptied, the sender never touches it
+// again) even though the second target never accepted its copy. Under
+// -race this is the gate against sender/receiver sharing on partial
+// failure.
+func TestDelivery_PartialFanOutFailureSettlesSender(t *testing.T) {
+	okLane := subscribe(t, t.Name()+"-ok")
+	bad := lane.GetOrCreate(lane.LaneConfig{Name: t.Name() + "-bad", Capacity: 1})
+	if err := bad.Emit(&event.Event{Fields: util.MapStr{"filler": true}}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = lane.Delete(t.Name()+"-ok", true)
+		_ = lane.Delete(t.Name()+"-bad", true)
+	})
+
+	p := forEachWith(t, "", []interface{}{
+		util.MapStr{"output": util.MapStr{"lanes": []string{t.Name() + "-ok", t.Name() + "-bad"}}},
+	})
+	var msgs []queue.Message
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		msgs = runForEach(t, p, `{"payload":{"message":"x"},"timestamp":"2026-08-18T10:00:00Z"}`)
+	}()
+	// let the output step emit to the ok lane, then fail the bad lane's
+	// blocking emit by closing it mid-block
+	time.Sleep(10 * time.Millisecond)
+	_ = bad.Close()
+	<-done
+
+	recs := okLane.wait(t, 1)
+	if recs[0].Fields["message"] != "x" {
+		t.Fatalf("ok lane must receive the record, got %v", recs[0].Fields["message"])
+	}
+	if msgs[0].Data != nil {
+		t.Fatal("sender must treat the record as delivered after the first hand-off — slot must be empty")
 	}
 }

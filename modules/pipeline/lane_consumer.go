@@ -187,6 +187,7 @@ func (p *LaneConsumerProcessor) runBatch(ctx *pipeline.Context, segments []execS
 			}
 			c := &pipeline.Context{ParentContext: ctx, Context: ctx.Context, Config: ctx.Config}
 			c.Set(pipeline.RecordContextKey, rec)
+			left := false
 			if p.cfg.OnFailure == "tag" {
 				var tags []string
 				c.Set(pipeline.FailureTagsKey, &tags)
@@ -203,9 +204,15 @@ func (p *LaneConsumerProcessor) runBatch(ctx *pipeline.Context, segments []execS
 						log.Warnf("lane_consumer: sub-chain error tagged %q: %v", p.cfg.FailureTag, err)
 					}
 				}
-				// a delivered record belongs to its receiver now — writing
-				// failure tags onto it would race with the receiver
-				if !pipeline.TakeDelivery(c) {
+				// consume the delivery flag exactly ONCE and keep the
+				// result: TakeDelivery clears it, so the activity decision
+				// below must use the saved outcome — re-reading would see a
+				// cleared flag and re-queue a record the receiver already
+				// owns. A delivered record gets no failure-tag merge either
+				// (writing tags onto it would race with the receiver).
+				if delivered := pipeline.TakeDelivery(c); delivered {
+					left = true
+				} else {
 					mergeFailureTags(rec, tags)
 				}
 			} else if err := seg.chain.Process(c); err != nil {
@@ -219,8 +226,15 @@ func (p *LaneConsumerProcessor) runBatch(ctx *pipeline.Context, segments []execS
 			}
 			// single delivery: a record delivered by this segment's chain
 			// was handed to its receiver — pushing it here too would
-			// double-deliver
-			if pipeline.TakeDelivery(c) || pipeline.IsDropped(rec) {
+			// double-deliver. The tag path already consumed the flag, so
+			// TakeDelivery here is a no-op for it; the checks are ordered
+			// so a delivered record is never read.
+			if !left {
+				if pipeline.TakeDelivery(c) || pipeline.IsDropped(rec) {
+					left = true
+				}
+			}
+			if left {
 				continue
 			}
 			next = append(next, rec)
