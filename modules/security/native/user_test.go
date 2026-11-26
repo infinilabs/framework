@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/crypto/bcrypt"
+	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
 	_ "infini.sh/framework/modules/security/orm_hooks"
 	"infini.sh/framework/modules/sqlite"
@@ -158,6 +159,7 @@ func setupAccountStore(t *testing.T) *sqlite.SQLiteORM {
 	require.NoError(t, backend.Open())
 	t.Cleanup(func() { require.NoError(t, backend.Close()) })
 	require.NoError(t, backend.RegisterSchemaWithName(security.UserAccount{}, "app-users"))
+	require.NoError(t, backend.RegisterSchemaWithName(event.Audit{}, "audit-logs"))
 	orm.Register(backend.Config.DBPath, backend)
 	return backend
 }

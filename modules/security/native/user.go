@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"strings"
 
-	log "github.com/cihub/seelog"
 	"golang.org/x/crypto/bcrypt"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
@@ -248,7 +247,7 @@ func (provider *SecurityBackendProvider) CreateUser(name, email, password string
 	}
 
 	if exists && !force {
-		return nil, errors.New("email already existed")
+		return nil, fmt.Errorf("%w: native account already exists", security.ErrIdentityConflict)
 	}
 
 	var obj = &security.UserAccount{}
@@ -266,7 +265,11 @@ func (provider *SecurityBackendProvider) CreateUser(name, email, password string
 	ctx := orm.NewContext()
 	ctx.DirectAccess()
 	ctx.Refresh = orm.WaitForRefresh
-	err = orm.Save(ctx, obj)
+	if exists {
+		err = orm.Save(ctx, obj)
+	} else {
+		err = createAccount(ctx, obj)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -277,26 +280,26 @@ func getUIDByEmail(email string) string {
 	return util.MD5digest(global.Env().SystemConfig.NodeConfig.ID + email)
 }
 
+// CreateUser creates a native account and returns a password only after a successful write.
 func CreateUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	var obj = &security.UserAccount{}
-	err := api.DecodeJSON(req, obj)
-	if err != nil {
+	obj := &security.UserAccount{}
+	if err := api.DecodeJSON(req, obj); err != nil {
 		api.WriteError(w, "invalid user input", http.StatusBadRequest)
 		return
 	}
-
-	obj.Email, err = normalizeEmail(obj.Email)
+	email, err := normalizeEmail(obj.Email)
 	if err != nil {
 		api.WriteError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	obj.Email = email
 	validation := validate.Struct(obj)
 	if !validation.Validate() {
 		api.WriteError(w, "invalid user input", http.StatusBadRequest)
 		return
 	}
-
-	if err := validateStaticIdentity(getUIDByEmail(obj.Email), obj.Email); err != nil {
+	obj.ID = getUIDByEmail(obj.Email)
+	if err := validateStaticIdentity(obj.ID, obj.Email); err != nil {
 		status := http.StatusInternalServerError
 		if errors.Is(err, security.ErrIdentityConflict) {
 			status = http.StatusConflict
@@ -304,35 +307,34 @@ func CreateUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 		api.WriteError(w, "account identity check failed", status)
 		return
 	}
-	exists, account, err := GetUserByLogin(obj.Email)
+	exists, _, err := GetUserByLogin(obj.Email)
 	if err != nil {
-		panic(err)
+		api.WriteError(w, "account lookup failed", http.StatusInternalServerError)
+		return
 	}
-	if exists && account != nil {
-		log.Warn("email already exists")
-		//obj.ID = account.ID
-		panic("email already existed")
-	} else {
-		obj.ID = getUIDByEmail(obj.Email)
+	if exists {
+		api.WriteError(w, "account already exists", http.StatusConflict)
+		return
 	}
-
-	randStr := util.GenerateSecureString(8)
-	hash, err := bcrypt.GenerateFromPassword([]byte(randStr), bcrypt.DefaultCost)
+	password := util.GenerateSecureString(8)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		panic(err)
+		api.WriteError(w, "password generation failed", http.StatusInternalServerError)
+		return
 	}
-
 	obj.Password = string(hash)
-
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.Refresh = orm.WaitForRefresh
-	err = orm.Save(ctx, obj)
-	if err != nil {
-		panic(err)
+	if err := createAccount(ctx, obj); err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, security.ErrIdentityConflict) {
+			status = http.StatusConflict
+		}
+		api.WriteError(w, "account creation failed", status)
+		return
 	}
-
-	obj.Password = randStr
-	api.WriteJSON(w, obj, 200)
+	obj.Password = password
+	api.WriteJSON(w, obj, http.StatusOK)
 }
 
 // Helper function to apply the same email rules to both native creation entry points.
@@ -365,4 +367,19 @@ func validateStaticIdentity(userID, login string) error {
 		return fmt.Errorf("%w: static account login %q", security.ErrIdentityConflict, login)
 	}
 	return nil
+}
+
+// Helper function to create accounts atomically for both native creation entry points.
+//
+// After a failed create, a lookup distinguishes an identity conflict from a storage error.
+func createAccount(ctx *orm.Context, account *security.UserAccount) error {
+	err := orm.Create(ctx, account)
+	if err == nil {
+		return nil
+	}
+	found, _, readErr := (&SecurityBackendProvider{}).GetUserByID(account.ID)
+	if readErr == nil && found {
+		return fmt.Errorf("%w: native account already exists", security.ErrIdentityConflict)
+	}
+	return fmt.Errorf("create native account: %w", err)
 }
