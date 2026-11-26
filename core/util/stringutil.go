@@ -612,6 +612,8 @@ func VersionCompare(v1, v2 string) (int, error) {
 	return version1.Compare(version2), nil
 }
 
+// seededRandMu protects the shared source used by both string generators.
+var seededRandMu sync.Mutex
 var seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 const (
@@ -631,6 +633,8 @@ func GenerateRandomString(cnum int) string {
 	if cnum <= 0 {
 		return ""
 	}
+	seededRandMu.Lock()
+	defer seededRandMu.Unlock()
 	result := make([]byte, cnum)
 	for i := range result {
 		result[i] = simpleChars[seededRand.Intn(len(simpleChars))]
@@ -644,6 +648,8 @@ func GenerateSecureString(cnum int) string {
 		cnum = minLength
 	}
 
+	seededRandMu.Lock()
+	defer seededRandMu.Unlock()
 	result := make([]byte, cnum)
 	result[0] = lowercaseChars[seededRand.Intn(len(lowercaseChars))]
 	result[1] = uppercaseChars[seededRand.Intn(len(uppercaseChars))]
