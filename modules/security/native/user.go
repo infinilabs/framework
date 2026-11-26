@@ -5,6 +5,9 @@
 package native
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 
 	log "github.com/cihub/seelog"
@@ -137,44 +140,79 @@ func SearchUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	}
 }
 
+// GetUserByLogin finds a native account by email.
 func GetUserByLogin(email string) (bool, *security.UserAccount, error) {
-	ctx := orm.NewContext()
-	ctx.DirectReadAccess()
-
+	if !orm.IsHandlerRegistered() {
+		return false, nil, errors.New("native account ORM is not ready")
+	}
+	ctx := orm.NewContext().DirectReadAccess()
 	ctx.PermissionScope(security.PermissionScopePlatform)
-
-	ctx = orm.WithModel(ctx, &security.UserAccount{})
-
-	qb := orm.NewQuery()
-	qb.Should(orm.TermQuery("email", email), orm.TermQuery("id", getUIDByEmail(email))).MinimumShouldMatch(1)
-	items := []security.UserAccount{}
-	err, _ := elastic.SearchV2WithResultItemMapper(ctx, &items, qb, nil)
+	orm.WithModel(ctx, &security.UserAccount{})
+	result, err := orm.SearchV2(ctx, orm.NewQuery().Filter(orm.TermQuery("email", email)).Size(1))
 	if err != nil {
 		return false, nil, err
 	}
-	if len(items) > 0 {
-		if len(items) == 1 {
-			return true, &items[0], nil
-		} else {
-			log.Warnf("invalid users, more than one account was associated with the same email: %v", email)
-		}
+	if result == nil || result.Status < 200 || result.Status >= 300 {
+		return false, nil, fmt.Errorf("native account search failed: %v", result)
 	}
-	return false, nil, nil
+	if result.Error != nil && *result.Error != nil {
+		return false, nil, *result.Error
+	}
+	var raw []byte
+	switch payload := result.Payload.(type) {
+	case []byte:
+		raw = payload
+	case string:
+		raw = []byte(payload)
+	default:
+		return false, nil, errors.New("native account search returned no payload")
+	}
+	var completion struct {
+		Shards struct {
+			Failed int `json:"failed"`
+		} `json:"_shards"`
+		Hits *json.RawMessage `json:"hits"`
+	}
+	if err := json.Unmarshal(raw, &completion); err != nil {
+		return false, nil, err
+	}
+	if completion.Shards.Failed > 0 || completion.Hits == nil {
+		return false, nil, errors.New("native account search returned incomplete results")
+	}
+	response, err := elastic.DecodeSearchResult(result)
+	if err != nil {
+		return false, nil, err
+	}
+	if response.Error != nil || response.TimedOut {
+		return false, nil, errors.New("native account search did not complete")
+	}
+	accounts, _, err := elastic.DecodeHits[security.UserAccount](result)
+	if err != nil {
+		return false, nil, err
+	}
+	if len(accounts) == 0 {
+		return false, nil, nil
+	}
+	return true, &accounts[0], nil
 }
 
 func (provider *SecurityBackendProvider) GetUserByLogin(email string) (bool, *security.UserAccount, error) {
 	return GetUserByLogin(email)
 }
 
+// GetUserByID treats only a missing document as normal absence.
 func (provider *SecurityBackendProvider) GetUserByID(id string) (bool, *security.UserAccount, error) {
+	if !orm.IsHandlerRegistered() {
+		return false, nil, errors.New("native account ORM is not ready")
+	}
 	obj := security.UserAccount{}
 	obj.ID = id
-	ctx := orm.NewContext()
-	ctx.DirectReadAccess()
-
+	ctx := orm.NewContext().DirectReadAccess()
 	ctx.PermissionScope(security.PermissionScopePlatform)
-
 	exists, err := orm.GetV2(ctx, &obj)
+	if errors.Is(err, orm.ErrNotFound) {
+		return false, nil, nil
+	}
 	if err != nil {
 		return false, nil, err
 	}

@@ -40,7 +40,7 @@ import (
 	"infini.sh/framework/modules/elastic/orm"
 )
 
-var ErrNotFound = errors.New("record not found")
+var ErrNotFound = api.ErrNotFound
 
 type ElasticORM struct {
 	Client elastic.API
@@ -151,8 +151,20 @@ func (handler *ElasticORM) Get(ctx *api.Context, o interface{}) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if response.RawResult.StatusCode == http.StatusNotFound {
-		return false, ErrNotFound
+	if response == nil || response.RawResult == nil {
+		return false, errors.New("empty document response")
+	}
+	if response.RawResult.StatusCode >= http.StatusBadRequest {
+		// Only an explicit document miss is absence. A missing index is a backend failure.
+		var document struct {
+			Found *bool `json:"found"`
+		}
+		if response.RawResult.StatusCode == http.StatusNotFound && response.Error == nil {
+			if err := util.FromJSONBytes(response.RawResult.Body, &document); err == nil && document.Found != nil && !*document.Found {
+				return false, ErrNotFound
+			}
+		}
+		return false, fmt.Errorf("document lookup returned HTTP %d: %s", response.RawResult.StatusCode, response.RawResult.Body)
 	}
 	str, err := response.GetBytesByJsonPath("_source")
 	if err != nil {

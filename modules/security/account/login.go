@@ -26,7 +26,7 @@ import (
 //
 // This is the framework-level login endpoint shared by all applications. It
 // works with any registered AuthenticationBackend (static, native, ...) via
-// security.GetUserByLogin, performs bcrypt password verification, and creates
+// security.ResolveUserByLogin, performs bcrypt password verification, and creates
 // a JWT session via security.AddUserToSession.
 //
 // Request (JSON):  {"login": "<username or email>", "password": "<password>"}
@@ -89,11 +89,9 @@ func Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		return
 	}
 
-	// Look up the user across all registered authentication backends (static,
-	// native, etc.). GetUserByLogin iterates the providers and returns the
-	// first match.
-	exists, account, err := security.GetUserByLogin(login)
-	if err != nil || !exists || account == nil {
+	// Look up the account and its authentication provider.
+	provider, exists, account, err := security.ResolveUserByLogin(login)
+	if err != nil || !exists {
 		api.WriteError(w, "invalid login or password", http.StatusUnauthorized)
 		return
 	}
@@ -111,7 +109,7 @@ func Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 	// Build the session info from the verified account.
 	sessionInfo := &security.UserSessionInfo{
-		Provider: account.Email, // the login identifier used
+		Provider: provider,
 		Login:    login,
 		Roles:    account.Roles,
 	}
