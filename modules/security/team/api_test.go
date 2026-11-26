@@ -159,3 +159,24 @@ func TestTeamUpdateAuthorization(t *testing.T) {
 		})
 	}
 }
+
+// TestStoredMembership matches typed identities through the SQLite ORM query path.
+func TestStoredMembership(t *testing.T) {
+	backend := &sqlite.SQLiteORM{Config: sqlite.SQLiteConfig{Enabled: true, DBPath: filepath.Join(t.TempDir(), "membership.db")}}
+	require.NoError(t, backend.Open())
+	t.Cleanup(func() { require.NoError(t, backend.Close()) })
+	require.NoError(t, backend.RegisterSchemaWithName(Team{}, "security-team"))
+	orm.Register(backend.Config.DBPath, backend)
+	for id, members := range map[string][]MemberId{
+		"by-id":         {{MemberKindUserID, "alice-id"}},
+		"by-login":      {{MemberKindLogin, "alice"}},
+		"wrong-kind":    {{MemberKindUserID, "alice"}, {MemberKindLogin, "alice-id"}},
+		"cross-element": {{MemberKindUserID, "other"}, {MemberKindLogin, "alice-id"}},
+	} {
+		team := Team{Name: id, Members: members}
+		team.ID = id
+		require.NoError(t, orm.Create(orm.NewContext().DirectAccess(), &team))
+	}
+	require.ElementsMatch(t, []string{"by-id", "by-login"}, TeamIDsForUser("alice-id", "alice"))
+	require.Empty(t, TeamIDsForUser("absent", "absent"))
+}
