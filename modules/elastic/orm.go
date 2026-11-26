@@ -263,7 +263,12 @@ func (handler *ElasticORM) BulkSave(ctx *api.Context, batch []interface{}) error
 	return nil
 }
 
-// update operation will merge the new data into the old data
+// existingDocumentUpdater separates strict ORM updates from the client's upsert API.
+type existingDocumentUpdater interface {
+	UpdateExisting(indexName, docType string, id interface{}, data interface{}, refresh string) (*elastic.InsertResponse, error)
+}
+
+// Update merges fields into an existing document. Only explicit ORM upserts can create one.
 func (handler *ElasticORM) Update(ctx *api.Context, o interface{}) error {
 	var refresh string
 	if ctx != nil {
@@ -277,7 +282,15 @@ func (handler *ElasticORM) Update(ctx *api.Context, o interface{}) error {
 	//handle tenant and user's footprint
 	docID := getIndexID(o)
 
-	_, err := handler.Client.Update(handler.GetIndexName(o), "", docID, o, refresh)
+	if ctx != nil && ctx.GetBool(api.CreateIfNotExistsForUpdate, false) {
+		_, err := handler.Client.Update(handler.GetIndexName(o), "", docID, o, refresh)
+		return err
+	}
+	updater, ok := handler.Client.(existingDocumentUpdater)
+	if !ok {
+		return errors.New("Elasticsearch client cannot update existing documents without upsert")
+	}
+	_, err := updater.UpdateExisting(handler.GetIndexName(o), "", docID, o, refresh)
 	return err
 }
 

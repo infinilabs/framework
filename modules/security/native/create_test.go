@@ -40,8 +40,12 @@ import (
 
 // TestConcurrentAccountCreation permits one winner without replacing its password or roles.
 func TestConcurrentAccountCreation(t *testing.T) {
-	for _, httpCount := range []int{0, 1, 2} {
-		t.Run(fmt.Sprintf("HTTP writers %d", httpCount), func(t *testing.T) {
+	for _, scenario := range []struct {
+		httpCount int
+		force     bool
+	}{{0, false}, {1, false}, {2, false}, {0, true}} {
+		httpCount := scenario.httpCount
+		t.Run(fmt.Sprintf("HTTP writers %d force %v", httpCount, scenario.force), func(t *testing.T) {
 			backend := setupAccountStore(t)
 			arrived := make(chan struct{}, 2)
 			release := make(chan struct{}, 2)
@@ -76,7 +80,7 @@ func TestConcurrentAccountCreation(t *testing.T) {
 							result.err = json.Unmarshal(response.Body.Bytes(), result.account)
 						}
 					} else {
-						result.account, result.err = (&SecurityBackendProvider{}).CreateUser("internal", "race@example.com", fmt.Sprintf("Password!Number%d", index), false)
+						result.account, result.err = (&SecurityBackendProvider{}).CreateUser("internal", "race@example.com", fmt.Sprintf("Password!Number%d", index), scenario.force)
 					}
 					results <- result
 				}(i)
@@ -173,4 +177,45 @@ func TestCreateRejectsExistingLogin(t *testing.T) {
 	var count int
 	require.NoError(t, backend.DB.QueryRow("SELECT COUNT(*) FROM [app-users]").Scan(&count))
 	require.Equal(t, 1, count)
+}
+
+// TestForcedAccountUpdate preserves identity and cannot recreate a concurrently deleted user.
+func TestForcedAccountUpdate(t *testing.T) {
+	for _, deleted := range []bool{false, true} {
+		t.Run(fmt.Sprintf("deleted %v", deleted), func(t *testing.T) {
+			backend := setupAccountStore(t)
+			original := &security.UserAccount{Name: "original", Email: "alice@example.com", Roles: []string{"reader"}}
+			original.ID = "legacy-id"
+			require.NoError(t, orm.Create(orm.NewContext().DirectAccess(), original))
+			wrapper := &accountTestORM{ORM: backend}
+			wrapper.update = func(ctx *orm.Context, value interface{}) error {
+				if deleted {
+					if err := backend.Delete(ctx, value); err != nil {
+						return err
+					}
+				}
+				return backend.Update(ctx, value)
+			}
+			orm.Register(t.TempDir(), wrapper)
+			const password = "Updated!Password123"
+			account, err := (&SecurityBackendProvider{}).CreateUser("updated", original.Email, password, true)
+			if deleted {
+				require.Error(t, err)
+				require.Nil(t, account)
+				found, _, err := (&SecurityBackendProvider{}).GetUserByID(original.ID)
+				require.NoError(t, err)
+				require.False(t, found)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, original.ID, account.ID)
+				found, stored, err := (&SecurityBackendProvider{}).GetUserByID(original.ID)
+				require.NoError(t, err)
+				require.True(t, found)
+				require.Equal(t, "updated", stored.Name)
+				require.Equal(t, original.Email, stored.Email)
+				require.Equal(t, []string{security.RoleAdmin}, stored.Roles)
+				require.NoError(t, bcrypt.CompareHashAndPassword([]byte(stored.Password), []byte(password)))
+			}
+		})
+	}
 }

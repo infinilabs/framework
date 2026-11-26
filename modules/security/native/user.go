@@ -266,7 +266,8 @@ func (provider *SecurityBackendProvider) CreateUser(name, email, password string
 	ctx.DirectAccess()
 	ctx.Refresh = orm.WaitForRefresh
 	if exists {
-		err = orm.Save(ctx, obj)
+		// A force update requires the account to still exist.
+		err = orm.Update(ctx, obj)
 	} else {
 		err = createAccount(ctx, obj)
 	}

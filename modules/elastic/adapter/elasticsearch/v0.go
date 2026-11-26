@@ -432,7 +432,18 @@ func (c *ESAPIV0) Create(indexName, docType string, id interface{}, data interfa
 	return esResp, nil
 }
 
+// Update preserves the client API's create-or-update behavior.
 func (c *ESAPIV0) Update(indexName, docType string, id interface{}, data interface{}, refresh string) (*elastic.InsertResponse, error) {
+	return c.updateDocument(indexName, docType, id, data, refresh, true)
+}
+
+// UpdateExisting updates a document without recreating a deleted target.
+func (c *ESAPIV0) UpdateExisting(indexName, docType string, id interface{}, data interface{}, refresh string) (*elastic.InsertResponse, error) {
+	return c.updateDocument(indexName, docType, id, data, refresh, false)
+}
+
+// Helper function to send version-specific updates for Update and UpdateExisting.
+func (c *ESAPIV0) updateDocument(indexName, docType string, id interface{}, data interface{}, refresh string, upsert bool) (*elastic.InsertResponse, error) {
 
 	if docType == "" {
 		docType = TypeName0
@@ -452,7 +463,7 @@ func (c *ESAPIV0) Update(indexName, docType string, id interface{}, data interfa
 	js := util.MapStr{}
 	js["doc"] = data
 	js["detect_noop"] = false
-	js["doc_as_upsert"] = true
+	js["doc_as_upsert"] = upsert
 
 	resp, err := c.Request(nil, util.Verb_POST, url, util.MustToJSONBytes(js))
 	if err != nil {
@@ -468,7 +479,7 @@ func (c *ESAPIV0) Update(indexName, docType string, id interface{}, data interfa
 	if err != nil {
 		return &elastic.InsertResponse{}, err
 	}
-	if !(esResp.Result == "created" || esResp.Result == "updated" || esResp.Shards.Successful > 0) {
+	if !(esResp.Result == "created" || esResp.Result == "updated" || (!upsert && esResp.Result == "noop") || esResp.Shards.Successful > 0) {
 		return nil, errors.New(string(resp.Body))
 	}
 
