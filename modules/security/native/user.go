@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gookit/validate"
 	"net/http"
+	"strings"
 
 	log "github.com/cihub/seelog"
 	"golang.org/x/crypto/bcrypt"
@@ -223,18 +225,22 @@ func (provider *SecurityBackendProvider) GetUserByID(id string) (bool, *security
 }
 
 func (provider *SecurityBackendProvider) CreateUser(name, email, password string, force bool) (*security.UserAccount, error) {
+	email, err := normalizeEmail(email)
+	if err != nil {
+		return nil, err
+	}
 
 	if !util.ValidateSecure(password) {
-		panic("should be secured password")
+		return nil, errors.New("password does not meet the security policy")
 	}
 
 	exists, account, err := GetUserByLogin(email)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if exists && !force {
-		panic("email already existed")
+		return nil, errors.New("email already existed")
 	}
 
 	var obj = &security.UserAccount{}
@@ -242,12 +248,12 @@ func (provider *SecurityBackendProvider) CreateUser(name, email, password string
 		log.Warn("email already exists, will be replaced")
 		obj.ID = account.ID
 	} else {
-		obj.ID = getUIDByEmail(obj.Email)
+		obj.ID = getUIDByEmail(email)
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	obj.Name = name
 	obj.Email = email
@@ -259,7 +265,7 @@ func (provider *SecurityBackendProvider) CreateUser(name, email, password string
 	ctx.Refresh = orm.WaitForRefresh
 	err = orm.Save(ctx, obj)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	return obj, nil
 }
@@ -272,10 +278,20 @@ func CreateUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	var obj = &security.UserAccount{}
 	err := api.DecodeJSON(req, obj)
 	if err != nil {
-		panic(err)
+		api.WriteError(w, "invalid user input", http.StatusBadRequest)
+		return
 	}
 
-	api.MustValidateInput(w, obj)
+	obj.Email, err = normalizeEmail(obj.Email)
+	if err != nil {
+		api.WriteError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	validation := validate.Struct(obj)
+	if !validation.Validate() {
+		api.WriteError(w, "invalid user input", http.StatusBadRequest)
+		return
+	}
 
 	exists, account, err := GetUserByLogin(obj.Email)
 	if err != nil {
@@ -306,4 +322,13 @@ func CreateUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 
 	obj.Password = randStr
 	api.WriteJSON(w, obj, 200)
+}
+
+// Helper function to apply the same email rules to both native creation entry points.
+func normalizeEmail(email string) (string, error) {
+	email = strings.TrimSpace(email)
+	if !validate.IsEmail(email) {
+		return "", errors.New("a valid email is required")
+	}
+	return email, nil
 }

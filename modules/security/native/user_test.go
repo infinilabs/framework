@@ -26,6 +26,15 @@ package native
 import (
 	"errors"
 	"fmt"
+	"golang.org/x/crypto/bcrypt"
+	"infini.sh/framework/core/global"
+	_ "infini.sh/framework/modules/security/orm_hooks"
+	"infini.sh/framework/modules/sqlite"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -132,4 +141,58 @@ func TestNativeLookup(t *testing.T) {
 			require.NoError(t, err)
 		}
 	}
+}
+
+// TestMain installs the application's ownership hooks for native write tests.
+func TestMain(m *testing.M) {
+	for _, setup := range global.GetFuncAfterSetup() {
+		setup()
+	}
+	os.Exit(m.Run())
+}
+
+// Helper function to create isolated user storage for native account write tests.
+func setupAccountStore(t *testing.T) *sqlite.SQLiteORM {
+	t.Helper()
+	backend := &sqlite.SQLiteORM{Config: sqlite.SQLiteConfig{Enabled: true, DBPath: filepath.Join(t.TempDir(), "accounts.db")}}
+	require.NoError(t, backend.Open())
+	t.Cleanup(func() { require.NoError(t, backend.Close()) })
+	require.NoError(t, backend.RegisterSchemaWithName(security.UserAccount{}, "app-users"))
+	orm.Register(backend.Config.DBPath, backend)
+	return backend
+}
+
+// TestNativeAccountIDs derives distinct IDs from the supplied normalized emails.
+func TestNativeAccountIDs(t *testing.T) {
+	setupAccountStore(t)
+	provider := &SecurityBackendProvider{}
+	const password = "Correct!Password123"
+	first, err := provider.CreateUser("first", " first@example.com ", password, false)
+	require.NoError(t, err)
+	second, err := provider.CreateUser("second", "second@example.com", password, false)
+	require.NoError(t, err)
+	require.Equal(t, getUIDByEmail("first@example.com"), first.ID)
+	require.Equal(t, "first@example.com", first.Email)
+	require.NotEqual(t, first.ID, second.ID)
+	found, stored, err := provider.GetUserByID(first.ID)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.NoError(t, bcrypt.CompareHashAndPassword([]byte(stored.Password), []byte(password)))
+}
+
+// TestNativeEmailValidation rejects invalid input before any user can be persisted.
+func TestNativeEmailValidation(t *testing.T) {
+	backend := setupAccountStore(t)
+	for _, email := range []string{"", " ", "alice"} {
+		account, err := (&SecurityBackendProvider{}).CreateUser("name", email, "Correct!Password123", false)
+		require.Error(t, err)
+		require.Nil(t, account)
+		request := httptest.NewRequest(http.MethodPost, "/security/user/", strings.NewReader(util.MustToJSON(util.MapStr{"name": "name", "email": email})))
+		response := httptest.NewRecorder()
+		CreateUser(response, request, nil)
+		require.Equal(t, http.StatusBadRequest, response.Code)
+	}
+	var count int
+	require.NoError(t, backend.DB.QueryRow("SELECT COUNT(*) FROM [app-users]").Scan(&count))
+	require.Zero(t, count)
 }
