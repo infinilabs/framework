@@ -93,14 +93,14 @@ func TestTeamUpdateAuthorization(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := backend.DB.Exec("DELETE FROM [audit-logs]")
 			require.NoError(t, err)
-			original := Team{Name: "original", Description: "before", Members: []string{"alice"}}
+			original := Team{Name: "original", Description: "before", Members: []MemberId{{MemberKindLogin, "alice"}}}
 			original.ID = strings.ReplaceAll(tc.name, " ", "-")
 			original.SetOwnerID("owner")
 			if !tc.missing {
 				require.NoError(t, orm.Create(orm.NewContext().DirectAccess(), &original))
 			}
 			req := httptest.NewRequest(http.MethodPut, "/security/teams/"+original.ID, strings.NewReader(
-				`{"id":"spoofed","name":"updated","description":"after","members":["bob"],"_system":{"owner_id":"spoofed"}}`))
+				`{"id":"spoofed","name":"updated","description":"after","members":[{"kind":"login","value":"bob"}],"_system":{"owner_id":"spoofed"}}`))
 			if tc.userID != "" {
 				user := &security.UserSessionInfo{
 					UserID:                 tc.userID,
@@ -129,7 +129,7 @@ func TestTeamUpdateAuthorization(t *testing.T) {
 				require.Equal(t, "owner", stored.GetOwnerID())
 				require.Equal(t, "updated", stored.Name)
 				require.Equal(t, "after", stored.Description)
-				require.Equal(t, []string{"bob"}, stored.Members)
+				require.Equal(t, []MemberId{{MemberKindLogin, "bob"}}, stored.Members)
 				var body struct {
 					Result Team `json:"result"`
 				}

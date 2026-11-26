@@ -117,13 +117,8 @@ func Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	}
 	sessionInfo.SetUserID(account.ID)
 
-	// Team principal expansion: resolve the verified account's team
-	// memberships and carry them on the session, so share rules granted to
-	// a team apply to its members. Match on the submitted login AND the
-	// account's canonical name — members may be listed by either form, and
-	// the submitted login can be an email while the member list holds the
-	// name.
-	if teamIDs := team.TeamIDsForUser(account.ID, login, account.Name); len(teamIDs) > 0 {
+	// Membership uses the verified account's ID and email.
+	if teamIDs := team.TeamIDsForUser(account.ID, account.Email); len(teamIDs) > 0 {
 		sessionInfo.Set(orm.TeamsIDKey, teamIDs)
 	}
 

@@ -5,6 +5,7 @@
 package team
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -77,14 +78,20 @@ func (h *APIHandler) get(w http.ResponseWriter, req *http.Request, ps httprouter
 func (h *APIHandler) create(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 	team := Team{}
 	if err := api.DecodeJSON(req, &team); err != nil {
-		panic(err)
+		h.WriteError(w, "invalid team input", http.StatusBadRequest)
+		return
 	}
 	team.Name = strings.TrimSpace(team.Name)
 	if team.Name == "" {
 		h.WriteError(w, "name is required", http.StatusBadRequest)
 		return
 	}
-	team.Members = normalizeMembers(team.Members)
+	members, err := normalizeMembers(team.Members)
+	if err != nil {
+		h.WriteError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	team.Members = members
 
 	ctx := orm.NewContextWithParent(req.Context())
 	if err := orm.Create(ctx, &team); err != nil {
@@ -99,7 +106,13 @@ func (h *APIHandler) update(w http.ResponseWriter, req *http.Request, ps httprou
 
 	incoming := Team{}
 	if err := api.DecodeJSON(req, &incoming); err != nil {
-		panic(err)
+		h.WriteError(w, "invalid team input", http.StatusBadRequest)
+		return
+	}
+	members, err := normalizeMembers(incoming.Members)
+	if err != nil {
+		h.WriteError(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	ctx := orm.NewContextWithParent(req.Context())
@@ -122,7 +135,7 @@ func (h *APIHandler) update(w http.ResponseWriter, req *http.Request, ps httprou
 		stored.Name = name
 	}
 	stored.Description = incoming.Description
-	stored.Members = normalizeMembers(incoming.Members)
+	stored.Members = members
 
 	if err := orm.Update(ctx, &stored); err != nil {
 		panic(err)
@@ -161,20 +174,19 @@ func isNotFound(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "not found")
 }
 
-// normalizeMembers trims, drops empties and dedupes the member list.
-func normalizeMembers(members []string) []string {
-	seen := map[string]struct{}{}
-	out := make([]string, 0, len(members))
-	for _, m := range members {
-		m = strings.TrimSpace(m)
-		if m == "" {
-			continue
+// Helper function to validate and deduplicate members for team creation and updates.
+func normalizeMembers(members []MemberId) ([]MemberId, error) {
+	seen := map[MemberId]struct{}{}
+	out := make([]MemberId, 0, len(members))
+	for _, member := range members {
+		member.Value = strings.TrimSpace(member.Value)
+		if member.Value == "" || (member.Kind != MemberKindUserID && member.Kind != MemberKindLogin) {
+			return nil, fmt.Errorf("members require kind user_id or login and a nonempty value")
 		}
-		if _, ok := seen[m]; ok {
-			continue
+		if _, duplicate := seen[member]; !duplicate {
+			seen[member] = struct{}{}
+			out = append(out, member)
 		}
-		seen[m] = struct{}{}
-		out = append(out, m)
 	}
-	return out
+	return out, nil
 }

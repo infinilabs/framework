@@ -2,14 +2,8 @@
  * Web: https://infinilabs.com
  * Email: hello#infini.ltd */
 
-// Package team provides the framework-generic security team: a principal
-// that groups multiple users (matched by user ID, login name or account
-// name — static accounts authenticate by either) so access can be granted
-// to the group as a whole.
-//
-// Login resolves the verified account's memberships via TeamIDsForUser and
-// carries them on the session under orm.TeamsIDKey — exactly where the share
-// module expands principal_type=team rules to their members.
+// Package team groups accounts by typed ID or login references.
+// Login stores the verified account's team IDs in its session for sharing checks.
 package team
 
 import (
@@ -18,14 +12,30 @@ import (
 	"infini.sh/framework/core/security"
 )
 
-// Team is a named group of users. Members holds user IDs and/or login names
-// (static accounts may be added by either form); matching accepts both.
+// MemberKind identifies the account field referenced by a team member.
+//
+// IDs and logins have separate namespaces. The kind prevents a value in
+// one field from matching another account's value in the other field.
+type MemberKind string
+
+const (
+	MemberKindUserID MemberKind = "user_id"
+	MemberKindLogin  MemberKind = "login"
+)
+
+// MemberId references an account by ID or login.
+type MemberId struct {
+	Kind  MemberKind `json:"kind" elastic_mapping:"kind: {type: keyword}"`
+	Value string     `json:"value" elastic_mapping:"value: {type: keyword}"`
+}
+
+// Team groups accounts by ID or login. Both fields of a member must match
+// within the same array element, so the storage mapping uses nested objects.
 type Team struct {
 	orm.ORMObjectBase
-
-	Name        string   `json:"name" elastic_mapping:"name: {type: keyword}"`
-	Description string   `json:"description" elastic_mapping:"description: {type: text}"`
-	Members     []string `json:"members" elastic_mapping:"members: {type: keyword}"`
+	Name        string     `json:"name" elastic_mapping:"name: {type: keyword}"`
+	Description string     `json:"description" elastic_mapping:"description: {type: text}"`
+	Members     []MemberId `json:"members" elastic_mapping:"members: {type: nested}"`
 }
 
 func (t *Team) GetIndexName() string { return "security-team" }
@@ -44,87 +54,79 @@ func List(ctx *orm.Context) ([]Team, error) {
 		if err != nil {
 			return nil, err
 		}
-		page, total, err := elastic.DecodeHits[Team](res)
+		page, _, err := elastic.DecodeHits[Team](res)
 		if err != nil {
 			return nil, err
 		}
 		teams = append(teams, page...)
-		if len(page) < pageSize || int64(from+len(page)) >= total {
+		if len(page) < pageSize {
 			break
 		}
 	}
 	return teams, nil
 }
 
-// TeamIDsForUser returns the IDs of the teams whose membership lists the
-// given user — matched against the user ID plus any login alias (the
-// submitted login and the account's canonical name: members may have been
-// added by either form, and the submitted login can be an email while the
-// member list holds the name). Used at login to populate the session's
-// teams_id.
+// TeamIDsForUser resolves membership from a verified account's ID and login.
 //
-// Membership is matched server-side (terms query on the members keyword
-// array) and paged through: a capped global scan would silently drop the
-// memberships of teams beyond the first page. Runs on a background
-// context: it must not fail logins, so any storage error simply yields no
-// teams.
-func TeamIDsForUser(userID string, aliases ...string) []string {
-	// static-auth-only deployments run no ORM backend; the lookup below
-	// would panic on it and take every password login down with it
-	if !orm.IsHandlerRegistered() {
+// Storage errors yield no memberships and do not prevent password login.
+// Page lengths, rather than possibly approximate totals, determine completion.
+func TeamIDsForUser(userID, login string) []string {
+	if !orm.IsHandlerRegistered() || (userID == "" && login == "") {
 		return nil
 	}
-	ctx := orm.NewContext()
-	ctx.DirectReadAccess()
+	ctx := orm.NewContext().DirectReadAccess()
 	ctx.PermissionScope(security.PermissionScopePlatform)
 	orm.WithModel(ctx, &Team{})
 
-	identities := append([]string{userID}, aliases...)
+	var conditions []*orm.Clause
+	for _, member := range []MemberId{{MemberKindUserID, userID}, {MemberKindLogin, login}} {
+		if member.Value != "" {
+			conditions = append(conditions, orm.NestedQuery("members", orm.MustQuery(
+				orm.TermQuery("members.kind", string(member.Kind)),
+				orm.TermQuery("members.value", member.Value))))
+		}
+	}
 	const pageSize = 500
 	var ids []string
 	seen := map[string]struct{}{}
 	for from := 0; ; from += pageSize {
-		res, err := orm.SearchV2(ctx, orm.NewQuery().
-			Should(orm.TermsQuery("members", identities)).
-			MinimumShouldMatch(1).
-			From(from).
-			Size(pageSize))
+		res, err := orm.SearchV2(ctx, orm.NewQuery().Should(conditions...).MinimumShouldMatch(1).From(from).Size(pageSize))
 		if err != nil {
 			return nil
 		}
-		teams, total, err := elastic.DecodeHits[Team](res)
+		teams, _, err := elastic.DecodeHits[Team](res)
 		if err != nil {
 			return nil
 		}
-		for _, t := range teams {
-			if _, dup := seen[t.ID]; dup {
+		for _, team := range teams {
+			if _, duplicate := seen[team.ID]; duplicate {
 				continue
 			}
-			for _, m := range t.Members {
-				if memberMatches(m, userID, aliases) {
-					seen[t.ID] = struct{}{}
-					ids = append(ids, t.ID)
+			for _, member := range team.Members {
+				if memberMatches(member, userID, login) {
+					seen[team.ID] = struct{}{}
+					ids = append(ids, team.ID)
 					break
 				}
 			}
 		}
-		if len(teams) < pageSize || int64(from+len(teams)) >= total {
-			break
+		if len(teams) < pageSize {
+			return ids
 		}
 	}
-	return ids
 }
 
-// memberMatches reports whether one membership entry references the user:
-// by user ID or any login alias.
-func memberMatches(member, userID string, aliases []string) bool {
-	if userID != "" && member == userID {
-		return true
+// Helper function to compare a stored member against verified account fields.
+func memberMatches(member MemberId, userID, login string) bool {
+	if member.Value == "" {
+		return false
 	}
-	for _, a := range aliases {
-		if a != "" && member == a {
-			return true
-		}
+	switch member.Kind {
+	case MemberKindUserID:
+		return member.Value == userID
+	case MemberKindLogin:
+		return member.Value == login
+	default:
+		return false
 	}
-	return false
 }
