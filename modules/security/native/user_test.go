@@ -196,3 +196,73 @@ func TestNativeEmailValidation(t *testing.T) {
 	require.NoError(t, backend.DB.QueryRow("SELECT COUNT(*) FROM [app-users]").Scan(&count))
 	require.Zero(t, count)
 }
+
+type staticIdentityTestProvider struct {
+	security.AuthenticationBackend
+	account *security.UserAccount
+	err     error
+}
+
+func (p *staticIdentityTestProvider) GetUserByID(id string) (bool, *security.UserAccount, error) {
+	if p.account != nil && p.account.ID == id {
+		return true, p.account, p.err
+	}
+	return false, nil, p.err
+}
+func (p *staticIdentityTestProvider) GetUserByLogin(login string) (bool, *security.UserAccount, error) {
+	if p.account != nil && p.account.Email == login {
+		return true, p.account, p.err
+	}
+	return false, nil, p.err
+}
+
+// TestStaticCreationConflicts checks both native entry points before any account write.
+func TestStaticCreationConflicts(t *testing.T) {
+	backend := setupAccountStore(t)
+	old, enabled := security.GetAuthenticationProvider(security.StaticAuthBackend)
+	t.Cleanup(func() {
+		if enabled {
+			security.RegisterAuthenticationProvider(security.StaticAuthBackend, old)
+		} else {
+			security.RegisterAuthenticationProvider(security.StaticAuthBackend, &staticIdentityTestProvider{})
+		}
+	})
+	unavailable := errors.New("static lookup failed")
+	for _, tc := range []struct {
+		account  *security.UserAccount
+		queryErr error
+		want     error
+		status   int
+	}{
+		{&security.UserAccount{ORMObjectBase: orm.ORMObjectBase{ID: "different-id"}, Email: "alice@example.com"}, nil, security.ErrIdentityConflict, http.StatusConflict},
+		{&security.UserAccount{ORMObjectBase: orm.ORMObjectBase{ID: getUIDByEmail("alice@example.com")}, Email: "other@example.com"}, nil, security.ErrIdentityConflict, http.StatusConflict},
+		{nil, unavailable, unavailable, http.StatusInternalServerError},
+	} {
+		security.RegisterAuthenticationProvider(security.StaticAuthBackend, &staticIdentityTestProvider{account: tc.account, err: tc.queryErr})
+		account, err := (&SecurityBackendProvider{}).CreateUser("alice", "alice@example.com", "Correct!Password123", false)
+		require.ErrorIs(t, err, tc.want)
+		require.Nil(t, account)
+		req := httptest.NewRequest(http.MethodPost, "/security/user/", strings.NewReader(`{"name":"alice","email":"alice@example.com"}`))
+		response := httptest.NewRecorder()
+		CreateUser(response, req, nil)
+		require.Equal(t, tc.status, response.Code)
+	}
+	var count int
+	require.NoError(t, backend.DB.QueryRow("SELECT COUNT(*) FROM [app-users]").Scan(&count))
+	require.Zero(t, count)
+	security.RegisterAuthenticationProvider(security.StaticAuthBackend, &staticIdentityTestProvider{account: &security.UserAccount{ORMObjectBase: orm.ORMObjectBase{ID: "alice@example.com"}, Email: getUIDByEmail("alice@example.com")}})
+	require.NoError(t, validateStaticIdentity(getUIDByEmail("alice@example.com"), "alice@example.com"))
+	legacy := &security.UserAccount{Email: "alice@example.com", Name: "original"}
+	legacy.ID = "legacy-id"
+	require.NoError(t, orm.Create(orm.NewContext().DirectAccess(), legacy))
+	occupied := &security.UserAccount{Email: "different@example.com"}
+	occupied.ID = getUIDByEmail(legacy.Email)
+	security.RegisterAuthenticationProvider(security.StaticAuthBackend, &staticIdentityTestProvider{account: occupied})
+	updated, err := (&SecurityBackendProvider{}).CreateUser("updated", legacy.Email, "Correct!Password123", true)
+	require.NoError(t, err)
+	require.Equal(t, legacy.ID, updated.ID)
+	occupied.ID = legacy.ID
+	_, err = (&SecurityBackendProvider{}).CreateUser("rejected", legacy.Email, "Correct!Password123", true)
+	require.ErrorIs(t, err, security.ErrIdentityConflict)
+
+}

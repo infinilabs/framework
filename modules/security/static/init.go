@@ -33,9 +33,10 @@ var (
 
 // InitAuthentication validates static identities before publishing both lookup maps.
 //
-// Duplicate IDs or logins cause configuration errors.
+// It runs during security startup, after the native store is ready.
+// A nil native backend selects static-only validation.
 // Failed validation leaves the published registry unchanged.
-func InitAuthentication(authCfg config.StaticAuthenticationConfig) error {
+func InitAuthentication(authCfg config.StaticAuthenticationConfig, native security.AuthenticationBackend) error {
 	if !authCfg.Enabled {
 		return nil
 	}
@@ -68,6 +69,24 @@ func InitAuthentication(authCfg config.StaticAuthenticationConfig) error {
 			account.Password = string(hash)
 		}
 		byLogin[login], byID[id] = account, account
+	}
+	if native != nil {
+		for _, account := range byID {
+			found, _, err := native.GetUserByID(account.ID)
+			if err != nil {
+				return fmt.Errorf("check native account ID %q: %w", account.ID, err)
+			}
+			if found {
+				return fmt.Errorf("%w: static/native account ID %q", security.ErrIdentityConflict, account.ID)
+			}
+			found, _, err = native.GetUserByLogin(account.Email)
+			if err != nil {
+				return fmt.Errorf("check native account login %q: %w", account.Email, err)
+			}
+			if found {
+				return fmt.Errorf("%w: static/native account login %q", security.ErrIdentityConflict, account.Email)
+			}
+		}
 	}
 	mu.Lock()
 	authUsersByLogin, authUsersByID = byLogin, byID

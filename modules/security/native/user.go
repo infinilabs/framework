@@ -239,17 +239,20 @@ func (provider *SecurityBackendProvider) CreateUser(name, email, password string
 		return nil, err
 	}
 
+	userID := getUIDByEmail(email)
+	if exists {
+		userID = account.ID
+	}
+	if err := validateStaticIdentity(userID, email); err != nil {
+		return nil, err
+	}
+
 	if exists && !force {
 		return nil, errors.New("email already existed")
 	}
 
 	var obj = &security.UserAccount{}
-	if exists && account != nil {
-		log.Warn("email already exists, will be replaced")
-		obj.ID = account.ID
-	} else {
-		obj.ID = getUIDByEmail(email)
-	}
+	obj.ID = userID
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -293,6 +296,14 @@ func CreateUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 		return
 	}
 
+	if err := validateStaticIdentity(getUIDByEmail(obj.Email), obj.Email); err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, security.ErrIdentityConflict) {
+			status = http.StatusConflict
+		}
+		api.WriteError(w, "account identity check failed", status)
+		return
+	}
 	exists, account, err := GetUserByLogin(obj.Email)
 	if err != nil {
 		panic(err)
@@ -331,4 +342,27 @@ func normalizeEmail(email string) (string, error) {
 		return "", errors.New("a valid email is required")
 	}
 	return email, nil
+}
+
+// Helper function to reject static identity conflicts at both native creation entry points.
+func validateStaticIdentity(userID, login string) error {
+	provider, enabled := security.GetAuthenticationProvider(security.StaticAuthBackend)
+	if !enabled {
+		return nil
+	}
+	found, _, err := provider.GetUserByID(userID)
+	if err != nil {
+		return fmt.Errorf("check static account ID: %w", err)
+	}
+	if found {
+		return fmt.Errorf("%w: static account ID %q", security.ErrIdentityConflict, userID)
+	}
+	found, _, err = provider.GetUserByLogin(login)
+	if err != nil {
+		return fmt.Errorf("check static account login: %w", err)
+	}
+	if found {
+		return fmt.Errorf("%w: static account login %q", security.ErrIdentityConflict, login)
+	}
+	return nil
 }
