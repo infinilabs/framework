@@ -103,9 +103,10 @@ func (h *APIHandler) update(w http.ResponseWriter, req *http.Request, ps httprou
 	}
 
 	ctx := orm.NewContextWithParent(req.Context())
-	// same ownership-bypass rationale as get: the route permission gates
-	// the operation, not object ownership
-	ctx.DirectReadAccess()
+	// The route authorizes team updates independently of object ownership.
+	//
+	// Bypass both ORM owner checks so authorized nonowners can update the team.
+	ctx.DirectAccess()
 	stored := Team{}
 	stored.ID = id
 	exists, err := orm.GetV2(ctx, &stored)
