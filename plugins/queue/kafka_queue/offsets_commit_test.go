@@ -1,166 +1,177 @@
 package kafka_queue
 
 import (
+	"context"
+	"reflect"
 	"testing"
+	"unsafe"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/twmb/franz-go/pkg/kgo"
 	"infini.sh/framework/core/queue"
 )
 
+// Helper function to create a processing session without an external broker.
 func newTestConsumer() *Consumer {
-	return &Consumer{
-		qCfg:      &queue.QueueConfig{ID: "test-topic", Name: "test-topic"},
-		partNext:  map[int32]int64{},
-		fetchTail: queue.NewOffset(-1, 0), // no fetch yet: nothing drains
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Consumer{qCfg: &queue.QueueConfig{ID: "test-topic", Name: "test-topic"}, cCfg: &queue.ConsumerConfig{Group: "commit-tests"}, phase: consumerProcessing, version: -1, ioCtx: ctx, cancel: cancel, assigned: true, generation: -1, order: deliveryOrder{budget: defaultOrderMemoryBudget}}
+}
+
+// Helper function to deliver an explicit range to multiple acknowledgement tests.
+func appendRecords(t *testing.T, c *Consumer, partition int32, start, end int64) {
+	t.Helper()
+	records := make([]*kgo.Record, 0)
+	for n := start; n < end; n++ {
+		records = append(records, &kgo.Record{Topic: c.qCfg.ID, Partition: partition, Offset: n})
+	}
+	if err := c.order.append(records); err != nil {
+		t.Fatal(err)
 	}
 }
 
-// CommitOffset historically committed every offset to partition 0
-// (hard-wired map index), corrupting multi-partition topics: each
-// partition's progress overwrote partition 0's commit and its own position
-// was never persisted. The partition must come from the offset's segment —
-// exactly what FetchMessages stores there (NewOffset(r.Partition, r.Offset)).
-func TestBuildCommitRequest_UsesOffsetPartition(t *testing.T) {
-	c := newTestConsumer()
-
-	for partition := int64(0); partition < 5; partition++ {
-		off := queue.NewOffset(partition, 100+partition)
-		m, drained := c.buildCommitRequest(off)
-
-		assert.False(t, drained, "no fetch tail recorded: every commit is incremental")
-		inner, ok := m["test-topic"]
-		assert.True(t, ok, "topic map must exist")
-		assert.Len(t, inner, 1, "exactly one partition must be committed")
-		assert.Equal(t, int64(100+partition), inner[int32(partition)].Offset)
+// Acknowledgements resolve the exact delivery prefix, including across fetches and gaps.
+func TestDeliveryOrderPrefixes(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		partition int32
+		next      int64
+		want      map[int32]int64
+		invalid   bool
+	}{
+		{"inside-first-run", 1, 5, map[int32]int64{1: 5}, false},
+		{"end-first-run", 1, 10, map[int32]int64{1: 10}, false},
+		{"cross-partition", 3, 5, map[int32]int64{1: 10, 3: 5}, false},
+		{"end-second-run", 3, 10, map[int32]int64{1: 10, 3: 10}, false},
+		{"later-fetch", 1, 21, map[int32]int64{1: 21, 3: 10}, false},
+		{"gap", 1, 15, nil, true},
+		{"unknown-partition", 2, 1, nil, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newTestConsumer()
+			defer closeTestConsumer(t, c)
+			appendRecords(t, c, 1, 0, 10)
+			appendRecords(t, c, 3, 0, 10)
+			appendRecords(t, c, 1, 20, 21)
+			got, covered, err := c.order.target(tc.partition, tc.next)
+			if (err != nil) != tc.invalid {
+				t.Fatalf("error=%v", err)
+			}
+			if tc.invalid {
+				return
+			}
+			if covered || !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("got %v covered=%t, want %v", got, covered, tc.want)
+			}
+		})
 	}
 }
 
-// A batch fetched across several partitions carries one (partition, offset)
-// pair at commit time — the last record's — while the other partitions'
-// progress lives only in partNext. When the acknowledged position has
-// caught up with its partition's tracked progress, the whole batch was
-// processed and the full map must be flushed.
-func TestBuildCommitRequest_FlushesAllPartitionsOfDrainedBatch(t *testing.T) {
+// Successful chunk commits retain fetched positions needed by a later cross-partition commit.
+func TestDeliveryOrderRetireAndRepeat(t *testing.T) {
 	c := newTestConsumer()
-	// batch mixed p1 (3 records) and p3 (2 records); the batch's last
-	// record was p3's, so the fetch tail is (3,2) and the commit says p3
-	c.partNext[1] = 3
-	c.partNext[3] = 2
-	c.fetchTail = queue.NewOffset(3, 2)
-
-	m, drained := c.buildCommitRequest(queue.NewOffset(3, 2))
-	assert.True(t, drained)
-	inner := m["test-topic"]
-	assert.Len(t, inner, 2, "both batch partitions must be committed")
-
-	assert.Equal(t, int64(3), inner[1].Offset, "p1 progress comes from partNext")
-	assert.Equal(t, int64(2), inner[3].Offset, "p3 progress is the explicit offset")
-}
-
-// Zero-progress placeholders must never be committed: an explicit offset for
-// partition 2 alone yields exactly one entry, not a stale (p2 → 0) write
-// that would rewind the group to the log start.
-func TestBuildCommitRequest_SkipsZeroProgress(t *testing.T) {
-	c := newTestConsumer()
-
-	m, drained := c.buildCommitRequest(queue.NewOffset(2, 7))
-	assert.False(t, drained, "no fetch tail recorded: incremental commit")
-	inner, ok := m["test-topic"]
-	assert.True(t, ok)
-	assert.Len(t, inner, 1)
-	assert.Equal(t, int64(7), inner[2].Offset)
-
-	for p := range inner {
-		assert.Equal(t, int32(2), p, "unexpected partition %d committed", p)
+	defer closeTestConsumer(t, c)
+	appendRecords(t, c, 1, 0, 10)
+	appendRecords(t, c, 3, 0, 10)
+	first, _, err := c.order.target(1, 5)
+	if err != nil || len(first) != 1 || first[1] != 5 {
+		t.Fatal(first, err)
+	}
+	c.order.retire(1, 5, first)
+	got, _, err := c.order.target(3, 10)
+	if err != nil || got[1] != 10 || got[3] != 10 {
+		t.Fatalf("target=%v error=%v", got, err)
+	}
+	c.order.retire(3, 10, got)
+	if c.order.head != nil || c.order.used != 0 {
+		t.Fatal("completed blocks retained")
+	}
+	if _, covered, err := c.order.target(1, 5); err != nil || !covered {
+		t.Fatal("completed acknowledgement not covered", err)
+	}
+	appendRecords(t, c, 1, 10, 12)
+	got, _, err = c.order.target(1, 11)
+	if err != nil || got[1] != 11 || got[3] != 10 {
+		t.Fatal(got, err)
 	}
 }
 
-// When the committed position is not the fetch tail — bulk-indexing buffer
-// boundaries, interrupted batches, admin rewinds — only the requested
-// position may be committed: the other partitions' records may still be in
-// flight. A position trailing the partition's tracked progress rewinds the
-// tracking so a later flush cannot skip the gap.
-func TestBuildCommitRequest_TrailingOffsetCommitsExplicitOnly(t *testing.T) {
+// Adjacent records merge, while a finite budget fails without silently dropping history.
+func TestDeliveryOrderBudget(t *testing.T) {
 	c := newTestConsumer()
-	c.partNext[3] = 5 // fetched p3:0-4, ack says p3@2
-	c.partNext[1] = 3
-	c.fetchTail = queue.NewOffset(3, 5)
-
-	m, drained := c.buildCommitRequest(queue.NewOffset(3, 2))
-	assert.False(t, drained)
-	inner, ok := m["test-topic"]
-	assert.True(t, ok)
-	assert.Len(t, inner, 1, "only the explicit partition must be committed")
-	assert.Equal(t, int64(2), inner[3].Offset)
-	assert.Equal(t, int64(2), c.partNext[3], "tracking must rewind to the committed position")
-	_, committed := inner[1]
-	assert.False(t, committed, "p1's unprocessed progress must not be committed")
-
-	// at the fetch tail the whole buffer was processed: flush everything
-	m2, drained2 := c.buildCommitRequest(queue.NewOffset(3, 5))
-	assert.True(t, drained2)
-	assert.Len(t, m2["test-topic"], 2, "the tail commit flushes the whole map")
-	assert.Equal(t, int64(5), m2["test-topic"][3].Offset, "explicit tail position wins over the rewound tracking")
-	assert.Equal(t, int64(3), m2["test-topic"][1].Offset)
+	defer closeTestConsumer(t, c)
+	c.order.budget = uint64(unsafe.Sizeof(deliveryBlock{}))
+	appendRecords(t, c, 1, 0, 10000)
+	if c.order.head.end != 1 {
+		t.Fatal("contiguous records did not merge")
+	}
+	for n := int64(0); n < deliveryBlockRuns-1; n++ {
+		if n%2 == 0 {
+			appendRecords(t, c, 3, n, n+1)
+		} else {
+			appendRecords(t, c, 1, 10000+n, 10001+n)
+		}
+	}
+	if err := c.order.append([]*kgo.Record{{Topic: c.qCfg.ID, Partition: 3, Offset: deliveryBlockRuns + 10}}); err == nil {
+		t.Fatal("budget did not fail")
+	}
 }
 
-// Regression for the bulk-indexing incremental commit pattern: offset
-// advances per popped message and commits happen at buffer-flush
-// boundaries. A chunk boundary that exhausts one partition's fetched
-// records (commit == that partition's tracked progress) must NOT flush the
-// other partitions — their records are still in flight and committing them
-// here would permanently skip them on crash. Only the fetch tail may flush.
-func TestBuildCommitRequest_IncrementalCommitKeepsOtherPartitions(t *testing.T) {
+// A repeated or decreasing partition position cannot enter the delivery history.
+func TestDeliveryOrderRejectsBackwards(t *testing.T) {
 	c := newTestConsumer()
-	// fetch returned p1:0-9 and p3:0-9; the batch's last record was p3's
-	c.partNext[1] = 10
-	c.partNext[3] = 10
-	c.fetchTail = queue.NewOffset(3, 10)
-
-	// chunk 1 flushed p1:0-4: explicit-only, no rewind of p3, no flush
-	m1, drained1 := c.buildCommitRequest(queue.NewOffset(1, 5))
-	assert.False(t, drained1)
-	assert.Len(t, m1["test-topic"], 1)
-	assert.Equal(t, int64(5), m1["test-topic"][1].Offset)
-	_, flushed := m1["test-topic"][3]
-	assert.False(t, flushed, "in-flight p3 must not be committed by p1's chunk commit")
-
-	// chunk 2 flushed p1:5-9 — equals p1's tracked progress, but is NOT the
-	// fetch tail: the old "caught-up partitions drain the buffer" heuristic
-	// flushed p3 here and permanently skipped its unsubmitted records
-	m2, drained2 := c.buildCommitRequest(queue.NewOffset(1, 10))
-	assert.False(t, drained2)
-	assert.Len(t, m2["test-topic"], 1, "caught-up partition must still not flush the buffer")
-	_, flushed = m2["test-topic"][3]
-	assert.False(t, flushed)
-	// CommitOffset folds a successful commit's position back into the
-	// tracking (chunk 2 reached the broker)
-	c.partNext[1] = 10
-
-	// chunk 3 flushes the rest of the fetch (p3:0-9) — the fetch tail:
-	// every fetched record is submitted, the whole map commits
-	m3, drained3 := c.buildCommitRequest(queue.NewOffset(3, 10))
-	assert.True(t, drained3)
-	assert.Len(t, m3["test-topic"], 2)
-	assert.Equal(t, int64(10), m3["test-topic"][1].Offset)
-	assert.Equal(t, int64(10), m3["test-topic"][3].Offset)
+	defer closeTestConsumer(t, c)
+	appendRecords(t, c, 1, 10, 11)
+	if err := c.order.append([]*kgo.Record{{Partition: 1, Offset: 10}}); err == nil {
+		t.Fatal("duplicate accepted")
+	}
 }
 
-// Progress for partitions lost in a rebalance must be forgotten: a later
-// commit flushing the stale entries would overwrite the new owner's
-// committed positions with this consumer's old ones.
-func TestDropPartitionProgress(t *testing.T) {
-	c := newTestConsumer()
-	c.partNext[1] = 3
-	c.partNext[3] = 2
+// Delivery compression and prefix lookup must not allocate per message.
+func BenchmarkDeliveryOrder(b *testing.B) {
+	records := make([]*kgo.Record, 1000)
+	for i := range records {
+		records[i] = &kgo.Record{Partition: 1, Offset: int64(i)}
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		o := deliveryOrder{budget: defaultOrderMemoryBudget}
+		if err := o.append(records); err != nil {
+			b.Fatal(err)
+		}
+		targets, _, err := o.target(1, 1000)
+		if err != nil {
+			b.Fatal(err)
+		}
+		o.retire(1, 1000, targets)
+	}
+}
 
-	c.dropPartitionProgress(map[string][]int32{"test-topic": {1}})
-	assert.NotContains(t, c.partNext, int32(1))
-	assert.Equal(t, int64(2), c.partNext[3], "owned partitions must be kept")
+// Concurrent acquisition and Stop cannot leave a returned instance outside the shutdown registry.
+func TestAcquireDuringStop(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		q := &KafkaQueue{}
+		cfg := &queue.QueueConfig{ID: "test-topic"}
+		cc := &queue.ConsumerConfig{Group: "group"}
+		done := make(chan queue.ConsumerAPI, 1)
+		go func() { instance, _ := q.AcquireConsumer(cfg, cc); done <- instance }()
+		if err := q.Stop(); err != nil {
+			t.Fatal(err)
+		}
+		if instance := <-done; instance != nil {
+			if _, _, err := instance.FetchMessages(&queue.Context{}, 1); err == nil {
+				t.Fatal("acquired instance survived Stop")
+			}
+			if err := instance.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		q.instances.Range(func(_, _ interface{}) bool { t.Error("Stop retained an instance"); return false })
+	}
+}
 
-	c.dropPartitionProgress(map[string][]int32{"other-topic": {3}})
-	assert.Equal(t, int64(2), c.partNext[3], "other topics must not touch this consumer")
-
-	c.dropPartitionProgress(map[string][]int32{"test-topic": {3}})
-	assert.Empty(t, c.partNext)
+// Helper function to report consumer cleanup errors in multiple tests.
+func closeTestConsumer(t *testing.T, c *Consumer) {
+	t.Helper()
+	if err := c.Close(); err != nil {
+		t.Error(err)
+	}
 }

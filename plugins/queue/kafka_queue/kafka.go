@@ -30,6 +30,7 @@ package kafka_queue
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/emirpasic/gods/sets/hashset"
 	"github.com/twmb/franz-go/pkg/kadm"
@@ -39,10 +40,10 @@ import (
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/locker"
 	"infini.sh/framework/core/module"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -52,6 +53,8 @@ func init() {
 	module.RegisterSystemModule(&KafkaQueue{})
 }
 
+// Config defines Kafka connectivity, topic creation, and buffering limits.
+// The delivery-order budget applies separately to each acquired consumer session.
 type Config struct {
 	Enabled               bool   `config:"enabled"`
 	Default               bool   `config:"default"`
@@ -69,18 +72,32 @@ type Config struct {
 	TLS      bool     `config:"tls"`
 
 	Mechanism string `config:"mechanism"`
+	// OrderMemoryBudgetBytes limits interval blocks, excluding SDK buffers and maps.
+	// Zero selects the 64 MiB default. Exhaustion expires the read session without committing.
+	OrderMemoryBudgetBytes uint64 `config:"order_memory_budget_bytes"`
 }
 
 // const PLAIN_MECHANISM = "PLAIN"//
 const SCRAM_SHA_256_Mechanism = "SCRAM-SHA-256"
 const SCRAM_SHA_512_Mechanism = "SCRAM-SHA-512"
 
+// KafkaQueue implements queue operations with topic clients and independent consumer sessions.
+//
+// Business confirmations must reach their original instance. Group-name routing alone
+// can send a delayed confirmation to a replacement with different delivery history.
+//
+// mu serializes client registration, local ownership changes, administrative resets,
+// and shutdown admission. Stop releases it before closing individual consumers.
 type KafkaQueue struct {
 	cfg         *Config
-	q           sync.Map
-	consumers   sync.Map //q+consumer=instance
-	producers   sync.Map //q=instance
+	q           sync.Map // Topic name -> client used by Push.
+	consumers   sync.Map // Kafka group name -> business instance holding the local slot.
+	producers   sync.Map // Topic name -> reusable producer.
 	adminClient *kadm.Client
+	sessions    sync.Map // Negative Version -> original business instance, until lease cleanup succeeds.
+	instances   sync.Map // All acquired instances, including prepared, browsing, and cleanup retries.
+	mu          sync.Mutex
+	stopping    bool // Once set under mu, no factory or business claim can reopen the backend.
 }
 
 func (this *KafkaQueue) newClient(opt []kgo.Opt) *kgo.Client {
@@ -136,116 +153,60 @@ func (this *KafkaQueue) newClient(opt []kgo.Opt) *kgo.Client {
 	return client
 }
 
+// Helper function to derive the shared group name for reads, ownership, and management.
+// Each framework group tracks recovery positions independently for each topic.
 func getGroupForKafka(group, topic string) string {
 	return group + "_" + topic
 }
 
-func (this *KafkaQueue) ReleaseConsumer(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig, instance queue.ConsumerAPI) error {
-	this.consumers.Delete(getGroupForKafka(consumer.Group, qconfig.ID))
-	k := getGroupForKafka(consumer.Group, qconfig.ID)
-	err := locker.Release(queue.BucketWhoOwnsThisTopic, k, global.Env().SystemConfig.NodeConfig.ID)
-	if err != nil {
-		return err
+// ReleaseConsumer closes only the supplied instance after checking its backend, queue, and group.
+//
+// Releasing by group name can remove a replacement's slot or lease. Close keeps
+// ownership tied to the original instance and can retry failed resource cleanup.
+func (backend *KafkaQueue) ReleaseConsumer(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig, instance queue.ConsumerAPI) error {
+	if instance == nil {
+		return nil
 	}
-	if instance != nil {
-		return instance.Close()
+	c, ok := instance.(*Consumer)
+	if !ok || c.owner != backend || qconfig == nil || consumer == nil || c.qCfg.ID != qconfig.ID || c.cCfg.Group != consumer.Group {
+		return fmt.Errorf("kafka consumer release does not match its owner")
 	}
-	return nil
+	return c.Close()
 }
 
-func (this *KafkaQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig) (queue.ConsumerAPI, error) {
-
-	//check if consumer is already acquired for queue
-	//if yes, whois the owner
-	//if yes, how long it takes, is it already expired
-	//if no, acquire it
-	//place a lock on it
-	//periodically update last access time
-
-	var err error
-	_, ok := this.q.Load(qconfig.ID)
-	if !ok {
-		//try init
-		err = this.Init(qconfig.ID)
-		if err != nil {
-			panic(err)
-		}
-		_, ok = this.q.Load(qconfig.ID)
+// AcquireConsumer creates an independent session and snapshots its configuration without joining Kafka.
+//
+// The first read opens the client. This leaves ResetOffset free to select browsing
+// and avoids mutating configuration shared with another caller.
+//
+// Every instance receives a process-local negative Version and registers under mu.
+// Stop can therefore close it even before its first read. Business ownership is
+// reserved later, when the first business read starts.
+func (backend *KafkaQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig) (queue.ConsumerAPI, error) {
+	if qconfig == nil || qconfig.ID == "" || consumer == nil {
+		return nil, fmt.Errorf("invalid Kafka consumer configuration")
 	}
-
-	if ok {
-
-		k := getGroupForKafka(consumer.Group, qconfig.ID)
-		ok, err := locker.Hold(queue.BucketWhoOwnsThisTopic, k, global.Env().SystemConfig.NodeConfig.ID, 60*time.Second, true)
-		if !ok || err != nil {
-			panic(errors.Errorf("allocate consumer failed, consumer is already acquired by another node, key:%v err: %v", string(k), err))
-		}
-
-		// the consumer value must exist before the client joins the group:
-		// the rebalance callbacks below close over it to discard tracked
-		// progress for partitions that moved away
-		output := Consumer{
-			qCfg:      qconfig,
-			cCfg:      consumer,
-			partNext:  map[int32]int64{},
-			fetchTail: queue.NewOffset(-1, 0), // no fetch yet: nothing drains
-		}
-
-		opts := []kgo.Opt{
-			// Static membership must be unique per node: consumer.ID derives
-			// from queue/group/name and is identical on every node running
-			// the same deployed pipeline. Identical instance IDs across
-			// nodes make the broker fence the previous member on each join
-			// (endless active-passive flapping) instead of balancing
-			// partitions; suffixing the node ID gives each node its own
-			// static identity while sharing the consumer group, so N nodes
-			// consume N-way in parallel.
-			kgo.InstanceID(consumer.ID + "-" + global.Env().SystemConfig.NodeConfig.ID),
-			kgo.SessionTimeout(60 * time.Second),
-			kgo.HeartbeatInterval(10 * time.Second),
-			kgo.RetryTimeout(10 * time.Second),
-			kgo.RebalanceTimeout(10 * time.Second),
-			kgo.TransactionTimeout(time.Duration(consumer.FetchMaxWaitMs) * time.Millisecond),
-			kgo.RequestTimeoutOverhead(time.Duration(consumer.FetchMaxWaitMs) * time.Millisecond),
-			kgo.ClientID(global.Env().SystemConfig.NodeConfig.ID),
-			kgo.ConsumerGroup(getGroupForKafka(consumer.Group, qconfig.ID)),
-			kgo.ConsumeTopics(qconfig.ID),
-			kgo.AllowAutoTopicCreation(),
-			kgo.FetchMinBytes(int32(consumer.FetchMinBytes)),
-			kgo.FetchMaxBytes(int32(consumer.FetchMaxBytes)),
-			kgo.FetchMaxWait(time.Duration(consumer.FetchMaxWaitMs) * time.Millisecond),
-			// forget tracked progress for partitions that left this member:
-			// a later commit flushing the stale entries would overwrite the
-			// new owner's committed positions with this consumer's old ones
-			kgo.OnPartitionsRevoked(func(_ context.Context, _ *kgo.Client, revoked map[string][]int32) {
-				output.dropPartitionProgress(revoked)
-			}),
-			kgo.OnPartitionsLost(func(_ context.Context, _ *kgo.Client, lost map[string][]int32) {
-				output.dropPartitionProgress(lost)
-			}),
-		}
-
-		if consumer.AutoResetOffset == "earliest" {
-			opts = append(opts, kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()))
-		} else if consumer.AutoResetOffset == "latest" {
-			opts = append(opts, kgo.ConsumeResetOffset(kgo.NewOffset().AtEnd()))
-		}
-
-		if !consumer.AutoCommitOffset {
-			opts = append(opts, kgo.DisableAutoCommit())
-		}
-
-		client := this.newClient(opts)
-		output.client = client
-
-		this.consumers.Store(getGroupForKafka(consumer.Group, qconfig.ID), &output)
-		if global.Env().IsDebug {
-			log.Infof("acquired consumer:%v, %v, %v", qconfig.Name, consumer.Key(), consumer.ID)
-		}
-
-		return &output, err
+	if consumer.AutoResetOffset != "" && consumer.AutoResetOffset != "earliest" && consumer.AutoResetOffset != "latest" {
+		return nil, fmt.Errorf("invalid Kafka auto_reset_offset %q", consumer.AutoResetOffset)
 	}
-	panic(errors.Errorf("queue [%v] not found", qconfig.Name))
+	sequence := sessionSequence.Add(1)
+	if sequence <= 0 {
+		return nil, fmt.Errorf("kafka session identifiers exhausted")
+	}
+	ioCtx, cancel := context.WithCancel(context.Background())
+	budget := uint64(defaultOrderMemoryBudget)
+	if backend.cfg != nil && backend.cfg.OrderMemoryBudgetBytes > 0 {
+		budget = backend.cfg.OrderMemoryBudgetBytes
+	}
+	c := &Consumer{owner: backend, qCfg: &queue.QueueConfig{ID: qconfig.ID, Name: qconfig.Name}, cCfg: consumer.Clone(), version: -sequence, ioCtx: ioCtx, cancel: cancel, order: deliveryOrder{budget: budget}}
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+	if backend.stopping {
+		cancel()
+		return nil, fmt.Errorf("kafka queue is stopping")
+	}
+	backend.instances.Store(c, struct{}{})
+	return c, nil
 }
 
 func (this *KafkaQueue) Destroy(k string) error {
@@ -305,16 +266,38 @@ func (this *KafkaQueue) Start() error {
 	return nil
 }
 
-func (this *KafkaQueue) Stop() error {
-	if this.cfg == nil {
-		return nil
+// Stop rejects new clients and claims, then closes all registered instances and shared clients.
+//
+// Browsing and prepared instances also own lifecycle state, so the business-slot
+// registry alone cannot identify everything that needs closing.
+//
+// The instance snapshot is taken under mu. Cleanup runs after releasing mu because
+// Consumer.Close acquires it to release ownership. Failed releases remain registered
+// so a subsequent Close or Stop can retry them.
+func (backend *KafkaQueue) Stop() error {
+	backend.mu.Lock()
+	backend.stopping = true
+	instances := []*Consumer{}
+	backend.instances.Range(func(key, _ interface{}) bool { instances = append(instances, key.(*Consumer)); return true })
+	backend.mu.Unlock()
+	var result error
+	for _, c := range instances {
+		if err := c.Close(); err != nil {
+			result = err
+		}
 	}
-
-	if this.cfg != nil && this.cfg.Enabled {
-		this.adminClient.Close()
+	backend.producers.Range(func(_, value interface{}) bool {
+		value.(*Producer).client.Close()
+		return true
+	})
+	backend.q.Range(func(_, value interface{}) bool {
+		value.(*kgo.Client).Close()
+		return true
+	})
+	if backend.adminClient != nil {
+		backend.adminClient.Close()
 	}
-
-	return nil
+	return result
 }
 
 func (this *KafkaQueue) Name() string {
@@ -337,8 +320,17 @@ func (this *KafkaQueue) createTopic(topic string, partition, replica int) error 
 	return err
 }
 
-func (this *KafkaQueue) Init(q string) error {
-	if c, ok := this.q.Load(q); ok && c != nil {
+// Init creates the topic when needed and retains a client for Push.
+//
+// Holding mu through creation and registration prevents a concurrent Stop from
+// taking its client snapshot before this client becomes visible.
+func (backend *KafkaQueue) Init(q string) error {
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+	if backend.stopping {
+		return fmt.Errorf("kafka queue is stopping")
+	}
+	if c, ok := backend.q.Load(q); ok && c != nil {
 		client, ok := c.(*kgo.Client)
 		if ok && client != nil {
 			return nil
@@ -347,13 +339,13 @@ func (this *KafkaQueue) Init(q string) error {
 	opts := []kgo.Opt{
 		kgo.ConsumeTopics(q),
 	}
-	client := this.newClient(opts)
-	err := this.createTopic(q, this.cfg.NumOfPartition, this.cfg.NumOfReplica)
+	client := backend.newClient(opts)
+	err := backend.createTopic(q, backend.cfg.NumOfPartition, backend.cfg.NumOfReplica)
 	if err != nil && util.ContainStr(err.Error(), "already exists") {
-		this.q.Store(q, client)
+		backend.q.Store(q, client)
 		return nil
 	}
-	this.q.Store(q, client)
+	backend.q.Store(q, client)
 	return err
 }
 
@@ -396,65 +388,59 @@ func (this *KafkaQueue) Push(q string, data []byte) error {
 	return result.FirstErr()
 }
 
-func (this *KafkaQueue) Pop(q string, t time.Duration) (data []byte, timeout bool) {
-
-	q1, ok := this.q.Load(q)
-	if !ok || q1 == nil {
+// Pop returns one message from the default group only after its explicit confirmation succeeds.
+//
+// The temporary consumer needs an explicit commit and release so a later Pop
+// resumes from the saved position without retaining an ownership slot.
+//
+// A positive wait bounds polling, rounded up to milliseconds. Nonpositive values
+// keep polling, including the public queue.Pop sentinel -1. After acquisition, every
+// exit attempts cleanup. Operation or cleanup errors panic because this signature
+// has no error result.
+func (backend *KafkaQueue) Pop(topic string, wait time.Duration) ([]byte, bool) {
+	cfg, ok := queue.GetConfigByUUID(topic)
+	if !ok {
+		cfg, ok = queue.SmartGetConfig(topic)
+	}
+	if !ok {
 		return nil, true
 	}
-
-	qConfig, ok := queue.GetConfigByUUID(q)
-	if !ok {
-		qConfig, ok = queue.SmartGetConfig(q)
+	consumerCfg := queue.NewConsumerConfig(cfg.ID, "default", "default")
+	consumerCfg.FetchMaxWaitMs = 1000
+	if wait > 0 {
+		consumerCfg.FetchMaxWaitMs = int64((wait-1)/time.Millisecond + 1)
 	}
-
-	if ok {
-		cConfig := queue.NewConsumerConfig(qConfig.ID, "default", "default")
-		cConfig.AutoCommitOffset = true
-		consumer, err := this.AcquireConsumer(qConfig, cConfig)
+	consumerCfg.FetchMaxMessages = 1
+	consumerCfg.AutoCommitOffset = false
+	instance, err := backend.AcquireConsumer(cfg, consumerCfg)
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		if err := backend.ReleaseConsumer(cfg, consumerCfg, instance); err != nil {
+			panic(err)
+		}
+	}()
+	for {
+		messages, timeout, err := instance.FetchMessages(&queue.Context{}, 1)
 		if err != nil {
 			panic(err)
 		}
-		msg, _, err := consumer.FetchMessages(&queue.Context{}, 1)
-		if len(msg) > 0 {
-			return msg[0].Data, false
+		if len(messages) == 0 {
+			if wait > 0 {
+				return nil, timeout
+			}
+			continue
 		}
+		if err := instance.CommitOffset(messages[0].NextOffset); err != nil {
+			panic(err)
+		}
+		return messages[0].Data, false
 	}
-
-	return nil, true
 }
 
 func (this *KafkaQueue) Close(string) error {
 	return nil
-}
-
-func (this *KafkaQueue) Depth(q string) int64 {
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*60))
-	defer cancel()
-
-	so, err := this.adminClient.ListStartOffsets(ctx, q)
-	if err != nil {
-		panic(err)
-	}
-	eo, err := this.adminClient.ListEndOffsets(ctx, q)
-	if err != nil {
-		panic(err)
-	}
-	return eo.Offsets()[q][0].At - so.Offsets()[q][0].At
-}
-
-func (this *KafkaQueue) LatestOffset(k *queue.QueueConfig) queue.Offset {
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*60))
-	defer cancel()
-
-	offset1, err := this.adminClient.ListEndOffsets(ctx, k.ID)
-	if err != nil {
-		log.Error(k.Name, ", error on get offset:", offset1)
-		panic(err)
-	}
-	return queue.NewOffset(0, offset1[k.ID][0].Offset)
 }
 
 func (this *KafkaQueue) GetQueues() []string {
@@ -484,41 +470,6 @@ func (this *KafkaQueue) GetQueues() []string {
 	return q
 }
 
-var ignoredError = []string{"NOT_COORDINATOR", "UNKNOWN_TOPIC_OR_PARTITION"}
-
-func (this *KafkaQueue) GetOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) (queue.Offset, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*1))
-	defer cancel()
-
-	os, err := this.adminClient.FetchOffsetsForTopics(ctx, getGroupForKafka(consumer.Group, k.ID), k.ID)
-	if err != nil {
-		if util.ContainsAnyInArray(err.Error(), ignoredError) {
-			if global.Env().IsDebug {
-				log.Debugf("err on get offset %v %v", k.ID, err)
-			}
-			return queue.NewOffset(0, 0), nil
-		}
-		panic(err)
-	}
-
-	var offset int64 = 0
-	res, ok := os.Lookup(k.ID, 0)
-	if ok {
-		offset = res.Offset.At
-	}
-
-	if offset < 0 {
-		offset = 0
-	}
-
-	str := queue.NewOffset(0, offset)
-
-	if global.Env().IsDebug {
-		log.Debugf("get offset %v, %v, %v, %v, %v", k.ID, str, err, res, os)
-	}
-	return str, nil
-}
-
 func (this *KafkaQueue) GetStorageSize(k string) uint64 {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*60))
 	defer cancel()
@@ -533,55 +484,130 @@ func (this *KafkaQueue) GetStorageSize(k string) uint64 {
 	return uint64(res[0].Size())
 }
 
-func (this *KafkaQueue) DeleteOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) error {
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*60))
+// DeleteOffset removes this group's saved positions for all actual partitions of the topic.
+//
+// This is an administrative operation. The caller must stop the group first.
+// A local business slot rejects it immediately, and Kafka enforces its group rules
+// for other members. Deletion does not first commit an artificial partition-zero position.
+//
+// mu excludes local claims until the request finishes. Failure can include a partial
+// or unknown broker outcome, so an error does not prove all positions are unchanged.
+func (backend *KafkaQueue) DeleteOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) error {
+	if k == nil || consumer == nil {
+		return fmt.Errorf("invalid Kafka consumer configuration")
+	}
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+	if backend.stopping {
+		return fmt.Errorf("kafka queue is stopping")
+	}
+	group := getGroupForKafka(consumer.Group, k.ID)
+	if _, ok := backend.consumers.Load(group); ok {
+		return fmt.Errorf("stop the Kafka consumer group before deleting offsets")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
-	_, err := this.CommitOffset(k, consumer, queue.NewOffset(0, 0))
-	topic := kadm.TopicsSet{}
-	topic.Add(k.ID)
-	_, err = this.adminClient.DeleteOffsets(ctx, getGroupForKafka(consumer.Group, k.ID), topic)
-	return err
+	partitions, err := backend.adminClient.ListTopics(ctx, k.ID)
+	if err != nil {
+		return err
+	}
+	topic, ok := partitions[k.ID]
+	if !ok || topic.Err != nil {
+		return fmt.Errorf("kafka topic metadata unavailable")
+	}
+	targets := kadm.TopicsSet{}
+	for part, detail := range topic.Partitions {
+		if detail.Err != nil {
+			return detail.Err
+		}
+		targets.Add(k.ID, part)
+	}
+	response, err := backend.adminClient.DeleteOffsets(ctx, group, targets)
+	if err != nil {
+		return err
+	}
+	if err = response.Error(); err != nil {
+		return err
+	}
+	if len(response[k.ID]) != len(topic.Partitions) {
+		return fmt.Errorf("kafka delete response omitted a partition")
+	}
+	return nil
 }
 
-func (this *KafkaQueue) CommitOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig, offset queue.Offset) (bool, error) {
-
-	group := getGroupForKafka(consumer.Group, k.ID)
-
-	cor, ok := this.consumers.Load(group)
-	if ok {
-		ins, ok := cor.(*Consumer)
-		if ok {
-			err := ins.CommitOffset(offset)
-			if err != nil {
-				panic(err)
-			}
-			return true, nil
+// CommitOffset routes a business acknowledgement to its original session or resets one administrative position.
+//
+// A business confirmation represents a delivered prefix, while an administrative
+// reset changes one physical partition. The Version sign keeps these operations separate.
+//
+// Negative versions must match a live route for this queue and group. Nonnegative
+// versions require a stopped group and an in-range partition address. mu excludes
+// local claims during management. A timeout can leave the broker outcome unknown.
+func (backend *KafkaQueue) CommitOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig, offset queue.Offset) (bool, error) {
+	if k == nil || consumer == nil || offset.Segment < 0 || offset.Segment > math.MaxInt32 || offset.Position < 0 {
+		return false, fmt.Errorf("invalid Kafka commit address")
+	}
+	if offset.Version < 0 {
+		value, ok := backend.sessions.Load(offset.Version)
+		if !ok {
+			return false, fmt.Errorf("unknown or closed Kafka acknowledgement session")
 		}
+		c := value.(*Consumer)
+		if c.qCfg.ID != k.ID || c.cCfg.Group != consumer.Group {
+			return false, fmt.Errorf("kafka acknowledgement belongs to another queue or group")
+		}
+		err := c.CommitOffset(offset)
+		return err == nil, err
 	}
-	ctx1, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*60))
+	// Keep local claims excluded until the administrative broker request completes.
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+	if backend.stopping {
+		return false, fmt.Errorf("kafka queue is stopping")
+	}
+	group := getGroupForKafka(consumer.Group, k.ID)
+	if _, ok := backend.consumers.Load(group); ok {
+		return false, fmt.Errorf("stop the Kafka consumer group before resetting offsets")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
-	res1, err := this.adminClient.FetchOffsets(ctx1, "default")
+	starts, ends, err := backend.positionBounds(ctx, k.ID)
 	if err != nil {
-		panic(err)
+		return false, err
 	}
-	leaderO := res1["default"][0].Offset.LeaderEpoch
-
+	part := int32(offset.Segment)
+	start, ok := starts[part]
+	end := ends[part]
+	if !ok || offset.Position < start || offset.Position > end {
+		return false, fmt.Errorf("kafka reset position is out of range")
+	}
 	offsets := kadm.Offsets{}
-	offsets.AddOffset(k.ID, int32(offset.Segment), offset.Position, leaderO)
-	res, err := this.adminClient.CommitOffsets(ctx1, group, offsets)
+	offsets.AddOffset(k.ID, part, offset.Position, -1)
+	response, err := backend.adminClient.CommitOffsets(ctx, group, offsets)
 	if err != nil {
-		log.Error(util.MustToJSON(res))
-		panic(err)
+		return false, fmt.Errorf("kafka reset failed; its outcome can be unknown: %w", err)
+	}
+	if err = response.Error(); err != nil {
+		return false, err
 	}
 	return true, nil
 }
 
-func (this *KafkaQueue) AcquireProducer(cfg *queue.QueueConfig) (queue.ProducerAPI, error) {
+// AcquireProducer returns the reusable producer for a topic or registers a new one.
+//
+// Creation and registration hold mu so Stop cannot miss a newly created client.
+// After shutdown begins, acquisition fails even when a cached producer exists.
+func (backend *KafkaQueue) AcquireProducer(cfg *queue.QueueConfig) (queue.ProducerAPI, error) {
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+	if backend.stopping {
+		return nil, fmt.Errorf("kafka queue is stopping")
+	}
+	if cfg == nil || cfg.ID == "" {
+		return nil, fmt.Errorf("invalid Kafka producer configuration")
+	}
 
-	v, ok := this.producers.Load(cfg.ID)
+	v, ok := backend.producers.Load(cfg.ID)
 	if ok {
 		f, ok := v.(queue.ProducerAPI)
 		if ok {
@@ -600,8 +626,8 @@ func (this *KafkaQueue) AcquireProducer(cfg *queue.QueueConfig) (queue.ProducerA
 	producerID := util.GetUUID()
 	opts := []kgo.Opt{
 		kgo.AllowAutoTopicCreation(),
-		kgo.ProducerBatchMaxBytes(this.cfg.ProducerBatchMaxBytes),
-		kgo.MaxBufferedRecords(this.cfg.MaxBufferedRecords),
+		kgo.ProducerBatchMaxBytes(backend.cfg.ProducerBatchMaxBytes),
+		kgo.MaxBufferedRecords(backend.cfg.MaxBufferedRecords),
 		kgo.InstanceID(producerID),
 		kgo.SessionTimeout(30 * time.Second),
 		kgo.HeartbeatInterval(10 * time.Second),
@@ -612,12 +638,12 @@ func (this *KafkaQueue) AcquireProducer(cfg *queue.QueueConfig) (queue.ProducerA
 		kgo.ClientID(global.Env().SystemConfig.NodeConfig.ID),
 	}
 
-	if this.cfg.ManualFlushing {
+	if backend.cfg.ManualFlushing {
 		opts = append(opts, kgo.ManualFlushing())
 	}
 
-	producer := &Producer{ID: producerID, client: this.newClient(opts), cfg: cfg}
-	this.producers.Store(cfg.ID, producer)
+	producer := &Producer{ID: producerID, client: backend.newClient(opts), cfg: cfg}
+	backend.producers.Store(cfg.ID, producer)
 	if global.Env().IsDebug {
 		log.Infof("acquired producer:%v, %v, %v", cfg.Name, cfg.ID, producer.ID)
 	}
