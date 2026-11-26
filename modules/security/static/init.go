@@ -31,51 +31,49 @@ var (
 	authUsersByID    = map[string]*security.UserAccount{}
 )
 
-// InitAuthentication registers the static authentication backend and loads the
-// static user registry (with per-user roles) from config. No-op unless static
-// authentication is enabled, so the password-login surface is only exposed
-// when the feature is actually turned on.
-func InitAuthentication(authCfg config.StaticAuthenticationConfig) {
+// InitAuthentication validates static identities before publishing both lookup maps.
+//
+// Duplicate IDs or logins cause configuration errors.
+// Failed validation leaves the published registry unchanged.
+func InitAuthentication(authCfg config.StaticAuthenticationConfig) error {
 	if !authCfg.Enabled {
-		return
+		return nil
 	}
-	mu.Lock()
-	defer mu.Unlock()
-
-	authUsersByLogin = map[string]*security.UserAccount{}
-	authUsersByID = map[string]*security.UserAccount{}
-
+	byLogin := map[string]*security.UserAccount{}
+	byID := map[string]*security.UserAccount{}
 	for _, user := range authCfg.Users {
 		login := strings.TrimSpace(user.Login)
 		if login == "" {
-			continue
+			return fmt.Errorf("static account login must not be empty")
 		}
-
 		id := strings.TrimSpace(user.ID)
 		if id == "" {
 			id = login
 		}
-
+		if _, exists := byID[id]; exists {
+			return fmt.Errorf("duplicate static account ID %q", id)
+		}
+		if _, exists := byLogin[login]; exists {
+			return fmt.Errorf("duplicate static account login %q", login)
+		}
 		account := &security.UserAccount{
-			Name:  user.Name,
-			Email: login,
-			Roles: append([]string(nil), user.Roles...),
+			Name: user.Name, Email: login, Roles: append([]string(nil), user.Roles...),
 		}
 		account.ID = id
-
 		if user.Password != "" {
 			hash, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 			if err != nil {
-				panic(err)
+				return fmt.Errorf("hash static account password: %w", err)
 			}
 			account.Password = string(hash)
 		}
-
-		authUsersByLogin[login] = account
-		authUsersByID[id] = account
+		byLogin[login], byID[id] = account, account
 	}
-
+	mu.Lock()
+	authUsersByLogin, authUsersByID = byLogin, byID
+	mu.Unlock()
 	security.RegisterAuthenticationProvider(security.StaticAuthBackend, &provider{})
+	return nil
 }
 
 // InitAuthorization registers the static authorization provider and loads the

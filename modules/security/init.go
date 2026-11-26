@@ -77,7 +77,9 @@ func (module *Module) Setup() {
 		native.Init()
 	}
 
-	staticauth.InitAuthentication(module.cfg.Authentication.Static)
+	if err := staticauth.InitAuthentication(module.cfg.Authentication.Static); err != nil {
+		panic(err)
+	}
 	staticauth.InitAuthorization(module.cfg.Authorization.Static)
 
 	oauthSettings := util.MapStr{}
