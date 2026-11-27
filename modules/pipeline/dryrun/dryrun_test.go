@@ -24,6 +24,25 @@ func init() {
 	})
 }
 
+// sinkWriter appends a captured write exactly like output's capture
+// helper — the dryrun package cannot import modules/pipeline (cycle), so
+// the sink-diff terminal detection is exercised through this stand-in.
+type sinkWriter struct{}
+
+func (sinkWriter) Name() string { return "dryrun_sink" }
+func (sinkWriter) Process(ctx *pipeline.Context) error {
+	if s := pipeline.DryRunCapture(ctx); s != nil {
+		*s = append(*s, pipeline.DryRunWrite{Kind: "lane", Target: "sink-lane", Records: 1})
+	}
+	return nil
+}
+
+func init() {
+	pipeline.RegisterProcessorPlugin("dryrun_sink", func(c *config.Config) (pipeline.Processor, error) {
+		return sinkWriter{}, nil
+	})
+}
+
 func upperChain(t *testing.T) []map[string]interface{} {
 	t.Helper()
 	// for_each hosts a test_upper record processor (registered by the
@@ -83,5 +102,29 @@ func TestRun_ScopeCheckSurfacesContractMismatches(t *testing.T) {
 	}
 	if len(report.Compiled) == 0 {
 		t.Fatal("compiled phase empty")
+	}
+}
+
+func TestRun_CapturedOutputIsTerminal(t *testing.T) {
+	report, err := Run(
+		[]map[string]interface{}{
+			{"dryrun_sink": map[string]interface{}{}},
+			{"dryrun_noop": map[string]interface{}{}},
+		},
+		[]Sample{{Raw: []byte(`{"payload":{"message":"hello"}}`), Codec: "raw"}},
+		Options{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	steps := report.Steps[0]
+	if len(steps) != 1 {
+		t.Fatalf("replay must stop at the captured delivery, got %d steps: %+v", len(steps), steps)
+	}
+	if steps[0].Outcome != "delivered" {
+		t.Fatalf("captured output step outcome = %q, want delivered", steps[0].Outcome)
+	}
+	if len(report.SideEffects) != 1 || report.SideEffects[0].Target != "sink-lane" {
+		t.Fatalf("side effects: %+v", report.SideEffects)
 	}
 }

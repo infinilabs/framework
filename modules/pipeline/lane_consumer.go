@@ -146,6 +146,13 @@ func (p *LaneConsumerProcessor) Process(ctx *pipeline.Context) error {
 // when this returns (SubscribeBatch contract) — processing completion is
 // the settlement point.
 func (p *LaneConsumerProcessor) runBatch(ctx *pipeline.Context, segments []execSegment, recs []*event.Event) error {
+	// Intake is an ownership transfer: delivery state never rides the
+	// pointer (it lives on the sender's context), but a foreign emitter
+	// marking the record itself would have its stale marker read by the
+	// RecordLeft guards below — clear it so every record starts fresh.
+	for _, rec := range recs {
+		pipeline.TakeOwnership(rec)
+	}
 	active := recs
 	for _, seg := range segments {
 		if ctx.IsCanceled() || !ctx.ShouldContinue() {
@@ -180,16 +187,34 @@ func (p *LaneConsumerProcessor) runBatch(ctx *pipeline.Context, segments []execS
 			}
 			c := &pipeline.Context{ParentContext: ctx, Context: ctx.Context, Config: ctx.Config}
 			c.Set(pipeline.RecordContextKey, rec)
+			left := false
 			if p.cfg.OnFailure == "tag" {
 				var tags []string
 				c.Set(pipeline.FailureTagsKey, &tags)
 				for _, proc := range seg.chain.List {
+					// same single-owner guard as Processors.Process — this
+					// manual loop bypasses the chain runner. Delivery state
+					// comes from the context; the dropped check is ordered
+					// AFTER it so a delivered record is never touched.
+					if pipeline.RecordLeft(c) {
+						break
+					}
 					if err := proc.Process(c); err != nil {
 						pipeline.AppendFailureTag(c, p.cfg.FailureTag)
 						log.Warnf("lane_consumer: sub-chain error tagged %q: %v", p.cfg.FailureTag, err)
 					}
 				}
-				mergeFailureTags(rec, tags)
+				// consume the delivery flag exactly ONCE and keep the
+				// result: TakeDelivery clears it, so the activity decision
+				// below must use the saved outcome — re-reading would see a
+				// cleared flag and re-queue a record the receiver already
+				// owns. A delivered record gets no failure-tag merge either
+				// (writing tags onto it would race with the receiver).
+				if delivered := pipeline.TakeDelivery(c); delivered {
+					left = true
+				} else {
+					mergeFailureTags(rec, tags)
+				}
 			} else if err := seg.chain.Process(c); err != nil {
 				log.Warnf("lane_consumer: record error (on_failure=%s): %v", p.cfg.OnFailure, err)
 				if p.deadQ != nil {
@@ -199,21 +224,38 @@ func (p *LaneConsumerProcessor) runBatch(ctx *pipeline.Context, segments []execS
 					continue // diverted: dead_letter is a settlement
 				}
 			}
-			if !pipeline.IsDropped(rec) {
-				next = append(next, rec)
+			// single delivery: a record delivered by this segment's chain
+			// was handed to its receiver — pushing it here too would
+			// double-deliver. The tag path already consumed the flag, so
+			// TakeDelivery here is a no-op for it; the checks are ordered
+			// so a delivered record is never read.
+			if !left {
+				if pipeline.TakeDelivery(c) || pipeline.IsDropped(rec) {
+					left = true
+				}
 			}
+			if left {
+				continue
+			}
+			next = append(next, rec)
 		}
 		active = next
 	}
 	if p.outQ != nil {
+		// record segments exclude both delivered and dropped records from
+		// active, but batch segments only filter their `live` view — a
+		// batch processor can drop records in place, so the push re-checks
+		// the marker (safe: survivors were never delivered, the dropped
+		// marker never crosses goroutines)
 		for _, rec := range active {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if !pipeline.IsDropped(rec) {
-				if err := p.pushEncoded(p.outQ, rec); err != nil {
-					return err
-				}
+			if pipeline.IsDropped(rec) {
+				continue
+			}
+			if err := p.pushEncoded(p.outQ, rec); err != nil {
+				return err
 			}
 		}
 	}

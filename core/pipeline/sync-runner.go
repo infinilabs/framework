@@ -33,6 +33,15 @@ func runSync(job *Job, ctx *Context) {
 
 	for _, task := range job.tasks {
 
+		// Single-owner rule: once the current record has left the batch
+		// (dropped, or delivered to a sink that now owns it), the
+		// remaining processors of this chain must not touch it — a write
+		// here races with the receiver (e.g. a lane subscriber encoding
+		// the same record). Outside a record scope the check is inert.
+		if _, ok := CurrentRecord(ctx); ok && RecordLeft(ctx) {
+			break
+		}
+
 		// per-step timing/error snapshot for pipeline observability
 		// (document run timelines); see Context.AddStepStat
 		started := time.Now()
