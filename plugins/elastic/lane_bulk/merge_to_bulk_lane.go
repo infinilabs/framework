@@ -40,12 +40,13 @@ import (
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/lane"
+	"infini.sh/framework/core/otel"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/stats"
-	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"infini.sh/framework/modules/elastic/common"
@@ -94,12 +95,12 @@ type MergeConfig struct {
 	// document bytes and take the same aggregation path — written directly
 	// by an upstream output{lane}, in memory end to end (the staging queue
 	// is the only disk landing point).
-	InputLane   string `config:"input_lane"`
-	OutputLane  string `config:"output_lane"`
-	IndexName   string `config:"index_name"`
-	TypeName    string `config:"type_name"`
-	WriteOpType string `config:"write_op_type"`
-	KeyField    string `config:"key_field"`
+	InputLane   string   `config:"input_lane"`
+	OutputLane  string   `config:"output_lane"`
+	IndexName   string   `config:"index_name"`
+	TypeName    string   `config:"type_name"`
+	WriteOpType string   `config:"write_op_type"`
+	KeyField    string   `config:"key_field"`
 	KeyFields   []string `config:"key_fields"`
 
 	BulkSizeInKB         int `config:"bulk_size_in_kb"`
@@ -353,7 +354,7 @@ READ_DOCS:
 			// neither reaches the doc top level. Normalize envelope docs
 			// for data stream semantics; bare docs pass through as-is.
 			if writeOpType == "create" {
-				pop = normalizeDataStreamDoc(pop)
+				pop = otel.NormalizeDataStreamDoc(pop)
 			}
 
 			mainBuf.Write(pop)
@@ -468,77 +469,4 @@ func trimJSONString(v []byte) (string, bool) {
 		return string(v[1 : len(v)-1]), true
 	}
 	return "", false
-}
-
-// normalizeDataStreamDoc turns one otel envelope (the queue's LogEvent JSON:
-// {"metadata":{...},"payload":{...},"timestamp":"..."}) into a data stream
-// compatible document:
-//
-//   - payload fields are promoted to the top level (message etc. become
-//     first-class doc fields)
-//   - a top-level @timestamp is derived from payload.timestamp /
-//     payload.observed_timestamp / the envelope timestamp / now — data
-//     streams reject documents without a date @timestamp. @timestamp is the
-//     document's one true timestamp (house standard): the mirrored top-level
-//     "timestamp" and any payload "timestamp" are folded into it and removed.
-//   - a bare document (no "payload" key) keeps its own @timestamp when
-//     present; only a missing one is stamped with now.
-//   - metadata.file (agent collection origin) lives in @agent.file_* — the
-//     former top-level "file" promotion is gone (zero readers).
-//
-// Documents that are not envelopes (no "payload" key) pass through
-// unchanged except for the @timestamp stamp.
-func normalizeDataStreamDoc(doc []byte) []byte {
-	var m util.MapStr
-	if err := util.FromJSONBytes(doc, &m); err != nil {
-		return doc
-	}
-
-	ts := ""
-	if payload, ok := m["payload"].(map[string]interface{}); ok {
-		for _, k := range []string{"timestamp", "@timestamp", "observed_timestamp"} {
-			if v, ok := payload[k].(string); ok && v != "" {
-				ts = v
-				break
-			}
-		}
-	}
-	if ts == "" {
-		if v, ok := m["timestamp"].(string); ok {
-			ts = v
-		}
-	}
-	if ts == "" {
-		if v, ok := m["@timestamp"].(string); ok { // bare doc already carrying one
-			ts = v
-		}
-	}
-	if ts == "" {
-		ts = time.Now().UTC().Format(time.RFC3339Nano)
-	}
-
-	out := util.MapStr{}
-	if payload, ok := m["payload"].(map[string]interface{}); ok {
-		for k, v := range payload {
-			out[k] = v
-		}
-	} else {
-		for k, v := range m {
-			out[k] = v
-		}
-	}
-	out["@timestamp"] = ts
-	delete(out, "timestamp") // @timestamp is the single source of truth
-
-	if meta, ok := m["metadata"].(map[string]interface{}); ok {
-		if rt, ok := meta["log_type"].(string); ok && rt != "" {
-			out["log_type"] = rt
-		}
-		// per-pattern label (e.g. server|deprecation|slowlog|gc) — virtual
-		// streams split on this field.
-		if lk, ok := meta["log_kind"].(string); ok && lk != "" {
-			out["log_kind"] = lk
-		}
-	}
-	return util.MustToJSONBytes(out)
 }
