@@ -259,6 +259,8 @@ func (provider *SecurityBackendProvider) CreateUser(name, email, password string
 	}
 	obj.Name = name
 	obj.Email = email
+	// FIXME: A forced update promotes an existing non-admin account to admin.
+	// Separate administrator initialization from general account creation and updates.
 	obj.Roles = []string{security.RoleAdmin}
 	obj.Password = string(hash)
 
