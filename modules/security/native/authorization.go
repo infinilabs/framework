@@ -15,6 +15,7 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
+	staticauth "infini.sh/framework/modules/security/static"
 )
 
 func GetRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -100,6 +101,10 @@ func DeleteRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 }
 
 func SearchRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	if staticauth.IsStaticSource(req) {
+		staticauth.RoleSearch(w, req, ps)
+		return
+	}
 	builder, err := orm.NewQueryBuilderFromRequest(req, "id", "name", "description")
 	if err != nil {
 		api.WriteError(w, err.Error(), http.StatusInternalServerError)

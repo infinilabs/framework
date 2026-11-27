@@ -79,6 +79,8 @@ func (module *Module) Setup() {
 	staticauth.InitAuthentication(module.cfg.Authentication.Static)
 	staticauth.InitAuthorization(module.cfg.Authorization.Static)
 
+	module.registerSearchAPI()
+
 	oauthSettings := util.MapStr{}
 	for k, v := range module.cfg.Authentication.OAuth {
 		if v.Enabled {
