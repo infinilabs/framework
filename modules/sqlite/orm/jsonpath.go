@@ -51,6 +51,11 @@ var invalidPathOnce sync.Map
 // nonexistent field) and ORDER BY / GROUP BY degrade to a constant — the
 // same observable behavior as before, minus the injection.
 func SafeJSONPathExpr(path string) string {
+	return safeJSONPathExprFor("raw", path)
+}
+
+// Helper function to render validated paths for documents and nested array objects.
+func safeJSONPathExprFor(base, path string) string {
 	if path == "" || !jsonPathRe.MatchString(path) {
 		if _, loaded := invalidPathOnce.LoadOrStore(path, true); !loaded {
 			log.Warnf("sqlite orm: rejected invalid JSON path identifier %q (possible injection attempt); "+
@@ -58,7 +63,7 @@ func SafeJSONPathExpr(path string) string {
 		}
 		return "NULL"
 	}
-	return fmt.Sprintf("json_extract(raw, '$.%s')", path)
+	return fmt.Sprintf("json_extract(%s, '$.%s')", base, path)
 }
 
 // SafeSortDirection whitelists the ORDER BY direction token. Empty input
@@ -72,3 +77,6 @@ func SafeSortDirection(dir string) string {
 		return "ASC"
 	}
 }
+
+// Nested array fields use dotted identifiers without array subscripts.
+var nestedPathRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$`)

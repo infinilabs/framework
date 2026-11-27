@@ -25,12 +25,15 @@ package security
 
 import (
 	"fmt"
+	"os"
 
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/module"
+	"infini.sh/framework/core/orm"
+	securitycore "infini.sh/framework/core/security"
 	_ "infini.sh/framework/core/security/filters"
 	"infini.sh/framework/core/util"
 	_ "infini.sh/framework/modules/security/access_token"
@@ -41,6 +44,7 @@ import (
 	_ "infini.sh/framework/modules/security/orm_hooks"
 	_ "infini.sh/framework/modules/security/share"
 	staticauth "infini.sh/framework/modules/security/static"
+	_ "infini.sh/framework/modules/security/team"
 )
 
 type EnterpriseWebConfig struct {
@@ -76,7 +80,6 @@ func (module *Module) Setup() {
 		native.Init()
 	}
 
-	staticauth.InitAuthentication(module.cfg.Authentication.Static)
 	staticauth.InitAuthorization(module.cfg.Authorization.Static)
 
 	module.registerSearchAPI()
@@ -113,7 +116,24 @@ func (module *Module) Start() error {
 	if !module.cfg.Enabled {
 		return nil
 	}
-
+	var nativeProvider securitycore.AuthenticationBackend
+	if module.cfg.Authentication.Native.Enabled {
+		if !orm.IsHandlerRegistered() {
+			return fmt.Errorf("native account ORM is not ready")
+		}
+		if module.cfg.Authentication.Static.Enabled {
+			provider, ok := securitycore.GetAuthenticationProvider(securitycore.DefaultNativeAuthBackend)
+			if !ok {
+				return fmt.Errorf("native authentication provider is not registered")
+			}
+			nativeProvider = provider
+		}
+	}
+	if err := staticauth.InitAuthentication(module.cfg.Authentication.Static, nativeProvider); err != nil {
+		fmt.Fprintf(os.Stderr, "security: static account validation failed: %v\n", err)
+		// Shutdown recovers panics and exits with status 0, so terminate here.
+		os.Exit(1)
+	}
 	return nil
 }
 

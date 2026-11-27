@@ -14,9 +14,11 @@ import (
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/security/team"
 )
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -24,7 +26,7 @@ import (
 //
 // This is the framework-level login endpoint shared by all applications. It
 // works with any registered AuthenticationBackend (static, native, ...) via
-// security.GetUserByLogin, performs bcrypt password verification, and creates
+// security.ResolveUserByLogin, performs bcrypt password verification, and creates
 // a JWT session via security.AddUserToSession.
 //
 // Request (JSON):  {"login": "<username or email>", "password": "<password>"}
@@ -87,11 +89,9 @@ func Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		return
 	}
 
-	// Look up the user across all registered authentication backends (static,
-	// native, etc.). GetUserByLogin iterates the providers and returns the
-	// first match.
-	exists, account, err := security.GetUserByLogin(login)
-	if err != nil || !exists || account == nil {
+	// Look up the account and its authentication provider.
+	provider, exists, account, err := security.ResolveUserByLogin(login)
+	if err != nil || !exists {
 		api.WriteError(w, "invalid login or password", http.StatusUnauthorized)
 		return
 	}
@@ -109,11 +109,16 @@ func Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 	// Build the session info from the verified account.
 	sessionInfo := &security.UserSessionInfo{
-		Provider: account.Email, // the login identifier used
+		Provider: provider,
 		Login:    login,
 		Roles:    account.Roles,
 	}
 	sessionInfo.SetUserID(account.ID)
+
+	// Membership uses the verified account's ID and email.
+	if teamIDs := team.TeamIDsForUser(account.ID, account.Email); len(teamIDs) > 0 {
+		sessionInfo.Set(orm.TeamsIDKey, teamIDs)
+	}
 
 	// Create the session: generates a JWT (24h) and stores it in the session
 	// cookie. Subsequent requests are authenticated by the session_token

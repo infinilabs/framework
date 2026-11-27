@@ -40,7 +40,7 @@ import (
 	"infini.sh/framework/modules/elastic/orm"
 )
 
-var ErrNotFound = errors.New("record not found")
+var ErrNotFound = api.ErrNotFound
 
 type ElasticORM struct {
 	Client elastic.API
@@ -151,8 +151,20 @@ func (handler *ElasticORM) Get(ctx *api.Context, o interface{}) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if response.RawResult.StatusCode == http.StatusNotFound {
-		return false, ErrNotFound
+	if response == nil || response.RawResult == nil {
+		return false, errors.New("empty document response")
+	}
+	if response.RawResult.StatusCode >= http.StatusBadRequest {
+		// Only an explicit document miss is absence. A missing index is a backend failure.
+		var document struct {
+			Found *bool `json:"found"`
+		}
+		if response.RawResult.StatusCode == http.StatusNotFound && response.Error == nil {
+			if err := util.FromJSONBytes(response.RawResult.Body, &document); err == nil && document.Found != nil && !*document.Found {
+				return false, ErrNotFound
+			}
+		}
+		return false, fmt.Errorf("document lookup returned HTTP %d: %s", response.RawResult.StatusCode, response.RawResult.Body)
 	}
 	str, err := response.GetBytesByJsonPath("_source")
 	if err != nil {
@@ -251,7 +263,12 @@ func (handler *ElasticORM) BulkSave(ctx *api.Context, batch []interface{}) error
 	return nil
 }
 
-// update operation will merge the new data into the old data
+// existingDocumentUpdater separates strict ORM updates from the client's upsert API.
+type existingDocumentUpdater interface {
+	UpdateExisting(indexName, docType string, id interface{}, data interface{}, refresh string) (*elastic.InsertResponse, error)
+}
+
+// Update merges fields into an existing document. Only explicit ORM upserts can create one.
 func (handler *ElasticORM) Update(ctx *api.Context, o interface{}) error {
 	var refresh string
 	if ctx != nil {
@@ -265,7 +282,15 @@ func (handler *ElasticORM) Update(ctx *api.Context, o interface{}) error {
 	//handle tenant and user's footprint
 	docID := getIndexID(o)
 
-	_, err := handler.Client.Update(handler.GetIndexName(o), "", docID, o, refresh)
+	if ctx != nil && ctx.GetBool(api.CreateIfNotExistsForUpdate, false) {
+		_, err := handler.Client.Update(handler.GetIndexName(o), "", docID, o, refresh)
+		return err
+	}
+	updater, ok := handler.Client.(existingDocumentUpdater)
+	if !ok {
+		return errors.New("Elasticsearch client cannot update existing documents without upsert")
+	}
+	_, err := updater.UpdateExisting(handler.GetIndexName(o), "", docID, o, refresh)
 	return err
 }
 

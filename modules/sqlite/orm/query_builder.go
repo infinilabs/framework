@@ -265,12 +265,93 @@ func leafToSQL(clause *orm.Clause, resolve FieldResolver) (string, []interface{}
 	}
 
 	switch clause.Operator {
-	case orm.QuerySemantic, orm.QueryHybrid, orm.QueryNested:
-		// These cannot be approximated on sqlite (vector search, nested docs).
+	case orm.QuerySemantic, orm.QueryHybrid:
+		// These cannot be approximated on sqlite (vector search).
 		// Previously they silently compiled to a never-matching equality; now
 		// the same empty result carries a one-time warning.
 		warnUnsupported(clause.Operator)
 		return "1 = 0", nil
+
+	case orm.QueryNested:
+		path := ""
+		if clause.Parameters != nil {
+			path, _ = clause.Parameters.GetString("path")
+		}
+		query, ok := clause.Value.(*orm.Clause)
+		if !ok || !nestedPathRe.MatchString(path) {
+			warnUnsupported(orm.QueryNested)
+			return "1 = 0", nil
+		}
+		// Compile the whole supported subset before emitting SQL. Ignoring an
+		// unsupported child can otherwise turn a restrictive query into a match.
+		var compile func(*orm.Clause) (string, []interface{}, bool)
+		compile = func(child *orm.Clause) (string, []interface{}, bool) {
+			if child == nil || len(child.ShouldClauses) > 0 || len(child.MustNotClauses) > 0 ||
+				(child.Parameters != nil && len(child.Parameters.Data) > 0) {
+				return "", nil, false
+			}
+			if !child.IsLeaf() {
+				children := append(append([]*orm.Clause{}, child.MustClauses...), child.FilterClauses...)
+				if len(children) == 0 {
+					return "", nil, false
+				}
+				var parts []string
+				var args []interface{}
+				for _, sub := range children {
+					sql, values, valid := compile(sub)
+					if !valid {
+						return "", nil, false
+					}
+					parts = append(parts, "("+sql+")")
+					args = append(args, values...)
+				}
+				return strings.Join(parts, " AND "), args, true
+			}
+			if child.NumOfClauses() != 0 || !strings.HasPrefix(child.Field, path+".") {
+				return "", nil, false
+			}
+			field := strings.TrimPrefix(child.Field, path+".")
+			if !nestedPathRe.MatchString(field) {
+				return "", nil, false
+			}
+			expr := safeJSONPathExprFor("CASE WHEN member.type = 'object' THEN member.value ELSE '{}' END", field)
+			switch child.Operator {
+			case orm.QueryTerm:
+				value, ok := child.Value.(string)
+				return expr + " = ?", []interface{}{value}, ok
+			case orm.QueryTerms:
+				var values []interface{}
+				switch input := child.Value.(type) {
+				case []string:
+					for _, value := range input {
+						values = append(values, value)
+					}
+				case []interface{}:
+					for _, value := range input {
+						if _, ok := value.(string); !ok {
+							return "", nil, false
+						}
+						values = append(values, value)
+					}
+				default:
+					return "", nil, false
+				}
+				if len(values) == 0 {
+					return "1 = 0", nil, true
+				}
+				placeholders := strings.TrimSuffix(strings.Repeat("?,", len(values)), ",")
+				return expr + " IN (" + placeholders + ")", values, true
+			default:
+				return "", nil, false
+			}
+		}
+		predicate, args, valid := compile(query)
+		if !valid {
+			warnUnsupported(orm.QueryNested)
+			return "1 = 0", nil
+		}
+		array := fmt.Sprintf("CASE WHEN json_type(raw, '$.%s') = 'array' THEN %s ELSE '[]' END", path, safeJSONPathExprFor("raw", path))
+		return "EXISTS (SELECT 1 FROM json_each(" + array + ") AS member WHERE " + predicate + ")", args
 
 	case orm.QueryMatch:
 		if fts != nil {

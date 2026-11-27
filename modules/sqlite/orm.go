@@ -42,7 +42,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-var ErrNotFound = errors.New("record not found")
+var ErrNotFound = api.ErrNotFound
 
 // SQLiteORM implements the orm.ORM interface using SQLite as the backend.
 type SQLiteORM struct {
