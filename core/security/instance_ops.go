@@ -25,11 +25,11 @@ package security
 
 // Permission keys for the system-level operational routes (stats, queues,
 // configs, keystore, pipelines, tasks, local data files, cluster metadata,
-// logs, sqlite backup) that are served on the web port behind login + RBAC.
-// Managed clients mint their self API token with InstanceOpsPermissionKeys()
-// so manager-originated calls (reverse channel loopback, direct endpoint
-// access) pass the permission filter; human users obtain these keys through
-// role assignment.
+// logs, sqlite backup, easysearch cluster CRUD) that are served on the web
+// port behind login + RBAC. Managed clients mint their self API token with
+// InstanceOpsPermissionKeys() so manager-originated calls (reverse channel
+// loopback, direct endpoint access) pass the permission filter; human users
+// obtain these keys through role assignment.
 
 var (
 	PermissionSystemStatsRead         = GetSimplePermission("generic", "system:stats", Read)
@@ -57,6 +57,12 @@ var (
 	PermissionSystemSettingRead       = GetSimplePermission("generic", "system:setting", Read)
 	PermissionSystemLogRead           = GetSimplePermission("generic", "system:log", Read)
 	PermissionSystemDebugRead         = GetSimplePermission("generic", "system:debug", Read)
+
+	PermissionEasysearchClusterRead   = GetSimplePermission("generic", "easysearch:cluster", Read)
+	PermissionEasysearchClusterCreate = GetSimplePermission("generic", "easysearch:cluster", Create)
+	PermissionEasysearchClusterUpdate = GetSimplePermission("generic", "easysearch:cluster", Update)
+	PermissionEasysearchClusterDelete = GetSimplePermission("generic", "easysearch:cluster", Delete)
+	PermissionEasysearchClusterSearch = GetSimplePermission("generic", "easysearch:cluster", Search)
 )
 
 // InstanceOpsPermissionKeys returns every permission key an instance's self
@@ -88,5 +94,10 @@ func InstanceOpsPermissionKeys() []PermissionKey {
 		PermissionSystemSettingRead,
 		PermissionSystemLogRead,
 		PermissionSystemDebugRead,
+		PermissionEasysearchClusterRead,
+		PermissionEasysearchClusterCreate,
+		PermissionEasysearchClusterUpdate,
+		PermissionEasysearchClusterDelete,
+		PermissionEasysearchClusterSearch,
 	}
 }
